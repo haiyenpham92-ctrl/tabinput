@@ -66,9 +66,21 @@
         .prod-row:focus-within { z-index: 50; }
         
         .pb-safe { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
+
+        /* Cấu hình hiển thị chuẩn cho Máy in / In PDF */
+        #printArea { display: none; }
+        @media print {
+            body, html { height: auto !important; min-height: auto !important; background: white !important; padding: 0 !important; }
+            body > *:not(#printArea) { display: none !important; }
+            #printArea { display: block !important; position: static !important; width: 100%; margin: 0; padding: 0; }
+            .page-break { page-break-after: always; }
+        }
     </style>
 </head>
 <body class="flex flex-col items-center p-4 pb-safe">
+
+    <!-- Container xuất in ấn (Chỉ hiện khi in) -->
+    <div id="printArea"></div>
 
     <!-- Container xuất ảnh -->
     <div id="exportWrapper"></div>
@@ -215,6 +227,13 @@
                         <option value="deliveryDesc">Hình thức (Z-A)</option>
                     </select>
                 </div>
+                <!-- Chọn tất cả -->
+                <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                    <label class="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="w-4 h-4 rounded text-black">
+                        Chọn tất cả đơn hiển thị
+                    </label>
+                </div>
             </div>
 
             <div id="statsOrdersList" class="space-y-4"></div>
@@ -260,7 +279,8 @@
     <!-- Bulk Action Bar -->
     <div id="bulkActionBar">
         <span id="bulkCount" class="font-bold text-sm">0 đơn</span>
-        <button onclick="bulkMarkPaid()" class="text-green-400 text-sm font-semibold ml-2">Thanh toán</button>
+        <button onclick="bulkPrint()" class="text-blue-300 hover:text-blue-400 text-sm font-semibold ml-3">In đơn</button>
+        <button onclick="bulkMarkPaid()" class="text-green-400 text-sm font-semibold ml-4">Thanh toán</button>
         <button id="btn-bulk-delete" onclick="bulkDelete()" class="text-red-400 text-sm font-semibold ml-4">Xóa</button>
     </div>
 
@@ -342,6 +362,7 @@
         let calDate = new Date();
         let selectedDate = new Date();
         let isCloudSyncReady = false;
+        let currentFilteredOrders = []; // Thêm biến lưu danh sách đơn đang lọc hiện tại
 
         window.onload = function() {
             document.getElementById('loginScreen').classList.remove('hidden-section');
@@ -770,6 +791,15 @@
             if(sort === 'deliveryAsc') filtered.sort((a,b) => a.deliveryType.localeCompare(b.deliveryType));
             if(sort === 'deliveryDesc') filtered.sort((a,b) => b.deliveryType.localeCompare(a.deliveryType));
 
+            // Lưu danh sách đang lọc để dùng cho "Chọn tất cả"
+            currentFilteredOrders = filtered;
+            
+            // Cập nhật trạng thái của nút "Chọn tất cả"
+            const selectAllCb = document.getElementById('selectAllCheckbox');
+            if (selectAllCb) {
+                selectAllCb.checked = filtered.length > 0 && filtered.every(o => selectedOrders.has(o.id));
+            }
+
             if(filtered.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-10">Không có đơn hàng</p>'; return; }
 
             filtered.forEach(o => {
@@ -824,6 +854,18 @@
         };
 
         window.toggleSelect = function(id) { selectedOrders.has(id) ? selectedOrders.delete(id) : selectedOrders.add(id); updateBulkBar(); renderStats(); };
+        
+        window.toggleSelectAll = function() {
+            const isChecked = document.getElementById('selectAllCheckbox').checked;
+            if (isChecked) {
+                currentFilteredOrders.forEach(o => selectedOrders.add(o.id));
+            } else {
+                currentFilteredOrders.forEach(o => selectedOrders.delete(o.id));
+            }
+            updateBulkBar();
+            renderStats(); 
+        };
+
         window.updateBulkBar = function() {
             const bar = document.getElementById('bulkActionBar');
             document.getElementById('bulkCount').innerText = `${selectedOrders.size} đơn`;
@@ -839,6 +881,78 @@
             ordersDB.forEach(o => { if (selectedOrders.has(o.id)) o.paymentStatus = 'paid'; });
             selectedOrders.clear(); saveData(); renderStats(); updateBulkBar(); showToast("Đã đổi trạng thái thanh toán");
         };
+
+        window.bulkPrint = function() {
+            const ordersToPrint = ordersDB.filter(o => selectedOrders.has(o.id));
+            if(ordersToPrint.length === 0) return;
+
+            logAction('IN ĐƠN', `In ${ordersToPrint.length} đơn hàng`);
+            const printArea = document.getElementById('printArea');
+            let htmlContent = '';
+
+            ordersToPrint.forEach((o, index) => {
+                htmlContent += `
+                    <div class="print-receipt" style="padding: 20px; font-family: sans-serif; color: black; background: white; max-width: 800px; margin: 0 auto;">
+                        <div style="text-align: center; margin-bottom: 25px;">
+                            <h2 style="font-size: 24px; font-weight: bold; margin: 0 0 5px 0;">HÓA ĐƠN MUA HÀNG</h2>
+                            <span style="font-size: 12px; font-family: monospace;">MÃ ĐH: ${o.id}</span>
+                        </div>
+                        <div style="margin-bottom: 20px; font-size: 14px; line-height: 1.6; border-bottom: 1px solid #000; padding-bottom: 15px;">
+                            <p style="margin: 4px 0;"><strong>Khách hàng:</strong> ${o.customerName}</p>
+                            ${o.customerPhone ? `<p style="margin: 4px 0;"><strong>SĐT:</strong> ${o.customerPhone}</p>` : ''}
+                            <p style="margin: 4px 0;"><strong>Ngày nhận:</strong> ${o.receiveDate}</p>
+                            <p style="margin: 4px 0;"><strong>Nhận hàng:</strong> ${o.deliveryType}</p>
+                            ${o.shippingAddress ? `<p style="margin: 4px 0;"><strong>Địa chỉ:</strong> ${o.shippingAddress}</p>` : ''}
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid #000; text-align: left; font-weight: bold;">
+                                    <th style="padding: 8px 0;">Sản phẩm</th>
+                                    <th style="padding: 8px 0; text-align: center; width: 50px;">SL</th>
+                                    <th style="padding: 8px 0; text-align: right; width: 120px;">Thành tiền</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${o.products.map(p => `
+                                    <tr style="border-bottom: 1px dotted #ccc;">
+                                        <td style="padding: 10px 0;">${p.name}</td>
+                                        <td style="padding: 10px 0; text-align: center;">${p.qty}</td>
+                                        <td style="padding: 10px 0; text-align: right;">${formatCurrency(p.qty * p.price)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        <div style="text-align: right; margin-top: 20px; font-size: 14px;">
+                            ${o.shippingFee ? `<p style="margin: 4px 0;">Phí ship: ${formatCurrency(o.shippingFee)}</p>` : ''}
+                            <div style="margin-top: 10px; border-top: 2px solid #000; padding-top: 10px;">
+                                <span style="font-size: 14px; font-weight: bold; margin-right: 15px;">TỔNG CỘNG:</span>
+                                <span style="font-size: 22px; font-weight: bold;">${formatCurrency(o.total)}</span>
+                            </div>
+                        </div>
+                        ${o.notes && o.notes.length > 0 ? `
+                        <div style="margin-top: 20px; padding: 15px; border: 1px dashed #000; font-size: 14px;">
+                            <strong>Ghi chú:</strong> ${o.notes.join(', ')}
+                        </div>` : ''}
+                        
+                        <div style="text-align: center; margin-top: 40px; font-size: 12px; font-style: italic; border-top: 1px solid #eee; padding-top: 20px;">
+                            Cảm ơn quý khách đã ủng hộ cửa hàng!
+                        </div>
+                    </div>
+                `;
+                // Ngắt trang giữa các đơn hàng (Trừ đơn cuối cùng)
+                if (index < ordersToPrint.length - 1) {
+                    htmlContent += `<div class="page-break"></div>`;
+                }
+            });
+
+            printArea.innerHTML = htmlContent;
+
+            // Chờ DOM render xong rồi gọi lệnh In của hệ điều hành
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        };
+
         window.markSinglePaid = function(id) {
             const order = ordersDB.find(o => o.id === id);
             if(order) {
