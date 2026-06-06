@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <!-- Cấu hình Fullscreen & Safe Area cho iOS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Quản Lý Đơn">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#F5F5F7">
+    
+    <!-- Nhúng Web App Manifest giả lập để ép iOS nhận diện đây là một Ứng dụng độc lập -->
+    <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22Qu%E1%BA%A3n%20L%C3%BD%20%C4%90%C6%A1n%22%2C%22short_name%22%3A%22App%20%C4%90%C6%A1n%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23F5F5F7%22%2C%22theme_color%22%3A%22%23F5F5F7%22%7D">
+    
+    <title>Hệ thống Nhập Đơn Hàng</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Tối ưu chiều cao cho iOS và xử lý khoảng không an toàn (Tai thỏ) */
+        html, body { height: 100%; min-height: -webkit-fill-available; }
+        
+        body { 
+            font-family: 'Inter', -apple-system, sans-serif; 
+            background-color: #F5F5F7; 
+            color: #1D1D1F; 
+            -webkit-tap-highlight-color: transparent;
+            padding-top: env(safe-area-inset-top);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+        
+        .apple-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); }
+        .input-field { background: #FFFFFF; border: 1.5px solid #E5E5E7; border-radius: 14px; padding: 14px 16px; width: 100%; outline: none; font-size: 16px; transition: border-color 0.2s; }
+        .input-field:focus { border-color: #000; }
+        .input-field:disabled { background: #F2F2F7; color: #8E8E93; }
+        .btn-primary { background: #1D1D1F; color: #FFFFFF; padding: 16px; border-radius: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.1s; }
+        .btn-primary:active { transform: scale(0.97); }
+        .btn-secondary { background: #F2F2F7; color: #1D1D1F; padding: 12px; border-radius: 12px; font-weight: 500; font-size: 14px; }
+        
+        .segmented-control { background: #E5E5E7; padding: 3px; border-radius: 16px; display: flex; position: relative; }
+        .segment-btn { flex: 1; text-align: center; padding: 10px 0; font-size: 13px; font-weight: 600; cursor: pointer; z-index: 10; color: #8E8E93; transition: color 0.3s; }
+        .segment-btn.active { color: #1D1D1F; }
+        .segment-bg { position: absolute; top: 3px; bottom: 3px; left: 0; background: #FFFFFF; border-radius: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1), width 0.3s cubic-bezier(0.25, 0.1, 0.25, 1); z-index: 1; }
+        
+        /* Bắt buộc ẩn để tránh lỗi xung đột với flex */
+        .hidden-section { display: none !important; }
+        
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        input[type="radio"], input[type="checkbox"] { accent-color: #1D1D1F; width: 18px; height: 18px; }
+        .radio-item { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; cursor: pointer; }
+        .radio-item:hover { background: #F2F2F7; }
+
+        /* Tối ưu thanh hành động dưới cùng cho iPhone Home Bar */
+        #bulkActionBar { position: fixed; bottom: calc(30px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%) translateY(200px); background: #1D1D1F; color: white; padding: 12px 24px; border-radius: 20px; display: flex; align-items: center; gap: 20px; z-index: 100; transition: transform 0.4s; }
+        #bulkActionBar.active { transform: translateX(-50%) translateY(0); }
+
+        /* Vùng xuất ảnh được giấu an toàn, không làm lệch trang */
+        #exportWrapper { position: fixed; top: 0; left: -9999px; width: 400px; background: white; z-index: -9999; }
+
+        .prod-row { position: relative; z-index: 1; }
+        .prod-row:focus-within { z-index: 50; }
+        
+        .pb-safe { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
+    </style>
+</head>
+<body class="flex flex-col items-center p-4 pb-safe">
+
+    <!-- Container xuất ảnh -->
+    <div id="exportWrapper"></div>
+
+    <!-- MÀN HÌNH ĐĂNG NHẬP -->
+    <div id="loginScreen" class="fixed inset-0 bg-[#F5F5F7] z-[999] flex items-center justify-center fade-in">
+        <div class="apple-card p-8 w-full max-w-sm m-4 shadow-2xl">
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-bold tracking-tight">Đăng nhập</h2>
+                <p class="text-sm text-gray-500 mt-2">Hệ thống quản lý đơn hàng</p>
+            </div>
+            <div class="space-y-4">
+                <input type="text" id="loginUsername" class="input-field bg-white" placeholder="Tên đăng nhập">
+                <input type="password" id="loginPassword" class="input-field bg-white" placeholder="Mật khẩu">
+                <button onclick="handleLogin()" class="btn-primary w-full mt-2">Đăng nhập</button>
+            </div>
+            <p id="loginError" class="text-red-500 text-sm mt-4 text-center hidden-section font-medium">Sai thông tin đăng nhập!</p>
+        </div>
+    </div>
+
+    <!-- ỨNG DỤNG CHÍNH -->
+    <div id="mainApp" class="w-full max-w-md flex flex-col gap-6 pt-4 hidden-section">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-2">
+            <div>
+                <h1 id="mainTitle" class="text-3xl font-bold tracking-tight">Lên đơn mới</h1>
+                <p class="text-gray-400 text-sm mt-1" id="syncStatus">Đang khởi tạo...</p>
+            </div>
+            <button onclick="handleLogout()" class="text-[11px] font-semibold text-gray-500 bg-gray-200 px-3 py-1.5 rounded-full active:scale-95 transition-transform">Đăng xuất</button>
+        </header>
+
+        <!-- Thanh điều hướng Tab -->
+        <div class="segmented-control" id="tabsContainer">
+            <div id="btn-tab-order" class="segment-btn active" onclick="switchTab('order')">Lên đơn</div>
+            <div id="btn-tab-products" class="segment-btn" onclick="switchTab('products')">Kho SP</div>
+            <div id="btn-tab-stats" class="segment-btn" onclick="switchTab('stats')">Thống kê</div>
+            <div id="btn-tab-settings" class="segment-btn" onclick="switchTab('settings')">Cài đặt</div>
+            <div id="segment-glider" class="segment-bg"></div>
+        </div>
+
+        <!-- ================= TAB: LÊN ĐƠN ================= -->
+        <div id="tab-order" class="space-y-6 fade-in">
+            <div class="apple-card p-6">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Khách hàng</h2>
+                <div class="space-y-4">
+                    <div><input type="text" id="custName" class="input-field" placeholder="Tên khách hàng"></div>
+                    <div><input type="tel" id="custPhone" class="input-field" placeholder="Số điện thoại"></div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Ngày giao bánh</label>
+                        <input type="text" id="orderDate" readonly class="input-field cursor-pointer" placeholder="Chọn ngày" onclick="openDatePicker()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="apple-card p-6">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-2">Nhận hàng</h2>
+                <div class="space-y-1 mb-4">
+                    <label class="radio-item"><input type="radio" name="deliveryType" value="Thụy Khuê" onchange="toggleShipping()"> <span class="text-sm font-medium">Pick up Thuỵ Khuê</span></label>
+                    <label class="radio-item"><input type="radio" name="deliveryType" value="Hòa Mã" onchange="toggleShipping()"> <span class="text-sm font-medium">Pick up Hoà Mã</span></label>
+                    <label class="radio-item"><input type="radio" name="deliveryType" value="Ship" onchange="toggleShipping()"> <span class="text-sm font-medium">Địa chỉ ship</span></label>
+                </div>
+                <div id="shippingInputs" class="hidden-section space-y-4 border-t border-gray-100 pt-4">
+                    <input type="text" id="shippingAddress" class="input-field" placeholder="Địa chỉ giao hàng...">
+                    <input type="number" id="shippingFee" class="input-field" placeholder="Phí ship (VNĐ)" oninput="calcTotal()">
+                </div>
+            </div>
+
+            <div class="apple-card p-6 relative z-20">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xs font-bold uppercase text-gray-400">Sản phẩm</h2>
+                    <button onclick="addProductRow()" class="btn-secondary text-xs px-3 py-1">+ Thêm</button>
+                </div>
+                <div id="productList" class="space-y-4"></div>
+                <div id="emptyState" class="text-center py-4 text-gray-400 text-sm border-2 border-dashed rounded-xl mt-2 hidden-section">Chưa có sản phẩm</div>
+            </div>
+
+            <div class="apple-card p-6 relative z-10">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Ghi chú</h2>
+                <div class="space-y-2 mb-4">
+                    <label class="flex items-center gap-3"><input type="checkbox" name="orderNote" value="Cắt lát SD"> <span class="text-sm">Cắt lát SD</span></label>
+                    <label class="flex items-center gap-3"><input type="checkbox" name="orderNote" value="Ship HC"> <span class="text-sm">Ship HC</span></label>
+                    <label class="flex items-center gap-3"><input type="checkbox" id="noteOther" name="orderNote" value="Other" onchange="toggleOtherNote()"> <span class="text-sm">Other</span></label>
+                </div>
+                <input type="text" id="otherNoteText" class="input-field hidden-section" placeholder="Nhập yêu cầu khác...">
+            </div>
+
+            <div class="apple-card p-6">
+                <div class="flex justify-between items-end mb-6">
+                    <div>
+                        <p class="text-gray-400 text-xs">Tổng tiền</p>
+                        <p id="totalPrice" class="text-3xl font-bold mt-1">0đ</p>
+                    </div>
+                </div>
+                <button onclick="submitOrder()" class="btn-primary w-full">Hoàn tất đơn hàng</button>
+            </div>
+        </div>
+
+        <!-- ================= TAB: KHO SP ================= -->
+        <div id="tab-products" class="hidden-section space-y-6 fade-in">
+            <div class="apple-card p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xs font-bold uppercase text-gray-400">Thêm SP</h2>
+                    <button onclick="window.pullDataFromGoogle(true)" class="btn-secondary text-xs px-3 py-1 flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        Tải từ Sheets
+                    </button>
+                </div>
+                <div class="space-y-3">
+                    <input type="text" id="newProdCode" class="input-field uppercase" placeholder="Mã SP (VD: SP01)">
+                    <input type="text" id="newProdName" class="input-field" placeholder="Tên sản phẩm">
+                    <input type="number" id="newProdPrice" class="input-field" placeholder="Đơn giá">
+                    <button onclick="saveProduct()" class="btn-primary w-full">Lưu SP</button>
+                </div>
+            </div>
+            <div class="apple-card p-6">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Danh sách SP</h2>
+                <div id="dbProductList" class="space-y-2"></div>
+            </div>
+        </div>
+
+        <!-- ================= TAB: THỐNG KÊ ================= -->
+        <div id="tab-stats" class="hidden-section space-y-6 fade-in">
+            <div class="apple-card p-4 space-y-3">
+                <div class="flex gap-2 items-end">
+                    <div class="flex-1">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Ngày giao bánh</label>
+                        <input type="date" id="filterCreateDate" class="input-field py-2 px-3 text-sm" onchange="renderStats()">
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Tìm kiếm</label>
+                        <input type="text" id="searchKeyword" class="input-field py-2 px-3 text-sm" placeholder="Tên, SĐT..." oninput="renderStats()">
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <select id="filterLogic" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats()">
+                        <option value="AND">Thỏa TẤT CẢ (AND)</option>
+                        <option value="OR">Thỏa MỘT TRONG (OR)</option>
+                    </select>
+                    <select id="sortType" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats()">
+                        <option value="dateDesc">Mới nhất</option>
+                        <option value="dateAsc">Cũ nhất</option>
+                        <option value="deliveryAsc">Hình thức (A-Z)</option>
+                        <option value="deliveryDesc">Hình thức (Z-A)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="statsOrdersList" class="space-y-4"></div>
+        </div>
+
+        <!-- ================= TAB: CÀI ĐẶT ================= -->
+        <div id="tab-settings" class="hidden-section space-y-6 fade-in">
+            <div class="apple-card p-6">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Mã QR Thanh Toán</h2>
+                <input type="file" id="qrUpload" accept="image/*" onchange="handleQRUpload(event)" class="text-sm mb-2 block w-full file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
+                <img id="qrPreview" src="" class="w-32 h-32 object-cover rounded-xl border border-gray-200 hidden-section mt-3">
+                <button onclick="removeQR()" class="text-red-500 text-sm mt-3 font-semibold">Xóa ảnh QR</button>
+            </div>
+            
+            <div class="apple-card p-6">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Quản lý người dùng</h2>
+                <div id="usersList" class="space-y-3"></div>
+            </div>
+
+            <div class="apple-card p-6">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Đồng bộ Google Sheets</h2>
+                <div class="space-y-4 mb-4">
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-2 block">Web App URL</label>
+                        <input type="text" id="gasUrl" class="input-field" placeholder="https://script.google.com/macros/s/...">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="window.saveSettings()" class="btn-primary w-full text-sm">Lưu cấu hình</button>
+                    <button onclick="window.pullDataFromGoogle(true)" class="btn-secondary w-full bg-blue-50 text-blue-600 text-sm border border-blue-200">Tải dữ liệu về</button>
+                </div>
+                <div class="mt-2">
+                    <button onclick="window.syncToGoogle(true)" class="btn-primary w-full bg-green-600 text-sm">Đẩy dữ liệu lên</button>
+                </div>
+                <p id="syncDetailStatus" class="text-xs text-center mt-3 text-gray-500"></p>
+            </div>
+            <div class="apple-card p-6">
+                <button onclick="window.clearAllData()" class="w-full text-red-500 font-bold p-3 bg-red-50 rounded-xl text-sm">Khôi phục cài đặt gốc</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Action Bar -->
+    <div id="bulkActionBar">
+        <span id="bulkCount" class="font-bold text-sm">0 đơn</span>
+        <button onclick="bulkMarkPaid()" class="text-green-400 text-sm font-semibold ml-2">Thanh toán</button>
+        <button id="btn-bulk-delete" onclick="bulkDelete()" class="text-red-400 text-sm font-semibold ml-4">Xóa</button>
+    </div>
+
+    <!-- Date Picker Modal -->
+    <div id="dateModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity">
+        <div class="bg-white p-6 rounded-3xl max-w-sm w-full m-4 shadow-2xl">
+            <div class="flex justify-between mb-4 font-bold text-lg">
+                <button onclick="changeMonth(-1)">&larr;</button>
+                <span id="dateModalTitle">Tháng</span>
+                <button onclick="changeMonth(1)">&rarr;</button>
+            </div>
+            <div class="grid grid-cols-7 gap-1 text-center text-xs font-bold text-gray-400 mb-2">
+                <div>T2</div><div>T3</div><div>T4</div><div>T5</div><div>T6</div><div>T7</div><div>CN</div>
+            </div>
+            <div id="calendarGrid" class="grid grid-cols-7 gap-1"></div>
+            <div class="flex gap-2 mt-4">
+                <button onclick="closeModal('dateModal')" class="btn-secondary flex-1">Hủy</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirmModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity">
+        <div class="bg-white p-6 rounded-3xl max-w-sm w-full m-4 shadow-2xl text-center">
+            <h3 class="font-bold text-lg mb-2">Xác nhận</h3>
+            <p class="text-sm text-gray-500 mb-6">Bạn có chắc khách hàng không yêu cầu gì đặc biệt?</p>
+            <div class="flex gap-2">
+                <button onclick="resolveConfirm(false)" class="btn-secondary flex-1">Quay lại</button>
+                <button onclick="resolveConfirm(true)" class="btn-primary flex-1 bg-black text-white">Chắc chắn</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Preview Modal -->
+    <div id="imageModal" class="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 p-4">
+        <div class="bg-white p-6 rounded-[28px] max-w-sm w-full shadow-2xl text-center flex flex-col gap-4 max-h-[90vh]">
+            <div>
+                <h3 class="font-bold text-lg text-neutral-800">Hóa đơn đã được tạo!</h3>
+                <p class="text-xs text-gray-400 mt-1">Nhấn giữ lên ảnh để "Lưu vào ảnh" hoặc chia sẻ.</p>
+            </div>
+            <div class="border border-gray-100 rounded-2xl overflow-hidden bg-gray-50 flex justify-center items-center p-2 max-h-[50vh] overflow-y-auto">
+                <img id="exportedImage" src="" alt="Hóa đơn" class="max-w-full h-auto rounded-xl shadow-sm">
+            </div>
+            <button onclick="closeModal('imageModal')" class="btn-primary w-full bg-black text-white py-4 rounded-2xl text-sm font-medium">Đóng cửa sổ</button>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed top-10 left-1/2 -translate-x-1/2 bg-black/90 text-white px-6 py-3 rounded-full text-sm font-medium opacity-0 pointer-events-none transition-all duration-300 z-[100]">Thông báo</div>
+
+    <script>
+        const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbxWMGWUMQcFmXmv_Zc54EsRh-amNkfE5De7LWL99I7BFUbY5WJZLk_j9KYIEgc4jLUu/exec"; 
+
+        let usersDB = JSON.parse(localStorage.getItem('myUsers') || '[]');
+        if (usersDB.length === 0) {
+            usersDB = [
+                { username: "Admin", password: "@bonamang", role: "admin" },
+                { username: "user1", password: "@112233", role: "user" },
+                { username: "user2", password: "@112233", role: "user" }
+            ];
+            localStorage.setItem('myUsers', JSON.stringify(usersDB));
+        }
+        let currentUser = null;
+
+        let ordersDB = JSON.parse(localStorage.getItem('myOrders') || '[]');
+        let productsDB = JSON.parse(localStorage.getItem('myProds') || '[]');
+        let logsDB = JSON.parse(localStorage.getItem('myLogs') || '[]');
+        
+        let appSettings = JSON.parse(localStorage.getItem('mySettings') || JSON.stringify({
+            gasUrl: DEFAULT_GAS_URL,
+            qrCode: null
+        }));
+
+        if (!appSettings.gasUrl) appSettings.gasUrl = DEFAULT_GAS_URL;
+
+        let selectedOrders = new Set();
+        let editOrderId = null;
+        let confirmResolver = null;
+        let calDate = new Date();
+        let selectedDate = new Date();
+        let isCloudSyncReady = false;
+
+        window.onload = function() {
+            document.getElementById('loginScreen').classList.remove('hidden-section');
+            document.getElementById('mainApp').classList.add('hidden-section');
+            window.addEventListener('resize', updateSliderPosition);
+        };
+
+        window.handleLogin = function() {
+            const u = document.getElementById('loginUsername').value.trim();
+            const p = document.getElementById('loginPassword').value;
+            const user = usersDB.find(x => x.username === u && x.password === p);
+            
+            if (user) {
+                currentUser = user;
+                document.getElementById('loginScreen').classList.add('hidden-section');
+                document.getElementById('mainApp').classList.remove('hidden-section');
+                applyRoleRestrictions();
+                initApp();
+                logAction('ĐĂNG NHẬP', 'Đăng nhập thành công vào hệ thống');
+            } else {
+                document.getElementById('loginError').classList.remove('hidden-section');
+            }
+        };
+
+        window.handleLogout = function() {
+            logAction('ĐĂNG XUẤT', 'Đã đăng xuất');
+            currentUser = null;
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('loginScreen').classList.remove('hidden-section');
+            document.getElementById('mainApp').classList.add('hidden-section');
+            document.getElementById('loginError').classList.add('hidden-section');
+        };
+
+        function applyRoleRestrictions() {
+            const settingsBtn = document.getElementById('btn-tab-settings');
+            const productsBtn = document.getElementById('btn-tab-products');
+            const deleteBtn = document.getElementById('btn-bulk-delete');
+            
+            // Xử lý lỗi Giao diện thanh trượt tab: Dùng thuộc tính display thay vì ẩn khối
+            if (currentUser.role !== 'admin') {
+                settingsBtn.style.display = 'none';
+                productsBtn.style.display = 'none';
+                deleteBtn.style.display = 'none';
+            } else {
+                settingsBtn.style.display = ''; // Trả về mặc định của flex
+                productsBtn.style.display = '';
+                deleteBtn.style.display = '';
+            }
+            switchTab('order'); 
+        }
+
+        function initApp() {
+            document.getElementById('gasUrl').value = appSettings.gasUrl || '';
+            document.getElementById('orderDate').value = formatFullDate(selectedDate);
+            renderProductsList();
+            renderUsers();
+            
+            if (appSettings.qrCode) {
+                document.getElementById('qrPreview').src = appSettings.qrCode;
+                document.getElementById('qrPreview').classList.remove('hidden-section');
+            }
+            
+            if (appSettings.gasUrl) {
+                window.pullDataFromGoogle(false);
+            } else {
+                isCloudSyncReady = true;
+                document.getElementById('syncStatus').innerText = "Sẵn sàng (Offline)";
+                if (productsDB.length === 0) {
+                    productsDB.push({id: 1, code: "CF01", name: "Cà phê sữa", price: 25000});
+                    productsDB.push({id: 2, code: "TR01", name: "Trà đào cam sả", price: 45000});
+                    productsDB.push({id: 3, code: "CF02", name: "Cà phê muối", price: 35000});
+                    saveData();
+                    renderProductsList();
+                }
+            }
+
+            if (document.querySelectorAll('#productList > div').length === 0) {
+                addProductRow();
+            }
+        }
+
+        function logAction(action, details) {
+            if (!currentUser) return;
+            logsDB.push({
+                timestamp: new Date().toLocaleString('vi-VN'),
+                username: currentUser.username,
+                action: action,
+                details: details
+            });
+            localStorage.setItem('myLogs', JSON.stringify(logsDB));
+            if (isCloudSyncReady) syncToGoogle();
+        }
+
+        function formatCurrency(n) { return new Intl.NumberFormat('vi-VN', {style: 'currency', currency: 'VND'}).format(n).replace('₫', 'đ'); }
+        function formatFullDate(d) {
+            const days = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
+            return `${days[d.getDay()]} - ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+        }
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.remove('opacity-0');
+            setTimeout(() => t.classList.add('opacity-0'), 2500);
+        }
+        function saveData() {
+            localStorage.setItem('myOrders', JSON.stringify(ordersDB));
+            localStorage.setItem('myProds', JSON.stringify(productsDB));
+            localStorage.setItem('mySettings', JSON.stringify(appSettings));
+            syncToGoogle();
+        }
+
+        window.updateSliderPosition = function() {
+            const activeTab = document.querySelector('.segment-btn.active');
+            const bg = document.getElementById('segment-glider');
+            if (activeTab && bg && activeTab.style.display !== 'none') {
+                bg.style.width = activeTab.offsetWidth + 'px';
+                bg.style.transform = `translateX(${activeTab.offsetLeft}px)`;
+            }
+        };
+
+        window.switchTab = function(tabId) {
+            const tabs = ['order', 'products', 'stats', 'settings'];
+            
+            tabs.forEach((t) => {
+                const btn = document.getElementById(`btn-tab-${t}`);
+                const content = document.getElementById(`tab-${t}`);
+                if(t === tabId) {
+                    btn.classList.add('active');
+                    content.classList.remove('hidden-section');
+                } else {
+                    btn.classList.remove('active');
+                    content.classList.add('hidden-section');
+                }
+            });
+
+            // Gọi hàm render để chắc chắn layout được tính toán xong mới đặt thanh trượt
+            setTimeout(window.updateSliderPosition, 50);
+
+            if(tabId === 'stats') renderStats();
+            selectedOrders.clear();
+            updateBulkBar();
+        };
+
+        window.openDatePicker = function() {
+            calDate = new Date(selectedDate);
+            renderCalendar();
+            document.getElementById('dateModal').classList.remove('opacity-0', 'pointer-events-none');
+        };
+        window.closeModal = function(id) { document.getElementById(id).classList.add('opacity-0', 'pointer-events-none'); };
+        window.changeMonth = function(delta) { calDate.setMonth(calDate.getMonth() + delta); renderCalendar(); };
+        
+        window.renderCalendar = function() {
+            const y = calDate.getFullYear(), m = calDate.getMonth();
+            document.getElementById('dateModalTitle').innerText = `Tháng ${m+1}, ${y}`;
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+            
+            let firstDay = new Date(y, m, 1).getDay() - 1; if(firstDay < 0) firstDay = 6;
+            const daysInMonth = new Date(y, m+1, 0).getDate();
+            const today = new Date(); today.setHours(0,0,0,0);
+
+            for(let i=0; i<firstDay; i++) grid.innerHTML += `<div></div>`;
+            
+            for(let d=1; d<=daysInMonth; d++) {
+                const dObj = new Date(y, m, d);
+                const isPast = dObj < today;
+                const isTueThuSat = [2,4,6].includes(dObj.getDay());
+                const isSel = dObj.toDateString() === selectedDate.toDateString();
+                
+                let classes = "w-9 h-9 flex items-center justify-center rounded-full text-sm font-medium mx-auto cursor-pointer transition-colors";
+                if(isPast) classes += " text-gray-300 pointer-events-none";
+                else if(isSel) classes += " bg-black text-white";
+                else if(isTueThuSat) classes += " bg-indigo-50 text-indigo-600";
+                else classes += " text-gray-700 hover:bg-gray-100";
+
+                grid.innerHTML += `<div class="${classes}" onclick="selectDate(${y},${m},${d})">${d}</div>`;
+            }
+        };
+        window.selectDate = function(y, m, d) {
+            selectedDate = new Date(y, m, d);
+            document.getElementById('orderDate').value = formatFullDate(selectedDate);
+            closeModal('dateModal');
+        };
+
+        window.toggleShipping = function() {
+            const val = document.querySelector('input[name="deliveryType"]:checked')?.value;
+            const wrap = document.getElementById('shippingInputs');
+            const shipFeeField = document.getElementById('shippingFee');
+            if(val === 'Ship') { 
+                wrap.classList.remove('hidden-section'); 
+                shipFeeField.removeAttribute('disabled');
+            } else { 
+                wrap.classList.add('hidden-section'); 
+                shipFeeField.setAttribute('disabled', 'true');
+                shipFeeField.value = ''; 
+                document.getElementById('shippingAddress').value = ''; 
+            }
+            calcTotal();
+        };
+        
+        window.toggleOtherNote = function() {
+            const text = document.getElementById('otherNoteText');
+            document.getElementById('noteOther').checked ? text.classList.remove('hidden-section') : text.classList.add('hidden-section');
+        };
+
+        window.checkAndAutoAppend = function(rowId) {
+            const list = document.getElementById('productList');
+            const rows = list.querySelectorAll('.prod-row');
+            if (rows.length === 0) return;
+            const lastRow = rows[rows.length - 1];
+            
+            if (lastRow && lastRow.id === `row-${rowId}`) {
+                const nameVal = lastRow.querySelector('.prod-name').value.trim();
+                if (nameVal !== "") addProductRow();
+            }
+        };
+        
+        window.addProductRow = function(data = null) {
+            const list = document.getElementById('productList');
+            document.getElementById('emptyState').style.display = 'none';
+            const id = Date.now() + Math.random();
+            const row = document.createElement('div');
+            row.id = `row-${id}`;
+            row.className = "flex gap-2 relative border-b border-gray-100 pb-3 prod-row"; 
+            const pCode = data && data.code ? data.code : '';
+            row.innerHTML = `
+                <div class="flex-grow space-y-2">
+                    <div class="relative flex items-center">
+                        <input type="text" placeholder="Tên SP" class="input-field py-2 text-sm prod-name pr-8" value="${data ? data.name : ''}" data-code="${pCode}" oninput="searchProd(this, '${id}')" onfocus="searchProd(this, '${id}', true)" onclick="searchProd(this, '${id}', true)" onchange="window.checkAndAutoAppend('${id}')">
+                        <button type="button" onclick="toggleProdDropdown('${id}', event)" class="absolute right-2 text-gray-400 hover:text-black focus:outline-none p-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                    </div>
+                    <div id="sug-${id}" class="absolute z-50 bg-white border shadow-lg w-full rounded-xl hidden max-h-40 overflow-y-auto mt-1"></div>
+                    <div class="flex gap-2">
+                        <input type="number" placeholder="SL" class="input-field py-2 text-sm prod-qty w-1/3" value="${data ? data.qty : 1}" oninput="calcTotal()" onchange="window.checkAndAutoAppend('${id}')">
+                        <input type="number" placeholder="Đơn giá" class="input-field py-2 text-sm prod-price w-2/3" value="${data ? data.price : ''}" oninput="calcTotal()" onchange="window.checkAndAutoAppend('${id}')">
+                    </div>
+                </div>
+                <button type="button" onclick="document.getElementById('row-${id}').remove(); calcTotal();" class="text-gray-400 p-2">&times;</button>
+            `;
+            list.appendChild(row);
+        };
+
+        window.toggleProdDropdown = function(rowId, event) {
+            event.stopPropagation();
+            const row = document.getElementById(`row-${rowId}`);
+            if(!row) return;
+            const input = row.querySelector('.prod-name');
+            const box = document.getElementById(`sug-${rowId}`);
+            if(box.classList.contains('hidden')) window.searchProd(input, rowId, true);
+            else box.classList.add('hidden');
+        };
+
+        window.searchProd = function(input, rowId, forceAll = false) {
+            const q = input.value.toLowerCase();
+            const box = document.getElementById(`sug-${rowId}`);
+            
+            const matches = (q === '' || forceAll) 
+                ? productsDB 
+                : productsDB.filter(p => p.name.toLowerCase().includes(q));
+                
+            box.innerHTML = '';
+            if(matches.length === 0) { box.classList.add('hidden'); return; }
+            
+            box.classList.remove('hidden');
+            matches.forEach(p => {
+                const d = document.createElement('div');
+                d.className = "p-3 border-b text-sm cursor-pointer hover:bg-gray-50 flex justify-between items-center";
+                d.innerHTML = `
+                    <div>
+                        ${p.code ? `<span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mr-1">${p.code}</span>` : ''}
+                        <span>${p.name}</span>
+                    </div>
+                    <span class="text-gray-400">${formatCurrency(p.price)}</span>
+                `;
+                d.onmousedown = () => {
+                    input.value = p.name;
+                    input.dataset.code = p.code || '';
+                    document.getElementById(`row-${rowId}`).querySelector('.prod-price').value = p.price;
+                    box.classList.add('hidden');
+                    calcTotal();
+                    window.checkAndAutoAppend(rowId);
+                };
+                box.appendChild(d);
+            });
+        };
+
+        document.addEventListener('click', function(e) {
+            document.querySelectorAll('[id^="sug-"]').forEach(box => {
+                const rowId = box.id.replace('sug-', '');
+                const row = document.getElementById(`row-${rowId}`);
+                if (row && !row.contains(e.target)) box.classList.add('hidden');
+            });
+        });
+
+        window.calcTotal = function() {
+            let total = 0;
+            document.querySelectorAll('#productList > div').forEach(row => {
+                const q = Math.round(parseFloat(row.querySelector('.prod-qty').value)) || 0;
+                const p = Math.round(parseFloat(row.querySelector('.prod-price').value)) || 0;
+                total += q * p;
+            });
+            const shipInputText = document.getElementById('shippingFee').value.replace(/[^0-9]/g, '');
+            const fee = shipInputText ? parseInt(shipInputText, 10) : 0;
+            total += fee;
+            document.getElementById('totalPrice').innerText = formatCurrency(total);
+        };
+
+        window.submitOrder = async function() {
+            const name = document.getElementById('custName').value.trim();
+            const phone = document.getElementById('custPhone').value.trim();
+            const delivery = document.querySelector('input[name="deliveryType"]:checked')?.value;
+            if(!name || !delivery) return showToast("Vui lòng nhập tên khách và nhận hàng");
+
+            if(delivery === 'Ship' && !document.getElementById('shippingAddress').value.trim()){
+                return showToast("Vui lòng nhập địa chỉ giao hàng");
+            }
+
+            const rows = document.querySelectorAll('#productList > div');
+            const activeRows = Array.from(rows).filter(r => r.querySelector('.prod-name').value.trim() !== '');
+            if(activeRows.length === 0) return showToast("Chưa chọn sản phẩm nào");
+
+            const notesChecked = document.querySelectorAll('input[name="orderNote"]:checked');
+            if(notesChecked.length === 0) {
+                document.getElementById('confirmModal').classList.remove('opacity-0', 'pointer-events-none');
+                const ok = await new Promise(r => confirmResolver = r);
+                document.getElementById('confirmModal').classList.add('opacity-0', 'pointer-events-none');
+                if(!ok) return;
+            }
+
+            const prods = [];
+            activeRows.forEach(r => {
+                const nameInput = r.querySelector('.prod-name');
+                prods.push({
+                    code: nameInput.dataset.code || '',
+                    name: nameInput.value,
+                    qty: Math.round(parseFloat(r.querySelector('.prod-qty').value)) || 0,
+                    price: Math.round(parseFloat(r.querySelector('.prod-price').value)) || 0
+                });
+            });
+
+            const currentId = editOrderId || `DH${Date.now().toString().slice(-6)}`;
+            const existingOrder = ordersDB.find(o => o.id === currentId);
+
+            const shipInputText = document.getElementById('shippingFee').value.replace(/[^0-9]/g, '');
+            const shipFee = shipInputText ? parseInt(shipInputText, 10) : 0;
+            
+            const order = {
+                id: currentId,
+                date: existingOrder ? existingOrder.date : new Date().toISOString(),
+                receiveDate: document.getElementById('orderDate').value,
+                customerName: name, 
+                customerPhone: phone,
+                deliveryType: delivery,
+                shippingAddress: document.getElementById('shippingAddress').value,
+                shippingFee: shipFee,
+                products: prods,
+                total: prods.reduce((s,p) => s + (p.qty*p.price), 0) + shipFee,
+                paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
+                notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value)
+            };
+
+            if(editOrderId) {
+                const idx = ordersDB.findIndex(o => o.id === editOrderId);
+                if(idx > -1) ordersDB[idx] = order;
+                logAction('SỬA ĐƠN', `Chỉnh sửa thông tin đơn hàng [${editOrderId}]`);
+                editOrderId = null;
+                document.getElementById('mainTitle').innerText = "Lên đơn mới";
+            } else {
+                ordersDB.unshift(order);
+                logAction('TẠO ĐƠN', `Lên đơn hàng mới [${currentId}] trị giá ${formatCurrency(order.total)}`);
+            }
+            
+            saveData();
+            showToast("Đã lưu đơn hàng");
+            
+            document.getElementById('custName').value = '';
+            document.getElementById('custPhone').value = '';
+            document.getElementById('shippingAddress').value = '';
+            document.getElementById('shippingFee').value = '';
+            document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false);
+            document.getElementById('productList').innerHTML = '';
+            addProductRow();
+            toggleShipping(); toggleOtherNote(); calcTotal();
+        };
+
+        window.resolveConfirm = function(val) { if(confirmResolver) { confirmResolver(val); confirmResolver = null; } };
+
+        window.renderStats = function() {
+            const list = document.getElementById('statsOrdersList');
+            list.innerHTML = '';
+            
+            const kw = document.getElementById('searchKeyword').value.toLowerCase();
+            const sort = document.getElementById('sortType').value;
+            const createDate = document.getElementById('filterCreateDate').value; 
+            
+            let filtered = ordersDB.filter(o => o.customerName.toLowerCase().includes(kw) || o.id.toLowerCase().includes(kw));
+            
+            // Xử lý chuẩn xác Lọc theo "Ngày giao bánh" (Ngày chọn trên lịch)
+            if (createDate) {
+                filtered = filtered.filter(o => {
+                    if (!o.receiveDate) return false;
+                    try {
+                        let datePart = o.receiveDate;
+                        // o.receiveDate có dạng: "Chủ Nhật - 07/06/2026"
+                        if (datePart.includes(' - ')) {
+                            datePart = datePart.split(' - ')[1]; 
+                        }
+                        const parts = datePart.split('/'); // Tách "07", "06", "2026"
+                        if (parts.length === 3) {
+                            // Cấu trúc lại để so sánh với định dạng chuẩn YYYY-MM-DD
+                            const formattedOdate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`; 
+                            return formattedOdate === createDate;
+                        }
+                        return false;
+                    } catch(e) {
+                        return false;
+                    }
+                });
+            }
+            
+            if(sort === 'dateDesc') filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+            if(sort === 'dateAsc') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
+            if(sort === 'deliveryAsc') filtered.sort((a,b) => a.deliveryType.localeCompare(b.deliveryType));
+            if(sort === 'deliveryDesc') filtered.sort((a,b) => b.deliveryType.localeCompare(a.deliveryType));
+
+            if(filtered.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-10">Không có đơn hàng</p>'; return; }
+
+            filtered.forEach(o => {
+                const isSel = selectedOrders.has(o.id);
+                const card = document.createElement('div');
+                card.className = `apple-card p-5 border-2 transition-all ${isSel ? 'border-black bg-gray-50' : 'border-transparent'}`;
+                
+                let prodsHTML = o.products.map(p => `
+                    <div class="flex justify-between text-sm">
+                        <span>${p.qty}x ${p.name}</span>
+                        <span class="text-gray-500">${formatCurrency(p.qty * p.price)}</span>
+                    </div>
+                `).join('');
+
+                card.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <input type="checkbox" class="mt-1" ${isSel ? 'checked' : ''} onchange="toggleSelect('${o.id}')">
+                        <div class="flex-grow">
+                            <div class="flex justify-between">
+                                <span class="text-xs font-mono bg-gray-200 px-2 rounded">${o.id}</span>
+                                <span class="text-xs text-gray-500">${o.receiveDate}</span>
+                            </div>
+                            <h3 class="font-bold text-lg mt-1">${o.customerName}</h3>
+                            <p class="text-xs text-gray-500">${o.customerPhone || 'Không có SĐT'} • ${o.deliveryType}</p>
+                            ${o.shippingAddress ? `<p class="text-xs text-neutral-600 mt-1">Địa chỉ: ${o.shippingAddress}</p>` : ''}
+                            
+                            <div class="mt-3 bg-white p-3 rounded-xl border border-gray-100">
+                                ${prodsHTML}
+                                ${o.shippingFee ? `<div class="flex justify-between text-sm text-gray-400 mt-1"><span>Phí ship</span><span>${formatCurrency(o.shippingFee)}</span></div>` : ''}
+                                <div class="border-t mt-2 pt-2 flex justify-between font-bold">
+                                    <span>Tổng cộng</span>
+                                    <span class="text-black text-lg">${formatCurrency(o.total)}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="flex gap-2 items-center justify-between mt-3 text-xs">
+                                <span class="px-3 py-1 rounded-full font-bold ${o.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                                    ${o.paymentStatus === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                                </span>
+                                ${o.paymentStatus !== 'paid' ? `<button onclick="markSinglePaid('${o.id}')" class="text-blue-500 font-semibold underline">Xác nhận thanh toán</button>` : ''}
+                            </div>
+                            
+                            <div class="flex gap-2 mt-4 border-t pt-3">
+                                <button type="button" onclick="editOrder('${o.id}')" class="btn-secondary text-xs px-3 py-1 flex-1">Sửa</button>
+                                <button type="button" onclick="exportImage('${o.id}')" class="btn-primary text-xs px-3 py-1 flex-1">Xuất ảnh</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        };
+
+        window.toggleSelect = function(id) { selectedOrders.has(id) ? selectedOrders.delete(id) : selectedOrders.add(id); updateBulkBar(); renderStats(); };
+        window.updateBulkBar = function() {
+            const bar = document.getElementById('bulkActionBar');
+            document.getElementById('bulkCount').innerText = `${selectedOrders.size} đơn`;
+            selectedOrders.size > 0 ? bar.classList.add('active') : bar.classList.remove('active');
+        };
+        window.bulkDelete = function() {
+            logAction('XÓA ĐƠN', `Xóa ${selectedOrders.size} đơn hàng`);
+            ordersDB = ordersDB.filter(o => !selectedOrders.has(o.id));
+            selectedOrders.clear(); saveData(); renderStats(); updateBulkBar(); showToast("Đã xóa");
+        };
+        window.bulkMarkPaid = function() {
+            logAction('THANH TOÁN', `Đánh dấu thanh toán cho ${selectedOrders.size} đơn hàng`);
+            ordersDB.forEach(o => { if (selectedOrders.has(o.id)) o.paymentStatus = 'paid'; });
+            selectedOrders.clear(); saveData(); renderStats(); updateBulkBar(); showToast("Đã đổi trạng thái thanh toán");
+        };
+        window.markSinglePaid = function(id) {
+            const order = ordersDB.find(o => o.id === id);
+            if(order) {
+                order.paymentStatus = 'paid';
+                logAction('THANH TOÁN', `Xác nhận thanh toán đơn hàng [${id}]`);
+                saveData(); renderStats(); showToast("Đã cập nhật");
+            }
+        };
+
+        window.editOrder = function(id) {
+            const o = ordersDB.find(x => x.id === id);
+            editOrderId = id;
+            document.getElementById('mainTitle').innerText = "Sửa đơn: " + id;
+            switchTab('order');
+            
+            document.getElementById('custName').value = o.customerName;
+            document.getElementById('custPhone').value = o.customerPhone;
+            document.getElementById('orderDate').value = o.receiveDate;
+            
+            const r = document.querySelector(`input[name="deliveryType"][value="${o.deliveryType}"]`);
+            if(r) r.checked = true;
+            document.getElementById('shippingAddress').value = o.shippingAddress || '';
+            document.getElementById('shippingFee').value = o.shippingFee || '';
+            
+            document.getElementById('productList').innerHTML = '';
+            o.products.forEach(p => addProductRow(p));
+            addProductRow();
+            
+            document.querySelectorAll('input[name="orderNote"]').forEach(c => c.checked = false);
+            o.notes.forEach(n => {
+                const cb = document.querySelector(`input[name="orderNote"][value="${n}"]`);
+                if(cb) cb.checked = true;
+                else { document.getElementById('noteOther').checked = true; document.getElementById('otherNoteText').value = n; }
+            });
+            
+            toggleShipping(); toggleOtherNote(); calcTotal();
+        };
+
+        window.openImageModal = function(imgData) {
+            const img = document.getElementById('exportedImage');
+            img.src = imgData;
+            document.getElementById('imageModal').classList.remove('opacity-0', 'pointer-events-none');
+        };
+
+        window.exportImage = function(id) {
+            const o = ordersDB.find(x => x.id === id);
+            if(!o) return;
+            const w = document.getElementById('exportWrapper');
+            
+            w.innerHTML = `
+                <div style="padding: 30px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1D1D1F; background: #FFFFFF; width: 360px; box-sizing: border-box;">
+                    <div style="text-align: center; margin-bottom: 25px;">
+                        <h2 style="font-size: 20px; font-weight: 600; margin: 0 0 5px 0; letter-spacing: -0.5px;">HÓA ĐƠN MUA HÀNG</h2>
+                        <span style="font-size: 11px; font-family: monospace; background: #F2F2F7; padding: 3px 8px; border-radius: 6px; color: #8E8E93;">MÃ ĐH: ${o.id}</span>
+                    </div>
+                    <div style="margin-bottom: 20px; font-size: 13px; line-height: 1.5; border-bottom: 1px solid #E5E5E7; padding-bottom: 15px;">
+                        <p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Khách hàng:</strong> ${o.customerName}</p>
+                        ${o.customerPhone ? `<p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">SĐT:</strong> ${o.customerPhone}</p>` : ''}
+                        <p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Ngày nhận:</strong> ${o.receiveDate}</p>
+                        <p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Nhận hàng:</strong> ${o.deliveryType}</p>
+                        ${o.shippingAddress ? `<p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Địa chỉ:</strong> ${o.shippingAddress}</p>` : ''}
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid #1D1D1F; text-align: left; font-size: 11px; font-weight: bold; color: #8E8E93;">
+                                <th style="padding: 6px 0; text-transform: uppercase;">Sản phẩm</th>
+                                <th style="padding: 6px 0; text-align: center; width: 40px; text-transform: uppercase;">SL</th>
+                                <th style="padding: 6px 0; text-align: right; width: 90px; text-transform: uppercase;">Thành tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${o.products.map(p => `
+                                <tr style="border-bottom: 1px dotted #E5E5E7; font-size: 13px;">
+                                    <td style="padding: 8px 0; color: #1D1D1F; font-weight: 500;">${p.name}</td>
+                                    <td style="padding: 8px 0; text-align: center; color: #8E8E93;">${p.qty}</td>
+                                    <td style="padding: 8px 0; text-align: right; color: #1D1D1F;">${formatCurrency(p.qty * p.price)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div style="text-align: right; margin-top: 15px; font-size: 13px; line-height: 1.6;">
+                        ${o.shippingFee ? `<p style="margin: 3px 0; color: #8E8E93;">Phí ship: ${formatCurrency(o.shippingFee)}</p>` : ''}
+                        <div style="margin-top: 8px; border-top: 1px solid #1D1D1F; padding-top: 8px;">
+                            <span style="font-size: 11px; color: #8E8E93; font-weight: 500; display: block; margin-bottom: 2px;">TỔNG THANH TOÁN</span>
+                            <span style="font-size: 20px; font-weight: 700; color: #1D1D1F; letter-spacing: -0.5px;">${formatCurrency(o.total)}</span>
+                        </div>
+                    </div>
+                    ${o.notes && o.notes.length > 0 ? `
+                    <div style="margin-top: 20px; background: #F2F2F7; padding: 10px 12px; border-radius: 12px; font-size: 12px; color: #555;">
+                        <strong style="display: block; margin-bottom: 4px; color: #1D1D1F;">Ghi chú:</strong>
+                        ${o.notes.join(', ')}
+                    </div>` : ''}
+
+                    ${appSettings.qrCode ? `
+                    <div style="text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px dashed #E5E5E7;">
+                        <p style="font-size: 11px; font-weight: 600; color: #1D1D1F; margin-bottom: 5px;">MÃ QR CHUYỂN KHOẢN</p>
+                        <img src="${appSettings.qrCode}" style="width: 140px; height: 140px; object-fit: contain; border-radius: 8px; border: 1px solid #E5E5E7; margin: 0 auto;">
+                    </div>` : ''}
+
+                    <div style="text-align: center; margin-top: 25px; font-size: 11px; color: #8E8E93; border-top: 1px solid #F2F2F7; padding-top: 15px;">
+                        Cảm ơn quý khách đã ủng hộ cửa hàng!
+                    </div>
+                </div>
+            `;
+            
+            showToast("Đang tạo ảnh...");
+            setTimeout(() => {
+                html2canvas(w, { scale: 2, useCORS: true, backgroundColor: '#FFFFFF' }).then(canvas => {
+                    const imgData = canvas.toDataURL('image/png');
+                    w.innerHTML = ''; 
+                    openImageModal(imgData);
+                    logAction('XUẤT HÓA ĐƠN', `Xuất ảnh hóa đơn đơn hàng [${o.id}]`);
+                }).catch(err => {
+                    showToast("Lỗi xuất ảnh!");
+                    console.error(err);
+                });
+            }, 500);
+        };
+
+        window.handleQRUpload = function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    appSettings.qrCode = e.target.result;
+                    document.getElementById('qrPreview').src = appSettings.qrCode;
+                    document.getElementById('qrPreview').classList.remove('hidden-section');
+                    saveData();
+                    showToast("Đã cập nhật mã QR");
+                    logAction('CÀI ĐẶT', 'Cập nhật mã QR thanh toán mới');
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        window.removeQR = function() {
+            appSettings.qrCode = null;
+            document.getElementById('qrPreview').classList.add('hidden-section');
+            document.getElementById('qrPreview').src = '';
+            document.getElementById('qrUpload').value = '';
+            saveData();
+            showToast("Đã xóa mã QR");
+            logAction('CÀI ĐẶT', 'Xóa mã QR thanh toán');
+        };
+
+        window.renderUsers = function() {
+            const list = document.getElementById('usersList');
+            list.innerHTML = '';
+            usersDB.forEach(u => {
+                const isAdminMaster = u.username === 'Admin';
+                list.innerHTML += `
+                    <div class="flex items-center justify-between bg-gray-50 p-3 rounded-xl border">
+                        <div>
+                            <p class="font-bold text-sm">${u.username}</p>
+                            <input type="text" value="${u.password}" id="pwd-${u.username}" class="text-xs border px-2 py-1 mt-1 rounded w-24 outline-none focus:border-black">
+                        </div>
+                        <div class="flex gap-2 items-center">
+                            <select id="role-${u.username}" class="text-xs border px-2 py-1 rounded bg-white outline-none focus:border-black" ${isAdminMaster ? 'disabled' : ''}>
+                                <option value="user" ${u.role==='user'?'selected':''}>User</option>
+                                <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+                            </select>
+                            <button onclick="saveUser('${u.username}')" class="text-xs bg-black text-white px-3 py-1.5 rounded-lg font-medium active:scale-95 transition-transform">Lưu</button>
+                        </div>
+                    </div>
+                `;
+            });
+        };
+
+        window.saveUser = function(username) {
+            const pwd = document.getElementById(`pwd-${username}`).value;
+            const role = document.getElementById(`role-${username}`).value;
+            const user = usersDB.find(u => u.username === username);
+            if (user) {
+                user.password = pwd;
+                user.role = role;
+                localStorage.setItem('myUsers', JSON.stringify(usersDB));
+                showToast("Đã cập nhật User");
+                logAction('PHÂN QUYỀN', `Cập nhật quyền/mật khẩu cho ${username}`);
+            }
+        };
+
+        window.saveProduct = function() {
+            const c = document.getElementById('newProdCode').value.trim().toUpperCase();
+            const n = document.getElementById('newProdName').value.trim();
+            const p = document.getElementById('newProdPrice').value;
+            
+            if(!c || !n || !p) return showToast("Nhập đủ Mã SP, Tên và Giá");
+            if(productsDB.some(prod => prod.code === c)) return showToast("Mã SP này đã tồn tại!");
+            
+            productsDB.push({ id: Date.now(), code: c, name: n, price: Math.round(parseFloat(p)) });
+            saveData();
+            document.getElementById('newProdCode').value = '';
+            document.getElementById('newProdName').value = '';
+            document.getElementById('newProdPrice').value = '';
+            renderProductsList();
+            showToast("Đã thêm SP");
+            logAction('SẢN PHẨM', `Thêm sản phẩm mới [${c}] ${n}`);
+        };
+
+        window.renderProductsList = function() {
+            const l = document.getElementById('dbProductList');
+            l.innerHTML = '';
+            productsDB.forEach(p => {
+                l.innerHTML += `
+                    <div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm">
+                        <div>
+                            <p class="font-bold text-sm">${p.code ? `<span class="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mr-1">${p.code}</span>` : ''}${p.name}</p>
+                            <p class="text-xs text-gray-500 mt-1">${formatCurrency(p.price)}</p>
+                        </div>
+                        <button onclick="productsDB = productsDB.filter(x=>x.id!==${p.id}); saveData(); renderProductsList(); logAction('SẢN PHẨM', 'Xóa sản phẩm [${p.code}]');" class="text-red-400 font-bold p-2">&times;</button>
+                    </div>`;
+            });
+        };
+
+        window.saveSettings = function() {
+            appSettings.gasUrl = document.getElementById('gasUrl').value.trim();
+            saveData();
+            showToast("Đã lưu cấu hình");
+            logAction('CÀI ĐẶT', 'Cập nhật Web App URL');
+            window.pullDataFromGoogle(true);
+        };
+        
+        window.clearAllData = function() {
+            if(confirm("Khôi phục sẽ xóa dữ liệu và đưa app về cấu hình lúc đầu. Bạn có chắc không?")) {
+                localStorage.clear();
+                location.reload();
+            }
+        };
+
+        window.syncToGoogle = function(manual = false) {
+            const status = document.getElementById('syncStatus');
+            const detailStatus = document.getElementById('syncDetailStatus');
+            
+            if(!appSettings.gasUrl) { 
+                if(manual) { showToast("Chưa cấu hình URL đồng bộ."); }
+                status.innerText = "Chưa kết nối Cloud"; 
+                return; 
+            }
+            
+            if (!isCloudSyncReady && !manual) return;
+            
+            status.innerText = "Đang đẩy lên...";
+            if(detailStatus) detailStatus.innerText = "Đang gửi dữ liệu...";
+            
+            fetch(appSettings.gasUrl, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, logs: logsDB })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    logsDB = [];
+                    localStorage.setItem('myLogs', '[]');
+
+                    status.innerText = "Đã đẩy lên";
+                    status.className = "text-green-500 text-[11px] font-semibold mt-1";
+                    if(detailStatus) detailStatus.innerText = `Đồng bộ lên gần nhất: ${new Date().toLocaleTimeString()}`;
+                    if(manual) showToast("Đã đồng bộ dữ liệu mới lên Sheets");
+                } else {
+                    status.innerText = "Lỗi dữ liệu";
+                    status.className = "text-red-500 text-[11px] font-semibold mt-1";
+                    if(detailStatus) detailStatus.innerText = `Lỗi: ${data.message || 'Không xác định'}`;
+                }
+            })
+            .catch(e => {
+                status.innerText = "Lỗi đồng bộ";
+                status.className = "text-red-500 text-[11px] font-semibold mt-1";
+                if(detailStatus) detailStatus.innerText = `Lỗi đẩy lên: ${e.message}`;
+                console.error("Sync error:", e);
+            });
+        };
+
+        window.pullDataFromGoogle = function(manual = false) {
+            const status = document.getElementById('syncStatus');
+            const detailStatus = document.getElementById('syncDetailStatus');
+
+            if(!appSettings.gasUrl) return;
+            
+            status.innerText = "Đang tải về...";
+            if(detailStatus) detailStatus.innerText = "Đang kéo dữ liệu từ đám mây...";
+            if (manual) showToast("Đang tải dữ liệu từ Sheets...");
+            
+            fetch(appSettings.gasUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if(data.status === 'success') {
+                        if (data.products) {
+                            productsDB = data.products;
+                            localStorage.setItem('myProds', JSON.stringify(productsDB)); 
+                            renderProductsList();
+                        }
+                        if (data.orders) {
+                            ordersDB = data.orders;
+                            localStorage.setItem('myOrders', JSON.stringify(ordersDB)); 
+                            if (!document.getElementById('tab-stats').classList.contains('hidden-section')) {
+                                renderStats();
+                            }
+                        }
+                        
+                        isCloudSyncReady = true;
+                        
+                        status.innerText = "Đồng bộ hoàn tất";
+                        status.className = "text-green-500 text-[11px] font-semibold mt-1";
+                        if(detailStatus) detailStatus.innerText = `Tải về gần nhất: ${new Date().toLocaleTimeString()}`;
+                        if(manual) showToast("Đã cập nhật dữ liệu mới nhất!");
+                        
+                        if (document.querySelectorAll('#productList > div').length === 0) addProductRow();
+                    } else {
+                        status.innerText = "Lỗi dữ liệu";
+                        status.className = "text-red-500 text-[11px] font-semibold mt-1";
+                        if(manual) showToast("Lỗi: " + (data.message || "Không thể tải dữ liệu"));
+                    }
+                })
+                .catch(e => {
+                    status.innerText = "Lỗi kết nối";
+                    status.className = "text-red-500 text-[11px] font-semibold mt-1";
+                    console.error("Pull error:", e);
+                });
+        };
+    </script>
+</body>
+</html>
