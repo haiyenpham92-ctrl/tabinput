@@ -244,6 +244,7 @@
                         <label class="flex items-center gap-2"><input type="checkbox" id="invShowDelivery" onchange="updateInvoiceSettings()"> Hiện Nhận hàng</label>
                         <label class="flex items-center gap-2"><input type="checkbox" id="invShowAddress" onchange="updateInvoiceSettings()"> Hiện Địa chỉ</label>
                         <label class="flex items-center gap-2"><input type="checkbox" id="invShowNote" onchange="updateInvoiceSettings()"> Hiện Ghi chú</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" id="invShowQR" onchange="updateInvoiceSettings()"> Hiện mã QR</label>
                     </div>
 
                     <div class="flex gap-2 border-t border-gray-100 pt-3">
@@ -399,12 +400,12 @@
             gasUrl: DEFAULT_GAS_URL,
             qrCode: null,
             invoiceConfig: {
-                shopName: '', thankYouText: '', showPhone: true, showDate: true, showDelivery: true, showAddress: true, showNote: true, logoPosition: 'center', qrPosition: 'bottom', logo: null, bgImage: null
+                shopName: '', thankYouText: '', showPhone: true, showDate: true, showDelivery: true, showAddress: true, showNote: true, showQR: true, logoPosition: 'center', qrPosition: 'bottom', logo: null, bgImage: null
             }
         }));
 
         if (!appSettings.gasUrl) appSettings.gasUrl = DEFAULT_GAS_URL;
-        if (!appSettings.invoiceConfig) appSettings.invoiceConfig = { shopName: '', thankYouText: '', showPhone: true, showDate: true, showDelivery: true, showAddress: true, showNote: true, logoPosition: 'center', qrPosition: 'bottom', logo: null, bgImage: null };
+        if (!appSettings.invoiceConfig) appSettings.invoiceConfig = { shopName: '', thankYouText: '', showPhone: true, showDate: true, showDelivery: true, showAddress: true, showNote: true, showQR: true, logoPosition: 'center', qrPosition: 'bottom', logo: null, bgImage: null };
 
         let selectedOrders = new Set();
         let editOrderId = null;
@@ -482,6 +483,7 @@
             document.getElementById('invShowDelivery').checked = cfg.showDelivery !== false;
             document.getElementById('invShowAddress').checked = cfg.showAddress !== false;
             document.getElementById('invShowNote').checked = cfg.showNote !== false;
+            document.getElementById('invShowQR').checked = cfg.showQR !== false;
             document.getElementById('invLogoPos').value = cfg.logoPosition || 'center';
             document.getElementById('invQrPos').value = cfg.qrPosition || 'bottom';
             
@@ -953,7 +955,7 @@
                             
                             <div style="display: flex; justify-content: space-between; align-items: flex-end;">
                                 <div style="text-align: left;">
-                                    ${(appSettings.qrCode && cfg.qrPosition === 'right') ? `<img src="${appSettings.qrCode}" style="width: 80px; height: 80px; border-radius: 6px; border: 1px solid #ddd; padding: 4px; background: white;">` : ''}
+                                    ${(appSettings.qrCode && cfg.showQR !== false && cfg.qrPosition === 'right') ? `<img src="${appSettings.qrCode}" style="width: 80px; height: 80px; border-radius: 6px; border: 1px solid #ddd; padding: 4px; background: white;">` : ''}
                                 </div>
                                 <div style="text-align: right; font-size: 14px; line-height: 1.6;">
                                     ${o.shippingFee ? `<p style="margin: 4px 0;">Phí ship: ${formatCurrency(o.shippingFee)}</p>` : ''}
@@ -966,7 +968,7 @@
 
                             ${cfg.showNote !== false && o.notes && o.notes.length > 0 ? `<div style="margin-top: 20px; background: #f9f9f9; padding: 10px 15px; border-radius: 8px; font-size: 13px;"><strong>Ghi chú:</strong> ${o.notes.join(', ')}</div>` : ''}
 
-                            ${(appSettings.qrCode && (!cfg.qrPosition || cfg.qrPosition === 'bottom')) ? `
+                            ${(appSettings.qrCode && cfg.showQR !== false && (!cfg.qrPosition || cfg.qrPosition === 'bottom')) ? `
                             <div style="text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px dashed #ddd;">
                                 <p style="font-size: 12px; font-weight: bold; margin-bottom: 8px;">MÃ QR THANH TOÁN</p>
                                 <img src="${appSettings.qrCode}" style="width: 150px; height: 150px; object-fit: contain; border-radius: 8px; border: 1px solid #ddd; padding: 4px; background: white; margin: 0 auto;">
@@ -1014,14 +1016,14 @@
                     </table>
                     
                     <div style="display: flex; justify-content: space-between; align-items: flex-end;">
-                        <div style="text-align: left;">${(appSettings.qrCode && cfg.qrPosition === 'right') ? `<img src="${appSettings.qrCode}" style="width: 60px; height: 60px; border-radius: 6px; border: 1px solid #E5E5E7; padding: 4px; background: white;">` : ''}</div>
+                        <div style="text-align: left;">${(appSettings.qrCode && cfg.showQR !== false && cfg.qrPosition === 'right') ? `<img src="${appSettings.qrCode}" style="width: 60px; height: 60px; border-radius: 6px; border: 1px solid #E5E5E7; padding: 4px; background: white;">` : ''}</div>
                         <div style="text-align: right; font-size: 13px; line-height: 1.6;">
                             ${o.shippingFee ? `<p style="margin: 3px 0; color: #8E8E93;">Phí ship: ${formatCurrency(o.shippingFee)}</p>` : ''}
                             <div style="margin-top: 8px; border-top: 1px solid #1D1D1F; padding-top: 8px;"><span style="font-size: 11px; color: #8E8E93; font-weight: 500; display: block; margin-bottom: 2px;">TỔNG THANH TOÁN</span><span style="font-size: 20px; font-weight: 700; color: #1D1D1F; letter-spacing: -0.5px;">${formatCurrency(o.total)}</span></div>
                         </div>
                     </div>
                     ${cfg.showNote !== false && o.notes && o.notes.length > 0 ? `<div style="margin-top: 20px; background: #F2F2F7; padding: 10px 12px; border-radius: 12px; font-size: 12px; color: #555;"><strong style="display: block; margin-bottom: 4px; color: #1D1D1F;">Ghi chú:</strong>${o.notes.join(', ')}</div>` : ''}
-                    ${(appSettings.qrCode && (!cfg.qrPosition || cfg.qrPosition === 'bottom')) ? `<div style="text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px dashed #E5E5E7;"><p style="font-size: 11px; font-weight: 600; color: #1D1D1F; margin-bottom: 5px;">MÃ QR THANH TOÁN</p><img src="${appSettings.qrCode}" style="width: 140px; height: 140px; object-fit: contain; border-radius: 8px; border: 1px solid #E5E5E7; padding: 4px; background: white; margin: 0 auto;"></div>` : ''}
+                    ${(appSettings.qrCode && cfg.showQR !== false && (!cfg.qrPosition || cfg.qrPosition === 'bottom')) ? `<div style="text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px dashed #E5E5E7;"><p style="font-size: 11px; font-weight: 600; color: #1D1D1F; margin-bottom: 5px;">MÃ QR THANH TOÁN</p><img src="${appSettings.qrCode}" style="width: 140px; height: 140px; object-fit: contain; border-radius: 8px; border: 1px solid #E5E5E7; padding: 4px; background: white; margin: 0 auto;"></div>` : ''}
                     <div style="text-align: center; margin-top: 25px; font-size: 11px; color: #8E8E93; border-top: 1px solid #F2F2F7; padding-top: 15px;">${cfg.thankYouText || 'Cảm ơn quý khách đã ủng hộ cửa hàng!'}</div>
                   </div>
                 </div>
@@ -1064,6 +1066,7 @@
             appSettings.invoiceConfig.showDelivery = document.getElementById('invShowDelivery').checked;
             appSettings.invoiceConfig.showAddress = document.getElementById('invShowAddress').checked;
             appSettings.invoiceConfig.showNote = document.getElementById('invShowNote').checked;
+            appSettings.invoiceConfig.showQR = document.getElementById('invShowQR').checked;
             appSettings.invoiceConfig.logoPosition = document.getElementById('invLogoPos').value;
             appSettings.invoiceConfig.qrPosition = document.getElementById('invQrPos').value;
             saveData(); showToast("Đã lưu thiết kế");
@@ -1136,14 +1139,14 @@
                         <div style="display: flex; justify-content: space-between; margin-bottom: 4px; border-bottom: 1px dotted #eee; padding-bottom: 4px;"><span>2x Cà phê sữa</span><span>50.000 đ</span></div>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px;">
-                        <div style="text-align: left;">${(appSettings.qrCode && cfg.qrPosition === 'right') ? `<img src="${appSettings.qrCode}" style="width: 40px; height: 40px; border-radius: 4px; border: 1px solid #E5E5E7; padding: 2px; background: white;">` : ''}</div>
+                        <div style="text-align: left;">${(appSettings.qrCode && cfg.showQR !== false && cfg.qrPosition === 'right') ? `<img src="${appSettings.qrCode}" style="width: 40px; height: 40px; border-radius: 4px; border: 1px solid #E5E5E7; padding: 2px; background: white;">` : ''}</div>
                         <div style="text-align: right; font-size: 10px;">
                             <p style="margin: 2px 0; color: #555;">Phí ship: 30.000 đ</p>
                             <div style="margin-top: 4px; border-top: 1px solid #1D1D1F; padding-top: 4px;"><span style="font-size: 12px; font-weight: 700;">105.000 đ</span></div>
                         </div>
                     </div>
                     ${cfg.showNote !== false ? `<div style="margin-top: 8px; background: #F2F2F7; padding: 6px; border-radius: 6px; font-size: 9px;"><strong>Ghi chú:</strong> Cắt lát SD</div>` : ''}
-                    ${(appSettings.qrCode && (!cfg.qrPosition || cfg.qrPosition === 'bottom')) ? `<div style="text-align: center; margin-top: 12px; padding-top: 8px; border-top: 1px dashed #E5E5E7;"><img src="${appSettings.qrCode}" style="width: 60px; height: 60px; border-radius: 6px; border: 1px solid #E5E5E7; padding: 2px; background: white; margin: 0 auto;"></div>` : ''}
+                    ${(appSettings.qrCode && cfg.showQR !== false && (!cfg.qrPosition || cfg.qrPosition === 'bottom')) ? `<div style="text-align: center; margin-top: 12px; padding-top: 8px; border-top: 1px dashed #E5E5E7;"><img src="${appSettings.qrCode}" style="width: 60px; height: 60px; border-radius: 6px; border: 1px solid #E5E5E7; padding: 2px; background: white; margin: 0 auto;"></div>` : ''}
                     <div style="text-align: center; margin-top: 12px; font-size: 8px; color: #8E8E93; border-top: 1px solid #E5E5E7; padding-top: 8px;">${cfg.thankYouText || 'Cảm ơn quý khách!'}</div>
                   </div>
                 </div>
