@@ -54,7 +54,6 @@
         .prod-row:focus-within { z-index: 50; }
         .pb-safe { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
 
-        /* Cấu hình cho In ấn */
         @media print {
             body * { visibility: hidden; }
             #printArea, #printArea * { visibility: visible; }
@@ -214,7 +213,6 @@
                     </div>
                 </div>
                 
-                <!-- Bổ sung Filter theo CRM -->
                 <div class="flex gap-2 items-end mt-2">
                     <div class="flex-1">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Khách hàng</label>
@@ -244,7 +242,6 @@
 
         <!-- ================= TAB: CÀI ĐẶT ================= -->
         <div id="tab-settings" class="hidden-section space-y-6 fade-in">
-            <!-- CẤU HÌNH THIẾT KẾ HÓA ĐƠN MỚI -->
             <div class="apple-card p-6">
                 <h2 class="text-xs font-bold uppercase text-gray-400 mb-4 flex justify-between items-center">
                     Thiết kế Hóa đơn
@@ -309,7 +306,6 @@
                         <button onclick="removeQR()" class="text-red-500 text-xs mt-2 font-medium">Xóa mã QR</button>
                     </div>
                     
-                    <!-- Bản xem trước trực tiếp Hóa đơn -->
                     <div class="border-t border-gray-100 pt-4 mt-2">
                         <h3 class="text-[10px] font-bold text-gray-400 uppercase mb-3 text-center">Bản xem trước Hóa đơn</h3>
                         <div id="liveInvoicePreview" class="flex justify-center bg-gray-50 rounded-xl p-4 border border-gray-200 overflow-hidden">
@@ -355,7 +351,6 @@
         <button id="btn-bulk-delete" onclick="bulkDelete()" class="text-red-400 text-sm font-semibold ml-4">Xóa</button>
     </div>
 
-    <!-- Modals -->
     <!-- CRM Detail Modal -->
     <div id="crmDetailModal" class="fixed inset-0 bg-[#F5F5F7] z-[900] hidden-section flex flex-col fade-in pb-safe">
         <header class="flex justify-between items-center p-4 bg-white shadow-sm rounded-b-3xl">
@@ -429,20 +424,26 @@
     <script>
         const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbxWMGWUMQcFmXmv_Zc54EsRh-amNkfE5De7LWL99I7BFUbY5WJZLk_j9KYIEgc4jLUu/exec"; 
 
+        // Hàm chuẩn hóa SĐT, KHẮC PHỤC TRIỆT ĐỂ LỖI MẤT SỐ 0
+        window.normalizePhone = function(phone) {
+            if (!phone) return '';
+            let str = String(phone).replace(/[^\d+]/g, ''); // Giữ lại số và dấu +
+            if (str.startsWith('84')) str = '0' + str.slice(2);
+            if (str.startsWith('+84')) str = '0' + str.slice(3);
+            if (str.length === 9 && str[0] !== '0') str = '0' + str; // Bù số 0 cho SĐT 9 số
+            return str;
+        };
+
         let usersDB = JSON.parse(localStorage.getItem('myUsers') || '[]');
         if (usersDB.length === 0) {
-            usersDB = [
-                { username: "Admin", password: "@bonamang", role: "admin" },
-                { username: "user1", password: "@112233", role: "user" },
-                { username: "user2", password: "@112233", role: "user" }
-            ];
+            usersDB = [{ username: "Admin", password: "@bonamang", role: "admin" }, { username: "user1", password: "@112233", role: "user" }, { username: "user2", password: "@112233", role: "user" }];
             localStorage.setItem('myUsers', JSON.stringify(usersDB));
         }
         let currentUser = null;
 
         let ordersDB = JSON.parse(localStorage.getItem('myOrders') || '[]');
         let productsDB = JSON.parse(localStorage.getItem('myProds') || '[]');
-        let customersDB = JSON.parse(localStorage.getItem('myCustomers') || '[]'); // Database CRM Khách hàng mới
+        let customersDB = JSON.parse(localStorage.getItem('myCustomers') || '[]'); 
         let logsDB = JSON.parse(localStorage.getItem('myLogs') || '[]');
         
         let appSettings = JSON.parse(localStorage.getItem('mySettings') || JSON.stringify({
@@ -467,10 +468,8 @@
         };
 
         window.handleLogin = function() {
-            const u = document.getElementById('loginUsername').value.trim();
-            const p = document.getElementById('loginPassword').value;
+            const u = document.getElementById('loginUsername').value.trim(); const p = document.getElementById('loginPassword').value;
             const user = usersDB.find(x => x.username === u && x.password === p);
-            
             if (user) {
                 currentUser = user; document.getElementById('loginScreen').classList.add('hidden-section'); document.getElementById('mainApp').classList.remove('hidden-section');
                 applyRoleRestrictions(); initApp(); logAction('ĐĂNG NHẬP', 'Đăng nhập thành công');
@@ -491,8 +490,7 @@
         }
 
         function initApp() {
-            document.getElementById('gasUrl').value = appSettings.gasUrl || '';
-            document.getElementById('orderDate').value = formatFullDate(selectedDate);
+            document.getElementById('gasUrl').value = appSettings.gasUrl || ''; document.getElementById('orderDate').value = formatFullDate(selectedDate);
             renderProductsList(); renderUsers(); populateCustomerFilter(); renderCrmList();
             
             if (appSettings.qrCode) { document.getElementById('qrPreview').src = appSettings.qrCode; document.getElementById('qrPreview').classList.remove('hidden-section'); }
@@ -509,11 +507,7 @@
 
             if (appSettings.gasUrl) { window.pullDataFromGoogle(false); } else {
                 isCloudSyncReady = true; document.getElementById('syncStatus').innerText = "Sẵn sàng (Offline)";
-                if (productsDB.length === 0) {
-                    productsDB.push({id: 1, code: "CF01", name: "Cà phê sữa", price: 25000});
-                    productsDB.push({id: 2, code: "TR01", name: "Trà đào cam sả", price: 45000});
-                    saveData(); renderProductsList();
-                }
+                if (productsDB.length === 0) { productsDB.push({id: 1, code: "CF01", name: "Cà phê sữa", price: 25000}); saveData(); renderProductsList(); }
             }
 
             if (document.querySelectorAll('#productList > div').length === 0) addProductRow();
@@ -521,64 +515,43 @@
         }
 
         function logAction(action, details) {
-            if (!currentUser) return;
-            logsDB.push({ timestamp: new Date().toLocaleString('vi-VN'), username: currentUser.username, action: action, details: details });
+            if (!currentUser) return; logsDB.push({ timestamp: new Date().toLocaleString('vi-VN'), username: currentUser.username, action: action, details: details });
             localStorage.setItem('myLogs', JSON.stringify(logsDB)); if (isCloudSyncReady) syncToGoogle();
         }
 
         function formatCurrency(n) { return new Intl.NumberFormat('vi-VN', {style: 'currency', currency: 'VND'}).format(n).replace('₫', 'đ'); }
-        function formatFullDate(d) {
-            const days = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
-            return `${days[d.getDay()]} - ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-        }
-        function showToast(msg) {
-            const t = document.getElementById('toast'); t.innerText = msg; t.classList.remove('opacity-0'); setTimeout(() => t.classList.add('opacity-0'), 2500);
-        }
+        function formatFullDate(d) { const days = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"]; return `${days[d.getDay()]} - ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
+        function showToast(msg) { const t = document.getElementById('toast'); t.innerText = msg; t.classList.remove('opacity-0'); setTimeout(() => t.classList.add('opacity-0'), 2500); }
         function saveData() {
             localStorage.setItem('myOrders', JSON.stringify(ordersDB)); localStorage.setItem('myProds', JSON.stringify(productsDB));
-            localStorage.setItem('myCustomers', JSON.stringify(customersDB)); localStorage.setItem('mySettings', JSON.stringify(appSettings));
-            syncToGoogle();
+            localStorage.setItem('myCustomers', JSON.stringify(customersDB)); localStorage.setItem('mySettings', JSON.stringify(appSettings)); syncToGoogle();
         }
 
-        // Tự động Gợi ý Khách hàng CRM
         window.suggestCustomer = function(phone) {
-            const box = document.getElementById('custSuggestions');
-            if(!phone) { box.classList.add('hidden'); return; }
-            const matches = customersDB.filter(c => c.phone.includes(phone));
-            box.innerHTML = '';
-            if(matches.length === 0) { box.classList.add('hidden'); return; }
+            const box = document.getElementById('custSuggestions'); if(!phone) { box.classList.add('hidden'); return; }
+            const searchStr = phone.replace(/\s+/g, ''); // Bỏ dấu cách để tìm chuẩn xác
+            const matches = customersDB.filter(c => c.phone.includes(searchStr));
+            box.innerHTML = ''; if(matches.length === 0) { box.classList.add('hidden'); return; }
             box.classList.remove('hidden');
             matches.forEach(c => {
-                const d = document.createElement('div');
-                d.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-blue-50 active:bg-blue-100";
+                const d = document.createElement('div'); d.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-blue-50 active:bg-blue-100";
                 d.innerHTML = `<p class="font-bold text-blue-600">${c.phone}</p><p class="text-xs text-gray-500 font-semibold mt-0.5">${c.name}</p>`;
-                d.onmousedown = () => {
-                    document.getElementById('custPhone').value = c.phone;
-                    document.getElementById('custName').value = c.name;
-                    document.getElementById('shippingAddress').value = c.address || '';
-                    box.classList.add('hidden'); showToast("Đã điền tự động từ CRM");
-                };
+                d.onmousedown = () => { document.getElementById('custPhone').value = c.phone; document.getElementById('custName').value = c.name; document.getElementById('shippingAddress').value = c.address || ''; box.classList.add('hidden'); showToast("Đã điền tự động từ CRM"); };
                 box.appendChild(d);
             });
         };
 
         document.addEventListener('click', function(e) {
-            const sugg = document.getElementById('custSuggestions');
-            if(sugg && !sugg.contains(e.target) && e.target.id !== 'custPhone') { sugg.classList.add('hidden'); }
-            
-            document.querySelectorAll('[id^="sug-"]').forEach(box => {
-                const rowId = box.id.replace('sug-', ''); const row = document.getElementById(`row-${rowId}`);
-                if (row && !row.contains(e.target)) box.classList.add('hidden');
-            });
+            const sugg = document.getElementById('custSuggestions'); if(sugg && !sugg.contains(e.target) && e.target.id !== 'custPhone') { sugg.classList.add('hidden'); }
+            document.querySelectorAll('[id^="sug-"]').forEach(box => { const rowId = box.id.replace('sug-', ''); const row = document.getElementById(`row-${rowId}`); if (row && !row.contains(e.target)) box.classList.add('hidden'); });
         });
 
         window.submitOrder = async function() {
             const name = document.getElementById('custName').value.trim();
-            const phone = document.getElementById('custPhone').value.trim();
+            const phone = window.normalizePhone(document.getElementById('custPhone').value.trim()); // Chuẩn hóa khi lưu
             const delivery = document.querySelector('input[name="deliveryType"]:checked')?.value;
             
             if(!name || !phone || !delivery) return showToast("Vui lòng nhập Tên, Số điện thoại và Nhận hàng");
-
             if(delivery === 'Ship' && !document.getElementById('shippingAddress').value.trim()){ return showToast("Vui lòng nhập địa chỉ giao hàng"); }
 
             const rows = document.querySelectorAll('#productList > div');
@@ -593,59 +566,43 @@
                 if(!ok) return;
             }
 
-            // LƯU KHÁCH HÀNG MỚI VÀO CRM NẾU CHƯA CÓ
             const existingCustomer = customersDB.find(c => c.phone === phone);
             if (!existingCustomer) {
                 customersDB.push({ id: `KH${Date.now()}`, name: name, phone: phone, address: document.getElementById('shippingAddress').value.trim() || '' });
-                logAction('CRM', `Thêm mới khách hàng [${phone}]`);
-                populateCustomerFilter(); renderCrmList();
+                logAction('CRM', `Thêm mới khách hàng [${phone}]`); populateCustomerFilter(); renderCrmList();
             }
 
             const prods = [];
-            activeRows.forEach(r => {
-                const nameInput = r.querySelector('.prod-name');
-                prods.push({ code: nameInput.dataset.code || '', name: nameInput.value, qty: Math.round(parseFloat(r.querySelector('.prod-qty').value)) || 0, price: Math.round(parseFloat(r.querySelector('.prod-price').value)) || 0 });
-            });
+            activeRows.forEach(r => { const nameInput = r.querySelector('.prod-name'); prods.push({ code: nameInput.dataset.code || '', name: nameInput.value, qty: Math.round(parseFloat(r.querySelector('.prod-qty').value)) || 0, price: Math.round(parseFloat(r.querySelector('.prod-price').value)) || 0 }); });
 
             const currentId = editOrderId || `DH${Date.now().toString().slice(-6)}`;
             const existingOrder = ordersDB.find(o => o.id === currentId);
-
-            const shipInputText = document.getElementById('shippingFee').value.replace(/[^0-9]/g, '');
-            const shipFee = shipInputText ? parseInt(shipInputText, 10) : 0;
+            const shipInputText = document.getElementById('shippingFee').value.replace(/[^0-9]/g, ''); const shipFee = shipInputText ? parseInt(shipInputText, 10) : 0;
             
             const order = {
                 id: currentId, date: existingOrder ? existingOrder.date : new Date().toISOString(), receiveDate: document.getElementById('orderDate').value,
                 customerName: name, customerPhone: phone, deliveryType: delivery, shippingAddress: document.getElementById('shippingAddress').value,
-                shippingFee: shipFee, products: prods, total: prods.reduce((s,p) => s + (p.qty*p.price), 0) + shipFee,
-                paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
+                shippingFee: shipFee, products: prods, total: prods.reduce((s,p) => s + (p.qty*p.price), 0) + shipFee, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
                 notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value)
             };
 
-            if(editOrderId) {
-                const idx = ordersDB.findIndex(o => o.id === editOrderId); if(idx > -1) ordersDB[idx] = order;
-                logAction('SỬA ĐƠN', `Sửa thông tin đơn [${editOrderId}]`); editOrderId = null; document.getElementById('mainTitle').innerText = "Lên đơn mới";
-            } else {
-                ordersDB.unshift(order); logAction('TẠO ĐƠN', `Lên đơn hàng mới [${currentId}] trị giá ${formatCurrency(order.total)}`);
-            }
+            if(editOrderId) { const idx = ordersDB.findIndex(o => o.id === editOrderId); if(idx > -1) ordersDB[idx] = order; logAction('SỬA ĐƠN', `Sửa thông tin đơn [${editOrderId}]`); editOrderId = null; document.getElementById('mainTitle').innerText = "Lên đơn mới"; } 
+            else { ordersDB.unshift(order); logAction('TẠO ĐƠN', `Lên đơn hàng mới [${currentId}] trị giá ${formatCurrency(order.total)}`); }
             
             saveData(); showToast("Đã lưu đơn hàng");
             
             document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = '';
-            document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false);
-            document.getElementById('productList').innerHTML = ''; addProductRow();
+            document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
             toggleShipping(); toggleOtherNote(); calcTotal(); if (!document.getElementById('tab-crm').classList.contains('hidden-section')) renderCrmList();
         };
 
         window.renderCrmList = function() {
-            const list = document.getElementById('crmList');
-            const kw = document.getElementById('searchCrm').value.toLowerCase();
+            const list = document.getElementById('crmList'); const kw = window.normalizePhone(document.getElementById('searchCrm').value.toLowerCase());
             let filtered = customersDB.filter(c => c.name.toLowerCase().includes(kw) || c.phone.includes(kw));
-
-            list.innerHTML = '';
-            if(filtered.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">Chưa có khách hàng</p>'; return; }
+            list.innerHTML = ''; if(filtered.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">Chưa có khách hàng</p>'; return; }
 
             filtered.forEach(c => {
-                const orders = ordersDB.filter(o => o.customerPhone === c.phone);
+                const orders = ordersDB.filter(o => o.customerPhone === c.phone); // Đã đồng bộ format phone nên check chính xác
                 list.innerHTML += `
                     <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center cursor-pointer active:scale-95 transition-transform" onclick="openCrmDetail('${c.phone}')">
                         <div><p class="font-bold text-[14px]">${c.name}</p><p class="text-xs text-blue-600 font-semibold mt-1">${c.phone}</p></div>
@@ -685,17 +642,12 @@
 
         window.populateCustomerFilter = function() {
             const filter = document.getElementById('filterCustomer'); if(!filter) return;
-            const currentVal = filter.value;
-            filter.innerHTML = '<option value="">Tất cả khách hàng</option>';
-            customersDB.forEach(c => { filter.innerHTML += `<option value="${c.phone}">${c.name} (${c.phone})</option>`; });
-            filter.value = currentVal;
+            const currentVal = filter.value; filter.innerHTML = '<option value="">Tất cả khách hàng</option>';
+            customersDB.forEach(c => { filter.innerHTML += `<option value="${c.phone}">${c.name} (${c.phone})</option>`; }); filter.value = currentVal;
         };
 
         window.getFilteredOrders = function() {
-            const kw = document.getElementById('searchKeyword').value.toLowerCase();
-            const createDate = document.getElementById('filterCreateDate').value; 
-            const filterPhone = document.getElementById('filterCustomer').value;
-            
+            const kw = document.getElementById('searchKeyword').value.toLowerCase(); const createDate = document.getElementById('filterCreateDate').value; const filterPhone = document.getElementById('filterCustomer').value;
             let filtered = ordersDB.filter(o => o.customerName.toLowerCase().includes(kw) || o.id.toLowerCase().includes(kw) || (o.customerPhone && o.customerPhone.includes(kw)));
             if (createDate) {
                 filtered = filtered.filter(o => {
@@ -713,9 +665,7 @@
 
         window.renderStats = function() {
             const list = document.getElementById('statsOrdersList'); list.innerHTML = '';
-            const sort = document.getElementById('sortType').value;
-            let filtered = window.getFilteredOrders();
-            
+            const sort = document.getElementById('sortType').value; let filtered = window.getFilteredOrders();
             if(sort === 'dateDesc') filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
             if(sort === 'dateAsc') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
 
@@ -759,8 +709,7 @@
         };
 
         window.updateSliderPosition = function() {
-            const activeTab = document.querySelector('.segment-btn.active');
-            const bg = document.getElementById('segment-glider');
+            const activeTab = document.querySelector('.segment-btn.active'); const bg = document.getElementById('segment-glider');
             if (activeTab && bg && activeTab.style.display !== 'none') { bg.style.width = activeTab.offsetWidth + 'px'; bg.style.transform = `translateX(${activeTab.offsetLeft}px)`; }
         };
 
@@ -1030,8 +979,18 @@
             fetch(appSettings.gasUrl).then(response => response.json()).then(data => {
                 if(data.status === 'success') {
                     if (data.products) { productsDB = data.products; localStorage.setItem('myProds', JSON.stringify(productsDB)); renderProductsList(); }
-                    if (data.customers) { customersDB = data.customers; localStorage.setItem('myCustomers', JSON.stringify(customersDB)); populateCustomerFilter(); if (!document.getElementById('tab-crm').classList.contains('hidden-section')) { renderCrmList(); } }
-                    if (data.orders) { ordersDB = data.orders; localStorage.setItem('myOrders', JSON.stringify(ordersDB)); if (!document.getElementById('tab-stats').classList.contains('hidden-section')) { renderStats(); } }
+                    
+                    // CHUẨN HÓA DỮ LIỆU TỪ SHEET ĐỂ FIX LỖI MẤT SỐ 0
+                    if (data.customers) { 
+                        customersDB = data.customers.map(c => ({...c, phone: window.normalizePhone(c.phone)})); 
+                        localStorage.setItem('myCustomers', JSON.stringify(customersDB)); populateCustomerFilter(); 
+                        if (!document.getElementById('tab-crm').classList.contains('hidden-section')) { renderCrmList(); } 
+                    }
+                    if (data.orders) { 
+                        ordersDB = data.orders.map(o => ({...o, customerPhone: window.normalizePhone(o.customerPhone)})); 
+                        localStorage.setItem('myOrders', JSON.stringify(ordersDB)); 
+                        if (!document.getElementById('tab-stats').classList.contains('hidden-section')) { renderStats(); } 
+                    }
                     if (data.settings && data.settings.invoiceConfig) { appSettings.invoiceConfig = data.settings.invoiceConfig; if(data.settings.qrCode) appSettings.qrCode = data.settings.qrCode; localStorage.setItem('mySettings', JSON.stringify(appSettings)); }
                     
                     isCloudSyncReady = true; status.innerText = "Đồng bộ hoàn tất"; status.className = "text-green-500 text-[11px] font-semibold mt-1";
