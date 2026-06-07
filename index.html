@@ -111,12 +111,16 @@
             <div class="apple-card p-6 relative z-30">
                 <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Khách hàng (Tự động lưu CRM)</h2>
                 <div class="space-y-4">
-                    <div class="relative">
-                        <input type="tel" id="custPhone" class="input-field font-bold text-blue-600" placeholder="Số điện thoại (*)" oninput="suggestCustomer(this.value)" autocomplete="off">
-                        <!-- Dropdown gợi ý khách hàng -->
-                        <div id="custSuggestions" class="absolute z-50 bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-2 top-full"></div>
+                    <div class="relative z-50">
+                        <input type="tel" id="custPhone" class="input-field font-bold text-blue-600" placeholder="Số điện thoại (*)" oninput="suggestCustomer(this.value, 'phone')" autocomplete="off">
+                        <!-- Dropdown gợi ý SĐT -->
+                        <div id="phoneSuggestions" class="absolute bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-2 top-full"></div>
                     </div>
-                    <div><input type="text" id="custName" class="input-field" placeholder="Tên khách hàng (*)"></div>
+                    <div class="relative z-40">
+                        <input type="text" id="custName" class="input-field" placeholder="Tên khách hàng (*)" oninput="suggestCustomer(this.value, 'name')" autocomplete="off">
+                        <!-- Dropdown gợi ý Tên -->
+                        <div id="nameSuggestions" class="absolute bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-2 top-full"></div>
+                    </div>
                     <div>
                         <label class="text-xs font-semibold text-gray-500 mb-1 block">Ngày giao bánh</label>
                         <input type="text" id="orderDate" readonly class="input-field cursor-pointer bg-gray-50" placeholder="Chọn ngày" onclick="openDatePicker()">
@@ -527,22 +531,52 @@
             localStorage.setItem('myCustomers', JSON.stringify(customersDB)); localStorage.setItem('mySettings', JSON.stringify(appSettings)); syncToGoogle();
         }
 
-        window.suggestCustomer = function(phone) {
-            const box = document.getElementById('custSuggestions'); if(!phone) { box.classList.add('hidden'); return; }
-            const searchStr = phone.replace(/\s+/g, ''); // Bỏ dấu cách để tìm chuẩn xác
-            const matches = customersDB.filter(c => c.phone.includes(searchStr));
-            box.innerHTML = ''; if(matches.length === 0) { box.classList.add('hidden'); return; }
-            box.classList.remove('hidden');
+        window.suggestCustomer = function(query, type) {
+            const phoneBox = document.getElementById('phoneSuggestions');
+            const nameBox = document.getElementById('nameSuggestions');
+            if (phoneBox) phoneBox.classList.add('hidden');
+            if (nameBox) nameBox.classList.add('hidden');
+
+            if(!query) return;
+
+            let matches = [];
+            let activeBox = null;
+
+            if (type === 'phone') {
+                const searchStr = query.replace(/\s+/g, '');
+                matches = customersDB.filter(c => c.phone.includes(searchStr));
+                activeBox = phoneBox;
+            } else if (type === 'name') {
+                const searchStr = query.toLowerCase();
+                matches = customersDB.filter(c => c.name.toLowerCase().includes(searchStr));
+                activeBox = nameBox;
+            }
+
+            if (!activeBox) return;
+            activeBox.innerHTML = ''; 
+            if(matches.length === 0) return;
+            
+            activeBox.classList.remove('hidden');
             matches.forEach(c => {
                 const d = document.createElement('div'); d.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-blue-50 active:bg-blue-100";
                 d.innerHTML = `<p class="font-bold text-blue-600">${c.phone}</p><p class="text-xs text-gray-500 font-semibold mt-0.5">${c.name}</p>`;
-                d.onmousedown = () => { document.getElementById('custPhone').value = c.phone; document.getElementById('custName').value = c.name; document.getElementById('shippingAddress').value = c.address || ''; box.classList.add('hidden'); showToast("Đã điền tự động từ CRM"); };
-                box.appendChild(d);
+                d.onmousedown = () => { 
+                    document.getElementById('custPhone').value = c.phone; 
+                    document.getElementById('custName').value = c.name; 
+                    document.getElementById('shippingAddress').value = c.address || ''; 
+                    activeBox.classList.add('hidden'); showToast("Đã điền tự động từ CRM"); 
+                };
+                activeBox.appendChild(d);
             });
         };
 
         document.addEventListener('click', function(e) {
-            const sugg = document.getElementById('custSuggestions'); if(sugg && !sugg.contains(e.target) && e.target.id !== 'custPhone') { sugg.classList.add('hidden'); }
+            const pBox = document.getElementById('phoneSuggestions');
+            if(pBox && !pBox.contains(e.target) && e.target.id !== 'custPhone') pBox.classList.add('hidden');
+            
+            const nBox = document.getElementById('nameSuggestions');
+            if(nBox && !nBox.contains(e.target) && e.target.id !== 'custName') nBox.classList.add('hidden');
+
             document.querySelectorAll('[id^="sug-"]').forEach(box => { const rowId = box.id.replace('sug-', ''); const row = document.getElementById(`row-${rowId}`); if (row && !row.contains(e.target)) box.classList.add('hidden'); });
         });
 
