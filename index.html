@@ -248,6 +248,55 @@
                 <button onclick="removeQR()" class="text-red-500 text-sm mt-3 font-semibold">Xóa ảnh QR</button>
             </div>
             
+            <!-- THÊM MỚI: Tùy chỉnh Hóa Đơn -->
+            <div class="apple-card p-6">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Tùy chỉnh Hóa Đơn (Mẫu In & Ảnh)</h2>
+                <div class="space-y-4">
+                    <input type="text" id="invShopName" class="input-field py-2 text-sm" placeholder="Tên cửa hàng (Hoặc Tiêu đề)" onchange="updateInvoiceSettings()">
+                    <input type="text" id="invThankYou" class="input-field py-2 text-sm" placeholder="Câu cảm ơn ở cuối" onchange="updateInvoiceSettings()">
+                    
+                    <div class="grid grid-cols-2 gap-2 text-sm p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <label class="flex items-center gap-2"><input type="checkbox" id="invShowPhone" onchange="updateInvoiceSettings()"> Hiện SĐT khách</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" id="invShowDate" onchange="updateInvoiceSettings()"> Hiện Ngày giao</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" id="invShowDelivery" onchange="updateInvoiceSettings()"> Hiện Nhận hàng</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" id="invShowAddress" onchange="updateInvoiceSettings()"> Hiện Địa chỉ</label>
+                        <label class="flex items-center gap-2 col-span-2"><input type="checkbox" id="invShowNote" onchange="updateInvoiceSettings()"> Hiện Ghi chú đơn hàng</label>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <div class="flex-1">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Vị trí Logo</label>
+                            <select id="invLogoPos" class="input-field py-2 px-2 text-sm bg-white" onchange="updateInvoiceSettings()">
+                                <option value="left">Bên trái</option>
+                                <option value="center">Ở giữa</option>
+                                <option value="right">Bên phải</option>
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Vị trí mã QR</label>
+                            <select id="invQrPos" class="input-field py-2 px-2 text-sm bg-white" onchange="updateInvoiceSettings()">
+                                <option value="bottom">Dưới cùng (To)</option>
+                                <option value="right">Cạnh Tổng tiền (Nhỏ)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-100 pt-3">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase block mb-2">Ảnh Logo Cửa Hàng</label>
+                        <input type="file" accept="image/*" onchange="handleAdvancedImageUpload(event, 'logo')" class="text-sm block w-full file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-gray-100">
+                        <img id="invLogoPreview" class="h-14 object-contain mt-2 hidden-section rounded">
+                        <button onclick="removeAdvancedImage('logo')" class="text-red-500 text-xs mt-2 font-medium">Xóa Logo</button>
+                    </div>
+
+                    <div class="border-t border-gray-100 pt-3">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase block mb-2">Hình nền (Background)</label>
+                        <input type="file" accept="image/*" onchange="handleAdvancedImageUpload(event, 'bgImage')" class="text-sm block w-full file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-gray-100">
+                        <img id="invBgPreview" class="h-20 w-full object-cover mt-2 hidden-section rounded-lg">
+                        <button onclick="removeAdvancedImage('bgImage')" class="text-red-500 text-xs mt-2 font-medium">Xóa Hình nền</button>
+                    </div>
+                </div>
+            </div>
+            
             <div class="apple-card p-6">
                 <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Quản lý người dùng</h2>
                 <div id="usersList" class="space-y-3"></div>
@@ -349,12 +398,21 @@
         let productsDB = JSON.parse(localStorage.getItem('myProds') || '[]');
         let logsDB = JSON.parse(localStorage.getItem('myLogs') || '[]');
         
+        // THÊM: Cấu hình mặc định cho Tùy chỉnh hóa đơn
         let appSettings = JSON.parse(localStorage.getItem('mySettings') || JSON.stringify({
             gasUrl: DEFAULT_GAS_URL,
-            qrCode: null
+            qrCode: null,
+            invoiceConfig: {
+                shopName: "HÓA ĐƠN MUA HÀNG", thankYouText: "Cảm ơn quý khách đã ủng hộ cửa hàng!",
+                showPhone: true, showDate: true, showDelivery: true, showAddress: true, showNote: true,
+                logoPosition: 'center', qrPosition: 'bottom', logo: null, bgImage: null
+            }
         }));
 
         if (!appSettings.gasUrl) appSettings.gasUrl = DEFAULT_GAS_URL;
+        if (!appSettings.invoiceConfig) {
+            appSettings.invoiceConfig = { shopName: "HÓA ĐƠN MUA HÀNG", thankYouText: "Cảm ơn quý khách!", showPhone: true, showDate: true, showDelivery: true, showAddress: true, showNote: true, logoPosition: 'center', qrPosition: 'bottom' };
+        }
 
         let selectedOrders = new Set();
         let editOrderId = null;
@@ -426,6 +484,21 @@
                 document.getElementById('qrPreview').classList.remove('hidden-section');
             }
             
+            // Khởi tạo hiển thị cho Cấu hình Hóa Đơn
+            const cfg = appSettings.invoiceConfig;
+            document.getElementById('invShopName').value = cfg.shopName || '';
+            document.getElementById('invThankYou').value = cfg.thankYouText || '';
+            document.getElementById('invShowPhone').checked = cfg.showPhone !== false;
+            document.getElementById('invShowDate').checked = cfg.showDate !== false;
+            document.getElementById('invShowDelivery').checked = cfg.showDelivery !== false;
+            document.getElementById('invShowAddress').checked = cfg.showAddress !== false;
+            document.getElementById('invShowNote').checked = cfg.showNote !== false;
+            document.getElementById('invLogoPos').value = cfg.logoPosition || 'center';
+            document.getElementById('invQrPos').value = cfg.qrPosition || 'bottom';
+            
+            if (cfg.logo) { document.getElementById('invLogoPreview').src = cfg.logo; document.getElementById('invLogoPreview').classList.remove('hidden-section'); }
+            if (cfg.bgImage) { document.getElementById('invBgPreview').src = cfg.bgImage; document.getElementById('invBgPreview').classList.remove('hidden-section'); }
+
             if (appSettings.gasUrl) {
                 window.pullDataFromGoogle(false);
             } else {
@@ -889,53 +962,76 @@
             logAction('IN ĐƠN', `In ${ordersToPrint.length} đơn hàng`);
             const printArea = document.getElementById('printArea');
             let htmlContent = '';
+            
+            const cfg = appSettings.invoiceConfig;
+            const bgStyle = cfg.bgImage ? `background-image: url('${cfg.bgImage}'); background-size: cover; background-position: center;` : 'background: white;';
+            const overlayStyle = cfg.bgImage ? `background: rgba(255,255,255,0.92); padding: 20px; border-radius: 8px;` : `padding: 20px;`;
 
             ordersToPrint.forEach((o, index) => {
                 htmlContent += `
-                    <div class="print-receipt" style="padding: 20px; font-family: sans-serif; color: black; background: white; max-width: 800px; margin: 0 auto;">
-                        <div style="text-align: center; margin-bottom: 25px;">
-                            <h2 style="font-size: 24px; font-weight: bold; margin: 0 0 5px 0;">HÓA ĐƠN MUA HÀNG</h2>
-                            <span style="font-size: 12px; font-family: monospace;">MÃ ĐH: ${o.id}</span>
-                        </div>
-                        <div style="margin-bottom: 20px; font-size: 14px; line-height: 1.6; border-bottom: 1px solid #000; padding-bottom: 15px;">
-                            <p style="margin: 4px 0;"><strong>Khách hàng:</strong> ${o.customerName}</p>
-                            ${o.customerPhone ? `<p style="margin: 4px 0;"><strong>SĐT:</strong> ${o.customerPhone}</p>` : ''}
-                            <p style="margin: 4px 0;"><strong>Ngày nhận:</strong> ${o.receiveDate}</p>
-                            <p style="margin: 4px 0;"><strong>Nhận hàng:</strong> ${o.deliveryType}</p>
-                            ${o.shippingAddress ? `<p style="margin: 4px 0;"><strong>Địa chỉ:</strong> ${o.shippingAddress}</p>` : ''}
-                        </div>
-                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
-                            <thead>
-                                <tr style="border-bottom: 2px solid #000; text-align: left; font-weight: bold;">
-                                    <th style="padding: 8px 0;">Sản phẩm</th>
-                                    <th style="padding: 8px 0; text-align: center; width: 50px;">SL</th>
-                                    <th style="padding: 8px 0; text-align: right; width: 120px;">Thành tiền</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${o.products.map(p => `
-                                    <tr style="border-bottom: 1px dotted #ccc;">
-                                        <td style="padding: 10px 0;">${p.name}</td>
-                                        <td style="padding: 10px 0; text-align: center;">${p.qty}</td>
-                                        <td style="padding: 10px 0; text-align: right;">${formatCurrency(p.qty * p.price)}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                        <div style="text-align: right; margin-top: 20px; font-size: 14px;">
-                            ${o.shippingFee ? `<p style="margin: 4px 0;">Phí ship: ${formatCurrency(o.shippingFee)}</p>` : ''}
-                            <div style="margin-top: 10px; border-top: 2px solid #000; padding-top: 10px;">
-                                <span style="font-size: 14px; font-weight: bold; margin-right: 15px;">TỔNG CỘNG:</span>
-                                <span style="font-size: 22px; font-weight: bold;">${formatCurrency(o.total)}</span>
+                    <div class="print-receipt" style="${bgStyle} max-width: 800px; margin: 0 auto; color: black; font-family: sans-serif; position: relative;">
+                        <div style="${overlayStyle}">
+                            ${cfg.logo ? `<div style="text-align: ${cfg.logoPosition}; margin-bottom: 10px;"><img src="${cfg.logo}" style="max-height: 80px; max-width: 200px; object-fit: contain;"></div>` : ''}
+                            
+                            <div style="text-align: center; margin-bottom: 25px;">
+                                <h2 style="font-size: 24px; font-weight: bold; margin: 0 0 5px 0;">${cfg.shopName || 'HÓA ĐƠN MUA HÀNG'}</h2>
+                                <span style="font-size: 12px; font-family: monospace; background: #eee; padding: 2px 6px; border-radius: 4px;">MÃ ĐH: ${o.id}</span>
                             </div>
-                        </div>
-                        ${o.notes && o.notes.length > 0 ? `
-                        <div style="margin-top: 20px; padding: 15px; border: 1px dashed #000; font-size: 14px;">
-                            <strong>Ghi chú:</strong> ${o.notes.join(', ')}
-                        </div>` : ''}
-                        
-                        <div style="text-align: center; margin-top: 40px; font-size: 12px; font-style: italic; border-top: 1px solid #eee; padding-top: 20px;">
-                            Cảm ơn quý khách đã ủng hộ cửa hàng!
+                            
+                            <div style="margin-bottom: 20px; font-size: 14px; line-height: 1.6; border-bottom: 1px solid #000; padding-bottom: 15px;">
+                                <p style="margin: 4px 0;"><strong>Khách hàng:</strong> ${o.customerName}</p>
+                                ${(cfg.showPhone !== false && o.customerPhone) ? `<p style="margin: 4px 0;"><strong>SĐT:</strong> ${o.customerPhone}</p>` : ''}
+                                ${(cfg.showDate !== false) ? `<p style="margin: 4px 0;"><strong>Ngày nhận:</strong> ${o.receiveDate}</p>` : ''}
+                                ${(cfg.showDelivery !== false) ? `<p style="margin: 4px 0;"><strong>Nhận hàng:</strong> ${o.deliveryType}</p>` : ''}
+                                ${(cfg.showAddress !== false && o.shippingAddress) ? `<p style="margin: 4px 0;"><strong>Địa chỉ:</strong> ${o.shippingAddress}</p>` : ''}
+                            </div>
+                            
+                            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
+                                <thead>
+                                    <tr style="border-bottom: 2px solid #000; text-align: left; font-weight: bold;">
+                                        <th style="padding: 8px 0;">Sản phẩm</th>
+                                        <th style="padding: 8px 0; text-align: center; width: 50px;">SL</th>
+                                        <th style="padding: 8px 0; text-align: right; width: 120px;">Thành tiền</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${o.products.map(p => `
+                                        <tr style="border-bottom: 1px dotted #ccc;">
+                                            <td style="padding: 10px 0;">${p.name}</td>
+                                            <td style="padding: 10px 0; text-align: center;">${p.qty}</td>
+                                            <td style="padding: 10px 0; text-align: right;">${formatCurrency(p.qty * p.price)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                            
+                            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px; font-size: 14px;">
+                                <div style="text-align: left;">
+                                    ${(appSettings.qrCode && cfg.qrPosition === 'right') ? `<img src="${appSettings.qrCode}" style="width: 90px; height: 90px; object-fit: contain; border-radius: 6px; border: 1px solid #ccc;">` : ''}
+                                </div>
+                                <div style="text-align: right;">
+                                    ${o.shippingFee ? `<p style="margin: 4px 0;">Phí ship: ${formatCurrency(o.shippingFee)}</p>` : ''}
+                                    <div style="margin-top: 10px; border-top: 2px solid #000; padding-top: 10px;">
+                                        <span style="font-size: 14px; font-weight: bold; margin-right: 15px;">TỔNG CỘNG:</span>
+                                        <span style="font-size: 22px; font-weight: bold;">${formatCurrency(o.total)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            ${(cfg.showNote !== false && o.notes && o.notes.length > 0) ? `
+                            <div style="margin-top: 20px; padding: 15px; border: 1px dashed #000; font-size: 14px;">
+                                <strong>Ghi chú:</strong> ${o.notes.join(', ')}
+                            </div>` : ''}
+                            
+                            ${(appSettings.qrCode && cfg.qrPosition === 'bottom') ? `
+                            <div style="text-align: center; margin-top: 30px;">
+                                <p style="font-size: 12px; font-weight: bold; margin-bottom: 5px;">MÃ QR THANH TOÁN</p>
+                                <img src="${appSettings.qrCode}" style="width: 150px; height: 150px; object-fit: contain; margin: 0 auto; border: 1px solid #ccc; padding: 5px; border-radius: 8px;">
+                            </div>` : ''}
+                            
+                            <div style="text-align: center; margin-top: 40px; font-size: 12px; font-style: italic; border-top: 1px solid #eee; padding-top: 20px;">
+                                ${cfg.thankYouText || 'Cảm ơn quý khách đã ủng hộ cửa hàng!'}
+                            </div>
                         </div>
                     </div>
                 `;
@@ -1002,22 +1098,31 @@
             if(!o) return;
             const w = document.getElementById('exportWrapper');
             
+            const cfg = appSettings.invoiceConfig;
+            const bgStyle = cfg.bgImage ? `background-image: url('${cfg.bgImage}'); background-size: cover; background-position: center;` : 'background: #FFFFFF;';
+            const overlayStyle = cfg.bgImage ? `background: rgba(255,255,255,0.94); padding: 30px; box-sizing: border-box; width: 100%; height: 100%;` : `padding: 30px; box-sizing: border-box; width: 100%; height: 100%;`;
+
             w.innerHTML = `
-                <div style="padding: 30px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1D1D1F; background: #FFFFFF; width: 360px; box-sizing: border-box;">
+                <div style="${bgStyle} width: 380px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1D1D1F; position: relative;">
+                  <div style="${overlayStyle}">
+                    ${cfg.logo ? `<div style="text-align: ${cfg.logoPosition}; margin-bottom: 15px;"><img src="${cfg.logo}" style="max-height: 70px; max-width: 180px; object-fit: contain;"></div>` : ''}
+
                     <div style="text-align: center; margin-bottom: 25px;">
-                        <h2 style="font-size: 20px; font-weight: 600; margin: 0 0 5px 0; letter-spacing: -0.5px;">HÓA ĐƠN MUA HÀNG</h2>
-                        <span style="font-size: 11px; font-family: monospace; background: #F2F2F7; padding: 3px 8px; border-radius: 6px; color: #8E8E93;">MÃ ĐH: ${o.id}</span>
+                        <h2 style="font-size: 20px; font-weight: 600; margin: 0 0 5px 0; letter-spacing: -0.5px;">${cfg.shopName || 'HÓA ĐƠN MUA HÀNG'}</h2>
+                        <span style="font-size: 11px; font-family: monospace; background: #E5E5E7; padding: 3px 8px; border-radius: 6px; color: #555;">MÃ ĐH: ${o.id}</span>
                     </div>
+                    
                     <div style="margin-bottom: 20px; font-size: 13px; line-height: 1.5; border-bottom: 1px solid #E5E5E7; padding-bottom: 15px;">
-                        <p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Khách hàng:</strong> ${o.customerName}</p>
-                        ${o.customerPhone ? `<p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">SĐT:</strong> ${o.customerPhone}</p>` : ''}
-                        <p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Ngày nhận:</strong> ${o.receiveDate}</p>
-                        <p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Nhận hàng:</strong> ${o.deliveryType}</p>
-                        ${o.shippingAddress ? `<p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Địa chỉ:</strong> ${o.shippingAddress}</p>` : ''}
+                        <p style="margin: 3px 0;"><strong style="color: #555; font-weight: 500;">Khách hàng:</strong> ${o.customerName}</p>
+                        ${(cfg.showPhone !== false && o.customerPhone) ? `<p style="margin: 3px 0;"><strong style="color: #555; font-weight: 500;">SĐT:</strong> ${o.customerPhone}</p>` : ''}
+                        ${(cfg.showDate !== false) ? `<p style="margin: 3px 0;"><strong style="color: #555; font-weight: 500;">Ngày nhận:</strong> ${o.receiveDate}</p>` : ''}
+                        ${(cfg.showDelivery !== false) ? `<p style="margin: 3px 0;"><strong style="color: #555; font-weight: 500;">Nhận hàng:</strong> ${o.deliveryType}</p>` : ''}
+                        ${(cfg.showAddress !== false && o.shippingAddress) ? `<p style="margin: 3px 0;"><strong style="color: #555; font-weight: 500;">Địa chỉ:</strong> ${o.shippingAddress}</p>` : ''}
                     </div>
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                    
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
                         <thead>
-                            <tr style="border-bottom: 1px solid #1D1D1F; text-align: left; font-size: 11px; font-weight: bold; color: #8E8E93;">
+                            <tr style="border-bottom: 1px solid #1D1D1F; text-align: left; font-size: 11px; font-weight: bold; color: #555;">
                                 <th style="padding: 6px 0; text-transform: uppercase;">Sản phẩm</th>
                                 <th style="padding: 6px 0; text-align: center; width: 40px; text-transform: uppercase;">SL</th>
                                 <th style="padding: 6px 0; text-align: right; width: 90px; text-transform: uppercase;">Thành tiền</th>
@@ -1027,34 +1132,42 @@
                             ${o.products.map(p => `
                                 <tr style="border-bottom: 1px dotted #E5E5E7; font-size: 13px;">
                                     <td style="padding: 8px 0; color: #1D1D1F; font-weight: 500;">${p.name}</td>
-                                    <td style="padding: 8px 0; text-align: center; color: #8E8E93;">${p.qty}</td>
+                                    <td style="padding: 8px 0; text-align: center; color: #555;">${p.qty}</td>
                                     <td style="padding: 8px 0; text-align: right; color: #1D1D1F;">${formatCurrency(p.qty * p.price)}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
-                    <div style="text-align: right; margin-top: 15px; font-size: 13px; line-height: 1.6;">
-                        ${o.shippingFee ? `<p style="margin: 3px 0; color: #8E8E93;">Phí ship: ${formatCurrency(o.shippingFee)}</p>` : ''}
-                        <div style="margin-top: 8px; border-top: 1px solid #1D1D1F; padding-top: 8px;">
-                            <span style="font-size: 11px; color: #8E8E93; font-weight: 500; display: block; margin-bottom: 2px;">TỔNG THANH TOÁN</span>
-                            <span style="font-size: 20px; font-weight: 700; color: #1D1D1F; letter-spacing: -0.5px;">${formatCurrency(o.total)}</span>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 15px;">
+                        <div style="text-align: left;">
+                            ${(appSettings.qrCode && cfg.qrPosition === 'right') ? `<img src="${appSettings.qrCode}" style="width: 75px; height: 75px; object-fit: contain; border-radius: 8px; border: 1px solid #E5E5E7; padding: 2px; background: white;">` : ''}
+                        </div>
+                        <div style="text-align: right; font-size: 13px; line-height: 1.6;">
+                            ${o.shippingFee ? `<p style="margin: 3px 0; color: #555;">Phí ship: ${formatCurrency(o.shippingFee)}</p>` : ''}
+                            <div style="margin-top: 8px; border-top: 1px solid #1D1D1F; padding-top: 8px;">
+                                <span style="font-size: 11px; color: #555; font-weight: 500; display: block; margin-bottom: 2px;">TỔNG THANH TOÁN</span>
+                                <span style="font-size: 20px; font-weight: 700; color: #1D1D1F; letter-spacing: -0.5px;">${formatCurrency(o.total)}</span>
+                            </div>
                         </div>
                     </div>
-                    ${o.notes && o.notes.length > 0 ? `
+
+                    ${(cfg.showNote !== false && o.notes && o.notes.length > 0) ? `
                     <div style="margin-top: 20px; background: #F2F2F7; padding: 10px 12px; border-radius: 12px; font-size: 12px; color: #555;">
                         <strong style="display: block; margin-bottom: 4px; color: #1D1D1F;">Ghi chú:</strong>
                         ${o.notes.join(', ')}
                     </div>` : ''}
 
-                    ${appSettings.qrCode ? `
+                    ${(appSettings.qrCode && cfg.qrPosition === 'bottom') ? `
                     <div style="text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px dashed #E5E5E7;">
                         <p style="font-size: 11px; font-weight: 600; color: #1D1D1F; margin-bottom: 5px;">MÃ QR CHUYỂN KHOẢN</p>
-                        <img src="${appSettings.qrCode}" style="width: 140px; height: 140px; object-fit: contain; border-radius: 8px; border: 1px solid #E5E5E7; margin: 0 auto;">
+                        <img src="${appSettings.qrCode}" style="width: 140px; height: 140px; object-fit: contain; border-radius: 8px; border: 1px solid #E5E5E7; padding: 4px; background: white; margin: 0 auto;">
                     </div>` : ''}
 
-                    <div style="text-align: center; margin-top: 25px; font-size: 11px; color: #8E8E93; border-top: 1px solid #F2F2F7; padding-top: 15px;">
-                        Cảm ơn quý khách đã ủng hộ cửa hàng!
+                    <div style="text-align: center; margin-top: 25px; font-size: 11px; color: #8E8E93; border-top: 1px solid #E5E5E7; padding-top: 15px;">
+                        ${cfg.thankYouText || 'Cảm ơn quý khách đã ủng hộ cửa hàng!'}
                     </div>
+                  </div>
                 </div>
             `;
             
@@ -1096,6 +1209,62 @@
             saveData();
             showToast("Đã xóa mã QR");
             logAction('CÀI ĐẶT', 'Xóa mã QR thanh toán');
+        };
+
+        // THÊM: Các hàm xử lý Tùy chỉnh Hóa đơn
+        window.updateInvoiceSettings = function() {
+            appSettings.invoiceConfig.shopName = document.getElementById('invShopName').value;
+            appSettings.invoiceConfig.thankYouText = document.getElementById('invThankYou').value;
+            appSettings.invoiceConfig.showPhone = document.getElementById('invShowPhone').checked;
+            appSettings.invoiceConfig.showDate = document.getElementById('invShowDate').checked;
+            appSettings.invoiceConfig.showDelivery = document.getElementById('invShowDelivery').checked;
+            appSettings.invoiceConfig.showAddress = document.getElementById('invShowAddress').checked;
+            appSettings.invoiceConfig.showNote = document.getElementById('invShowNote').checked;
+            appSettings.invoiceConfig.logoPosition = document.getElementById('invLogoPos').value;
+            appSettings.invoiceConfig.qrPosition = document.getElementById('invQrPos').value;
+            saveData();
+            showToast("Đã lưu thiết kế");
+        };
+
+        window.handleAdvancedImageUpload = function(event, type) {
+            const file = event.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    const maxDim = type === 'bgImage' ? 800 : 300; // Nén ảnh để không quá nặng
+                    if(w > maxDim || h > maxDim) {
+                        if(w > h) { h *= maxDim/w; w = maxDim; }
+                        else { w *= maxDim/h; h = maxDim; }
+                    }
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    const base64 = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.8);
+                    
+                    appSettings.invoiceConfig[type] = base64;
+                    const previewId = type === 'logo' ? 'invLogoPreview' : 'invBgPreview';
+                    document.getElementById(previewId).src = base64;
+                    document.getElementById(previewId).classList.remove('hidden-section');
+                    saveData();
+                    showToast("Đã tải lên ảnh " + (type==='logo'?'Logo':'Hình nền'));
+                    logAction('CÀI ĐẶT', 'Cập nhật thiết kế ảnh ' + type);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+
+        window.removeAdvancedImage = function(type) {
+            appSettings.invoiceConfig[type] = null;
+            const previewId = type === 'logo' ? 'invLogoPreview' : 'invBgPreview';
+            document.getElementById(previewId).src = '';
+            document.getElementById(previewId).classList.add('hidden-section');
+            saveData();
+            showToast("Đã xóa ảnh");
         };
 
         window.renderUsers = function() {
@@ -1197,11 +1366,12 @@
             status.innerText = "Đang đẩy lên...";
             if(detailStatus) detailStatus.innerText = "Đang gửi dữ liệu...";
             
+            // Đẩy kèm cả cấu hình Cài đặt (appSettings)
             fetch(appSettings.gasUrl, {
                 method: 'POST',
                 redirect: 'follow',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, logs: logsDB })
+                body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, logs: logsDB, settings: appSettings })
             })
             .then(res => res.json())
             .then(data => {
@@ -1252,6 +1422,19 @@
                             if (!document.getElementById('tab-stats').classList.contains('hidden-section')) {
                                 renderStats();
                             }
+                        }
+                        // Lấy Settings từ Cloud về và cập nhật cục bộ
+                        if (data.settings && Object.keys(data.settings).length > 0) {
+                            // Không ghi đè gasUrl của máy hiện tại để tránh lỗi mất kết nối nếu nhầm
+                            const currentGasUrl = appSettings.gasUrl;
+                            appSettings = data.settings;
+                            appSettings.gasUrl = currentGasUrl;
+                            localStorage.setItem('mySettings', JSON.stringify(appSettings));
+                            if (appSettings.qrCode) {
+                                document.getElementById('qrPreview').src = appSettings.qrCode;
+                                document.getElementById('qrPreview').classList.remove('hidden-section');
+                            }
+                            initApp(); // Cập nhật lại giao diện UI của Settings
                         }
                         
                         isCloudSyncReady = true;
