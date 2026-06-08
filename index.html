@@ -524,9 +524,7 @@
         }
 
         function formatCurrency(n) { return new Intl.NumberFormat('vi-VN', {style: 'currency', currency: 'VND'}).format(n).replace('₫', 'đ'); }
-        function formatFullDate(d) { const days = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"]; return `${days[d.getDay()]} - ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
-        function showToast(msg) { const t = document.getElementById('toast'); t.innerText = msg; t.classList.remove('opacity-0'); setTimeout(() => t.classList.add('opacity-0'), 2500); }
-        function saveData() {
+        window.saveData = function() {
             localStorage.setItem('myOrders', JSON.stringify(ordersDB)); localStorage.setItem('myProds', JSON.stringify(productsDB));
             localStorage.setItem('myCustomers', JSON.stringify(customersDB)); localStorage.setItem('mySettings', JSON.stringify(appSettings)); syncToGoogle();
         }
@@ -557,7 +555,9 @@
             if(matches.length === 0) return;
             
             activeBox.classList.remove('hidden');
-            matches.forEach(c => {
+            
+            // FIX LAG GỢI Ý: Chỉ lấy tối đa 10 kết quả tốt nhất để thả xuống
+            matches.slice(0, 10).forEach(c => {
                 const d = document.createElement('div'); d.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-blue-50 active:bg-blue-100";
                 d.innerHTML = `<p class="font-bold text-blue-600">${c.phone}</p><p class="text-xs text-gray-500 font-semibold mt-0.5">${c.name}</p>`;
                 d.onmousedown = () => { 
@@ -631,19 +631,38 @@
         };
 
         window.renderCrmList = function() {
-            const list = document.getElementById('crmList'); const kw = window.normalizePhone(document.getElementById('searchCrm').value.toLowerCase());
+            const list = document.getElementById('crmList'); 
+            // FIX LOGIC TÌM KIẾM: Không dùng normalizePhone cho từ khóa tìm kiếm chung (để gõ Tên không bị mất chữ)
+            const kw = document.getElementById('searchCrm').value.toLowerCase().trim();
+            
             let filtered = customersDB.filter(c => c.name.toLowerCase().includes(kw) || c.phone.includes(kw));
-            list.innerHTML = ''; if(filtered.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">Chưa có khách hàng</p>'; return; }
+            
+            if(filtered.length === 0) { 
+                list.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">Chưa có khách hàng</p>'; 
+                return; 
+            }
 
+            // FIX HIỆU NĂNG 1: Đếm số đơn hàng CỦA TẤT CẢ KHÁCH HÀNG 1 lần duy nhất trước khi lặp (Tránh vòng lặp lồng)
+            const orderCounts = {};
+            ordersDB.forEach(o => {
+                if (o.customerPhone) {
+                    orderCounts[o.customerPhone] = (orderCounts[o.customerPhone] || 0) + 1;
+                }
+            });
+
+            // FIX HIỆU NĂNG 2: Gom toàn bộ HTML thành 1 chuỗi, sau đó in ra trình duyệt ĐÚNG 1 LẦN
+            let htmlContent = '';
             filtered.forEach(c => {
-                const orders = ordersDB.filter(o => o.customerPhone === c.phone); // Đã đồng bộ format phone nên check chính xác
-                list.innerHTML += `
+                const count = orderCounts[c.phone] || 0; // Lấy dữ liệu đã đếm cực nhanh
+                htmlContent += `
                     <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center cursor-pointer active:scale-95 transition-transform" onclick="openCrmDetail('${c.phone}')">
                         <div><p class="font-bold text-[14px]">${c.name}</p><p class="text-xs text-blue-600 font-semibold mt-1">${c.phone}</p></div>
-                        <div class="text-right"><p class="text-[11px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-full">${orders.length} đơn</p></div>
+                        <div class="text-right"><p class="text-[11px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-full">${count} đơn</p></div>
                     </div>
                 `;
             });
+            
+            list.innerHTML = htmlContent;
         };
 
         window.openCrmDetail = function(phone) {
