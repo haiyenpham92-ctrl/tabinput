@@ -650,6 +650,13 @@
             const existingOrder = ordersDB.find(o => o.id === currentId);
             const shipInputText = document.getElementById('shippingFee').value.replace(/[^0-9]/g, ''); const shipFee = shipInputText ? parseInt(shipInputText, 10) : 0;
             
+            const order = {
+                id: currentId, date: existingOrder ? existingOrder.date : new Date().toISOString(), receiveDate: document.getElementById('orderDate').value,
+                customerName: name, customerPhone: phone, deliveryType: delivery, shippingAddress: document.getElementById('shippingAddress').value,
+                shippingFee: shipFee, products: prods, total: prods.reduce((s,p) => s + (p.qty*p.price), 0) + shipFee, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
+                notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value)
+            };
+
             if(editOrderId) { 
                 const idx = ordersDB.findIndex(o => o.id === editOrderId); if(idx > -1) ordersDB[idx] = order; 
                 logAction('SỬA ĐƠN', `Sửa thông tin đơn [${editOrderId}]`); 
