@@ -428,32 +428,32 @@
     <script>
         const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbxWMGWUMQcFmXmv_Zc54EsRh-amNkfE5De7LWL99I7BFUbY5WJZLk_j9KYIEgc4jLUu/exec"; 
 
-        // Hàm chuẩn hóa SĐT, KHẮC PHỤC TRIỆT ĐỂ LỖI MẤT SỐ 0
         window.normalizePhone = function(phone) {
             if (!phone) return '';
-            let str = String(phone).replace(/[^\d+]/g, ''); // Giữ lại số và dấu +
+            let str = String(phone).replace(/[^\d+]/g, ''); 
             if (str.startsWith('84')) str = '0' + str.slice(2);
             if (str.startsWith('+84')) str = '0' + str.slice(3);
-            if (str.length === 9 && str[0] !== '0') str = '0' + str; // Bù số 0 cho SĐT 9 số
+            if (str.length === 9 && str[0] !== '0') str = '0' + str; 
             return str;
         };
 
-        let usersDB = JSON.parse(localStorage.getItem('myUsers') || '[]');
+        // Null-safety cho toàn bộ Database
+        let usersDB = JSON.parse(localStorage.getItem('myUsers') || '[]') || [];
         if (usersDB.length === 0) {
             usersDB = [{ username: "Admin", password: "@bonamang", role: "admin" }, { username: "user1", password: "@112233", role: "user" }, { username: "user2", password: "@112233", role: "user" }];
             localStorage.setItem('myUsers', JSON.stringify(usersDB));
         }
         let currentUser = null;
 
-        let ordersDB = JSON.parse(localStorage.getItem('myOrders') || '[]');
-        let productsDB = JSON.parse(localStorage.getItem('myProds') || '[]');
-        let customersDB = JSON.parse(localStorage.getItem('myCustomers') || '[]'); 
-        let logsDB = JSON.parse(localStorage.getItem('myLogs') || '[]');
+        let ordersDB = JSON.parse(localStorage.getItem('myOrders') || '[]') || [];
+        let productsDB = JSON.parse(localStorage.getItem('myProds') || '[]') || [];
+        let customersDB = JSON.parse(localStorage.getItem('myCustomers') || '[]') || []; 
+        let logsDB = JSON.parse(localStorage.getItem('myLogs') || '[]') || [];
         
         let appSettings = JSON.parse(localStorage.getItem('mySettings') || JSON.stringify({
             gasUrl: DEFAULT_GAS_URL, qrCode: null,
             invoiceConfig: { shopName: '', thankYouText: '', showPhone: true, showDate: true, showDelivery: true, showAddress: true, showNote: true, showQR: true, logoPosition: 'center', qrPosition: 'bottom', logo: null, bgImage: null }
-        }));
+        })) || {};
 
         if (!appSettings.gasUrl) appSettings.gasUrl = DEFAULT_GAS_URL;
         if (!appSettings.invoiceConfig) appSettings.invoiceConfig = { shopName: '', thankYouText: '', showPhone: true, showDate: true, showDelivery: true, showAddress: true, showNote: true, showQR: true, logoPosition: 'center', qrPosition: 'bottom', logo: null, bgImage: null };
@@ -524,6 +524,9 @@
         }
 
         function formatCurrency(n) { return new Intl.NumberFormat('vi-VN', {style: 'currency', currency: 'VND'}).format(n).replace('₫', 'đ'); }
+        function formatFullDate(d) { const days = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"]; return `${days[d.getDay()]} - ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
+        function showToast(msg) { const t = document.getElementById('toast'); t.innerText = msg; t.classList.remove('opacity-0'); setTimeout(() => t.classList.add('opacity-0'), 2500); }
+        
         window.saveData = function() {
             localStorage.setItem('myOrders', JSON.stringify(ordersDB)); localStorage.setItem('myProds', JSON.stringify(productsDB));
             localStorage.setItem('myCustomers', JSON.stringify(customersDB)); localStorage.setItem('mySettings', JSON.stringify(appSettings)); syncToGoogle();
@@ -542,11 +545,13 @@
 
             if (type === 'phone') {
                 const searchStr = query.replace(/\s+/g, '');
-                matches = customersDB.filter(c => c.phone.includes(searchStr));
+                // BẢO VỆ NULL: Dùng String(c.phone || '')
+                matches = customersDB.filter(c => String(c.phone || '').includes(searchStr));
                 activeBox = phoneBox;
             } else if (type === 'name') {
                 const searchStr = query.toLowerCase();
-                matches = customersDB.filter(c => c.name.toLowerCase().includes(searchStr));
+                // BẢO VỆ NULL: Dùng (c.name || '').toLowerCase()
+                matches = customersDB.filter(c => (c.name || '').toLowerCase().includes(searchStr));
                 activeBox = nameBox;
             }
 
@@ -556,13 +561,12 @@
             
             activeBox.classList.remove('hidden');
             
-            // FIX LAG GỢI Ý: Chỉ lấy tối đa 10 kết quả tốt nhất để thả xuống
             matches.slice(0, 10).forEach(c => {
                 const d = document.createElement('div'); d.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-blue-50 active:bg-blue-100";
-                d.innerHTML = `<p class="font-bold text-blue-600">${c.phone}</p><p class="text-xs text-gray-500 font-semibold mt-0.5">${c.name}</p>`;
+                d.innerHTML = `<p class="font-bold text-blue-600">${c.phone || ''}</p><p class="text-xs text-gray-500 font-semibold mt-0.5">${c.name || 'Khách chưa có tên'}</p>`;
                 d.onmousedown = () => { 
-                    document.getElementById('custPhone').value = c.phone; 
-                    document.getElementById('custName').value = c.name; 
+                    document.getElementById('custPhone').value = c.phone || ''; 
+                    document.getElementById('custName').value = c.name || ''; 
                     document.getElementById('shippingAddress').value = c.address || ''; 
                     activeBox.classList.add('hidden'); showToast("Đã điền tự động từ CRM"); 
                 };
@@ -582,7 +586,7 @@
 
         window.submitOrder = async function() {
             const name = document.getElementById('custName').value.trim();
-            const phone = window.normalizePhone(document.getElementById('custPhone').value.trim()); // Chuẩn hóa khi lưu
+            const phone = window.normalizePhone(document.getElementById('custPhone').value.trim());
             const delivery = document.querySelector('input[name="deliveryType"]:checked')?.value;
             
             if(!name || !phone || !delivery) return showToast("Vui lòng nhập Tên, Số điện thoại và Nhận hàng");
@@ -632,17 +636,16 @@
 
         window.renderCrmList = function() {
             const list = document.getElementById('crmList'); 
-            // FIX LOGIC TÌM KIẾM: Không dùng normalizePhone cho từ khóa tìm kiếm chung (để gõ Tên không bị mất chữ)
             const kw = document.getElementById('searchCrm').value.toLowerCase().trim();
             
-            let filtered = customersDB.filter(c => c.name.toLowerCase().includes(kw) || c.phone.includes(kw));
+            // BẢO VỆ NULL: Dùng (c.name || '').toLowerCase()
+            let filtered = customersDB.filter(c => (c.name || '').toLowerCase().includes(kw) || String(c.phone || '').includes(kw));
             
             if(filtered.length === 0) { 
                 list.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">Chưa có khách hàng</p>'; 
                 return; 
             }
 
-            // FIX HIỆU NĂNG 1: Đếm số đơn hàng CỦA TẤT CẢ KHÁCH HÀNG 1 lần duy nhất trước khi lặp (Tránh vòng lặp lồng)
             const orderCounts = {};
             ordersDB.forEach(o => {
                 if (o.customerPhone) {
@@ -650,13 +653,12 @@
                 }
             });
 
-            // FIX HIỆU NĂNG 2: Gom toàn bộ HTML thành 1 chuỗi, sau đó in ra trình duyệt ĐÚNG 1 LẦN
             let htmlContent = '';
             filtered.forEach(c => {
-                const count = orderCounts[c.phone] || 0; // Lấy dữ liệu đã đếm cực nhanh
+                const count = orderCounts[c.phone] || 0; 
                 htmlContent += `
                     <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center cursor-pointer active:scale-95 transition-transform" onclick="openCrmDetail('${c.phone}')">
-                        <div><p class="font-bold text-[14px]">${c.name}</p><p class="text-xs text-blue-600 font-semibold mt-1">${c.phone}</p></div>
+                        <div><p class="font-bold text-[14px]">${c.name || 'Chưa có tên'}</p><p class="text-xs text-blue-600 font-semibold mt-1">${c.phone || 'Trống'}</p></div>
                         <div class="text-right"><p class="text-[11px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-full">${count} đơn</p></div>
                     </div>
                 `;
@@ -670,8 +672,11 @@
             const orders = ordersDB.filter(o => o.customerPhone === c.phone); orders.sort((a,b) => new Date(b.date) - new Date(a.date));
             const totalSpent = orders.reduce((sum, o) => sum + o.total, 0);
 
-            document.getElementById('crmDetailAvatar').innerText = c.name.charAt(0).toUpperCase() || '?';
-            document.getElementById('crmDetailName').innerText = c.name; document.getElementById('crmDetailPhone').innerText = c.phone;
+            // BẢO VỆ NULL KHI LẤY CHỮ CÁI ĐẦU TIÊN
+            const firstChar = c.name && c.name.length > 0 ? c.name.charAt(0).toUpperCase() : '?';
+            document.getElementById('crmDetailAvatar').innerText = firstChar;
+            document.getElementById('crmDetailName').innerText = c.name || 'Khách chưa có tên'; 
+            document.getElementById('crmDetailPhone').innerText = c.phone || 'Trống';
             document.getElementById('crmDetailAddress').innerText = c.address || 'Chưa cập nhật địa chỉ mặc định';
             document.getElementById('crmDetailOrdersCount').innerText = `${orders.length}`;
             document.getElementById('crmDetailTotalSpent').innerText = formatCurrency(totalSpent);
@@ -681,10 +686,10 @@
             orders.forEach(o => {
                 list.innerHTML += `
                     <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                        <div class="flex justify-between font-bold text-sm mb-1"><span>${o.receiveDate.replace(/^[^-]+ - /, '')}</span><span class="text-black">${formatCurrency(o.total)}</span></div>
-                        <p class="text-xs text-gray-600 mb-2 leading-relaxed">${o.products.map(p => `<span class="font-semibold">${p.qty}x</span> ${p.name}`).join('<br>')}</p>
+                        <div class="flex justify-between font-bold text-sm mb-1"><span>${(o.receiveDate || '').replace(/^[^-]+ - /, '')}</span><span class="text-black">${formatCurrency(o.total)}</span></div>
+                        <p class="text-xs text-gray-600 mb-2 leading-relaxed">${(o.products || []).map(p => `<span class="font-semibold">${p.qty}x</span> ${p.name}`).join('<br>')}</p>
                         <div class="flex justify-between items-center mt-2 border-t border-gray-200 pt-2">
-                            <span class="text-[10px] font-semibold text-gray-500 uppercase">${o.deliveryType}</span>
+                            <span class="text-[10px] font-semibold text-gray-500 uppercase">${o.deliveryType || ''}</span>
                             <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${o.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${o.paymentStatus === 'paid' ? 'Đã Thanh Toán' : 'Chưa TT'}</span>
                         </div>
                     </div>
@@ -696,12 +701,14 @@
         window.populateCustomerFilter = function() {
             const filter = document.getElementById('filterCustomer'); if(!filter) return;
             const currentVal = filter.value; filter.innerHTML = '<option value="">Tất cả khách hàng</option>';
-            customersDB.forEach(c => { filter.innerHTML += `<option value="${c.phone}">${c.name} (${c.phone})</option>`; }); filter.value = currentVal;
+            customersDB.forEach(c => { filter.innerHTML += `<option value="${c.phone || ''}">${c.name || 'Vô danh'} (${c.phone || 'Trống'})</option>`; }); filter.value = currentVal;
         };
 
         window.getFilteredOrders = function() {
             const kw = document.getElementById('searchKeyword').value.toLowerCase(); const createDate = document.getElementById('filterCreateDate').value; const filterPhone = document.getElementById('filterCustomer').value;
-            let filtered = ordersDB.filter(o => o.customerName.toLowerCase().includes(kw) || o.id.toLowerCase().includes(kw) || (o.customerPhone && o.customerPhone.includes(kw)));
+            // BẢO VỆ NULL KHI LỌC ĐƠN HÀNG
+            let filtered = ordersDB.filter(o => (o.customerName || '').toLowerCase().includes(kw) || (o.id || '').toLowerCase().includes(kw) || String(o.customerPhone || '').includes(kw));
+            
             if (createDate) {
                 filtered = filtered.filter(o => {
                     if (!o.receiveDate) return false;
@@ -727,15 +734,15 @@
             filtered.forEach(o => {
                 const isSel = selectedOrders.has(o.id);
                 const card = document.createElement('div'); card.className = `apple-card p-5 border-2 transition-all ${isSel ? 'border-black bg-gray-50' : 'border-transparent'}`;
-                let prodsHTML = o.products.map(p => `<div class="flex justify-between text-sm"><span>${p.qty}x ${p.name}</span><span class="text-gray-500">${formatCurrency(p.qty * p.price)}</span></div>`).join('');
+                let prodsHTML = (o.products || []).map(p => `<div class="flex justify-between text-sm"><span>${p.qty}x ${p.name}</span><span class="text-gray-500">${formatCurrency(p.qty * p.price)}</span></div>`).join('');
 
                 card.innerHTML = `
                     <div class="flex items-start gap-3">
                         <input type="checkbox" class="mt-1" ${isSel ? 'checked' : ''} onchange="toggleSelect('${o.id}')">
                         <div class="flex-grow">
-                            <div class="flex justify-between"><span class="text-xs font-mono bg-gray-200 px-2 rounded">${o.id}</span><span class="text-xs text-gray-500">${o.receiveDate}</span></div>
-                            <h3 class="font-bold text-lg mt-1">${o.customerName}</h3>
-                            <p class="text-xs text-blue-600 font-semibold">${o.customerPhone || 'Không có SĐT'} <span class="text-gray-500 font-normal">• ${o.deliveryType}</span></p>
+                            <div class="flex justify-between"><span class="text-xs font-mono bg-gray-200 px-2 rounded">${o.id}</span><span class="text-xs text-gray-500">${o.receiveDate || ''}</span></div>
+                            <h3 class="font-bold text-lg mt-1">${o.customerName || 'Khách chưa có tên'}</h3>
+                            <p class="text-xs text-blue-600 font-semibold">${o.customerPhone || 'Không có SĐT'} <span class="text-gray-500 font-normal">• ${o.deliveryType || ''}</span></p>
                             ${o.shippingAddress ? `<p class="text-xs text-neutral-600 mt-1">Địa chỉ: ${o.shippingAddress}</p>` : ''}
                             
                             <div class="mt-3 bg-white p-3 rounded-xl border border-gray-100">
@@ -831,7 +838,9 @@
         };
         window.toggleProdDropdown = function(rowId, event) { event.stopPropagation(); const row = document.getElementById(`row-${rowId}`); if(!row) return; const input = row.querySelector('.prod-name'); const box = document.getElementById(`sug-${rowId}`); if(box.classList.contains('hidden')) window.searchProd(input, rowId, true); else box.classList.add('hidden'); };
         window.searchProd = function(input, rowId, forceAll = false) {
-            const q = input.value.toLowerCase(); const box = document.getElementById(`sug-${rowId}`); const matches = (q === '' || forceAll) ? productsDB : productsDB.filter(p => p.name.toLowerCase().includes(q));
+            const q = input.value.toLowerCase(); const box = document.getElementById(`sug-${rowId}`); 
+            // BẢO VỆ NULL TRONG TÌM KIẾM SẢN PHẨM
+            const matches = (q === '' || forceAll) ? productsDB : productsDB.filter(p => (p.name || '').toLowerCase().includes(q));
             box.innerHTML = ''; if(matches.length === 0) { box.classList.add('hidden'); return; }
             box.classList.remove('hidden');
             matches.forEach(p => {
@@ -873,17 +882,17 @@
             const overlayStyle = cfg.bgImage ? `background: rgba(255,255,255,0.92); padding: 20px; border-radius: 8px;` : `padding: 20px;`;
 
             ordersToPrint.forEach((o, index) => {
-                let prodsHTML = o.products.map(p => `<tr style="border-bottom: 1px dotted #ccc; font-size: 13px;"><td style="padding: 6px 0;">${p.name}</td><td style="padding: 6px 0; text-align: center;">${p.qty}</td><td style="padding: 6px 0; text-align: right;">${formatCurrency(p.qty * p.price)}</td></tr>`).join('');
+                let prodsHTML = (o.products || []).map(p => `<tr style="border-bottom: 1px dotted #ccc; font-size: 13px;"><td style="padding: 6px 0;">${p.name}</td><td style="padding: 6px 0; text-align: center;">${p.qty}</td><td style="padding: 6px 0; text-align: right;">${formatCurrency(p.qty * p.price)}</td></tr>`).join('');
                 htmlContent += `
                     <div class="print-receipt" style="${bgStyle} max-width: 800px; margin: 0 auto; color: black; font-family: sans-serif; position: relative;">
                         <div style="${overlayStyle}">
                             ${cfg.logo ? `<div style="text-align: ${cfg.logoPosition || 'center'}; margin-bottom: 10px;"><img src="${cfg.logo}" style="height: auto; width: auto; max-height: 80px; max-width: 200px; display: inline-block;"></div>` : ''}
                             <div style="text-align: center; margin-bottom: 25px;"><h2 style="font-size: 24px; font-weight: bold; margin: 0 0 5px 0;">${cfg.shopName || 'HÓA ĐƠN MUA HÀNG'}</h2><span style="font-size: 14px; font-family: monospace; background: #eee; padding: 4px 10px; border-radius: 6px; color: #333;">MÃ ĐH: ${o.id}</span></div>
                             <div style="margin-bottom: 15px; font-size: 14px; line-height: 1.6; border-bottom: 1px solid #ddd; padding-bottom: 15px;">
-                                <p style="margin: 4px 0;"><strong>Khách hàng:</strong> ${o.customerName}</p>
+                                <p style="margin: 4px 0;"><strong>Khách hàng:</strong> ${o.customerName || 'Khách chưa có tên'}</p>
                                 ${cfg.showPhone !== false && o.customerPhone ? `<p style="margin: 4px 0;"><strong>SĐT:</strong> ${o.customerPhone}</p>` : ''}
-                                ${cfg.showDate !== false ? `<p style="margin: 4px 0;"><strong>Ngày nhận:</strong> ${o.receiveDate}</p>` : ''}
-                                ${cfg.showDelivery !== false ? `<p style="margin: 4px 0;"><strong>Nhận hàng:</strong> ${o.deliveryType}</p>` : ''}
+                                ${cfg.showDate !== false ? `<p style="margin: 4px 0;"><strong>Ngày nhận:</strong> ${o.receiveDate || ''}</p>` : ''}
+                                ${cfg.showDelivery !== false ? `<p style="margin: 4px 0;"><strong>Nhận hàng:</strong> ${o.deliveryType || ''}</p>` : ''}
                                 ${cfg.showAddress !== false && o.shippingAddress ? `<p style="margin: 4px 0;"><strong>Địa chỉ:</strong> ${o.shippingAddress}</p>` : ''}
                             </div>
                             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead><tr style="border-bottom: 1px solid #000; text-align: left; font-size: 12px; font-weight: bold;"><th style="padding: 8px 0;">Sản phẩm</th><th style="padding: 8px 0; text-align: center; width: 40px;">SL</th><th style="padding: 8px 0; text-align: right; width: 90px;">Thành tiền</th></tr></thead><tbody>${prodsHTML}</tbody></table>
@@ -911,13 +920,13 @@
                     ${cfg.logo ? `<div style="text-align: ${cfg.logoPosition || 'center'}; margin-bottom: 15px;"><img src="${cfg.logo}" style="height: auto; width: auto; max-height: 70px; max-width: 180px; display: inline-block;"></div>` : ''}
                     <div style="text-align: center; margin-bottom: 25px;"><h2 style="font-size: 20px; font-weight: 600; margin: 0 0 5px 0; letter-spacing: -0.5px;">${cfg.shopName || 'HÓA ĐƠN MUA HÀNG'}</h2><span style="font-size: 11px; font-family: monospace; background: #E5E5E7; padding: 3px 8px; border-radius: 6px; color: #555;">MÃ ĐH: ${o.id}</span></div>
                     <div style="margin-bottom: 20px; font-size: 13px; line-height: 1.5; border-bottom: 1px solid #E5E5E7; padding-bottom: 15px;">
-                        <p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Khách hàng:</strong> ${o.customerName}</p>
+                        <p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Khách hàng:</strong> ${o.customerName || 'Khách chưa có tên'}</p>
                         ${cfg.showPhone !== false && o.customerPhone ? `<p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">SĐT:</strong> ${o.customerPhone}</p>` : ''}
-                        ${cfg.showDate !== false ? `<p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Ngày nhận:</strong> ${o.receiveDate}</p>` : ''}
-                        ${cfg.showDelivery !== false ? `<p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Nhận hàng:</strong> ${o.deliveryType}</p>` : ''}
+                        ${cfg.showDate !== false ? `<p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Ngày nhận:</strong> ${o.receiveDate || ''}</p>` : ''}
+                        ${cfg.showDelivery !== false ? `<p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Nhận hàng:</strong> ${o.deliveryType || ''}</p>` : ''}
                         ${cfg.showAddress !== false && o.shippingAddress ? `<p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Địa chỉ:</strong> ${o.shippingAddress}</p>` : ''}
                     </div>
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead><tr style="border-bottom: 1px solid #1D1D1F; text-align: left; font-size: 11px; font-weight: bold; color: #8E8E93;"><th style="padding: 6px 0; text-transform: uppercase;">Sản phẩm</th><th style="padding: 6px 0; text-align: center; width: 40px; text-transform: uppercase;">SL</th><th style="padding: 6px 0; text-align: right; width: 90px; text-transform: uppercase;">Thành tiền</th></tr></thead><tbody>${o.products.map(p => `<tr style="border-bottom: 1px dotted #E5E5E7; font-size: 13px;"><td style="padding: 8px 0; color: #1D1D1F; font-weight: 500;">${p.name}</td><td style="padding: 8px 0; text-align: center; color: #8E8E93;">${p.qty}</td><td style="padding: 8px 0; text-align: right; color: #1D1D1F;">${formatCurrency(p.qty * p.price)}</td></tr>`).join('')}</tbody></table>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead><tr style="border-bottom: 1px solid #1D1D1F; text-align: left; font-size: 11px; font-weight: bold; color: #8E8E93;"><th style="padding: 6px 0; text-transform: uppercase;">Sản phẩm</th><th style="padding: 6px 0; text-align: center; width: 40px; text-transform: uppercase;">SL</th><th style="padding: 6px 0; text-align: right; width: 90px; text-transform: uppercase;">Thành tiền</th></tr></thead><tbody>${(o.products || []).map(p => `<tr style="border-bottom: 1px dotted #E5E5E7; font-size: 13px;"><td style="padding: 8px 0; color: #1D1D1F; font-weight: 500;">${p.name}</td><td style="padding: 8px 0; text-align: center; color: #8E8E93;">${p.qty}</td><td style="padding: 8px 0; text-align: right; color: #1D1D1F;">${formatCurrency(p.qty * p.price)}</td></tr>`).join('')}</tbody></table>
                     <div style="display: flex; justify-content: space-between; align-items: flex-end;">
                         <div style="text-align: left;">${(appSettings.qrCode && cfg.showQR !== false && cfg.qrPosition === 'right') ? `<img src="${appSettings.qrCode}" style="width: 60px; height: 60px; border-radius: 6px; border: 1px solid #E5E5E7; padding: 4px; background: white;">` : ''}</div>
                         <div style="text-align: right; font-size: 13px; line-height: 1.6;">${o.shippingFee ? `<p style="margin: 3px 0; color: #8E8E93;">Phí ship: ${formatCurrency(o.shippingFee)}</p>` : ''}<div style="margin-top: 8px; border-top: 1px solid #1D1D1F; padding-top: 8px;"><span style="font-size: 11px; color: #8E8E93; font-weight: 500; display: block; margin-bottom: 2px;">TỔNG THANH TOÁN</span><span style="font-size: 20px; font-weight: 700; color: #1D1D1F; letter-spacing: -0.5px;">${formatCurrency(o.total)}</span></div></div>
@@ -1003,7 +1012,7 @@
         };
         window.renderProductsList = function() {
             const l = document.getElementById('dbProductList'); l.innerHTML = '';
-            productsDB.forEach(p => { l.innerHTML += `<div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm"><div><p class="font-bold text-sm">${p.code ? `<span class="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mr-1">${p.code}</span>` : ''}${p.name}</p><p class="text-xs text-gray-500 mt-1">${formatCurrency(p.price)}</p></div><button onclick="productsDB = productsDB.filter(x=>x.id!==${p.id}); saveData(); renderProductsList(); logAction('SẢN PHẨM', 'Xóa sản phẩm [${p.code}]');" class="text-red-400 font-bold p-2">&times;</button></div>`; });
+            productsDB.forEach(p => { l.innerHTML += `<div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm"><div><p class="font-bold text-sm">${p.code ? `<span class="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mr-1">${p.code}</span>` : ''}${p.name || 'Sản phẩm'}</p><p class="text-xs text-gray-500 mt-1">${formatCurrency(p.price)}</p></div><button onclick="productsDB = productsDB.filter(x=>x.id!==${p.id}); saveData(); renderProductsList(); logAction('SẢN PHẨM', 'Xóa sản phẩm [${p.code}]');" class="text-red-400 font-bold p-2">&times;</button></div>`; });
         };
         window.saveSettings = function() { appSettings.gasUrl = document.getElementById('gasUrl').value.trim(); saveData(); showToast("Đã lưu cấu hình"); logAction('CÀI ĐẶT', 'Cập nhật Web App URL'); window.pullDataFromGoogle(true); };
         window.clearAllData = function() { if(confirm("Khôi phục sẽ xóa dữ liệu và đưa app về cấu hình lúc đầu. Bạn có chắc không?")) { localStorage.clear(); location.reload(); } };
@@ -1033,7 +1042,6 @@
                 if(data.status === 'success') {
                     if (data.products) { productsDB = data.products; localStorage.setItem('myProds', JSON.stringify(productsDB)); renderProductsList(); }
                     
-                    // CHUẨN HÓA DỮ LIỆU TỪ SHEET ĐỂ FIX LỖI MẤT SỐ 0
                     if (data.customers) { 
                         customersDB = data.customers.map(c => ({...c, phone: window.normalizePhone(c.phone)})); 
                         localStorage.setItem('myCustomers', JSON.stringify(customersDB)); populateCustomerFilter(); 
