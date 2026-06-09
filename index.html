@@ -167,7 +167,10 @@
                         <p id="totalPrice" class="text-3xl font-bold mt-1">0đ</p>
                     </div>
                 </div>
-                <button onclick="submitOrder()" class="btn-primary w-full">Hoàn tất đơn hàng</button>
+                <div class="flex gap-2">
+                    <button type="button" id="btnCancelEdit" onclick="cancelEdit()" class="btn-secondary w-1/3 hidden-section bg-red-50 text-red-600 border border-red-200">Hủy sửa</button>
+                    <button type="button" id="btnSubmitOrder" onclick="submitOrder()" class="btn-primary flex-1">Hoàn tất đơn hàng</button>
+                </div>
             </div>
         </div>
 
@@ -205,6 +208,24 @@
 
         <!-- ================= TAB: THỐNG KÊ ================= -->
         <div id="tab-stats" class="hidden-section space-y-6 fade-in">
+            <!-- THỐNG KÊ SẢN PHẨM -->
+            <div class="apple-card p-4 space-y-3">
+                <h2 class="text-xs font-bold uppercase text-gray-400 border-b border-gray-100 pb-2">Thống kê Số lượng Sản phẩm</h2>
+                <div class="flex gap-2 items-end">
+                    <div class="flex-1">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Từ ngày</label>
+                        <input type="date" id="statFromDate" class="input-field py-2 px-3 text-sm" onchange="renderProductStats()">
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Đến ngày</label>
+                        <input type="date" id="statToDate" class="input-field py-2 px-3 text-sm" onchange="renderProductStats()">
+                    </div>
+                </div>
+                <div id="productStatsResult" class="mt-2 max-h-48 overflow-y-auto space-y-1 pr-1">
+                    <p class="text-xs text-gray-400 italic text-center py-2">Chọn khoảng thời gian để xem</p>
+                </div>
+            </div>
+
             <div class="apple-card p-4 space-y-3">
                 <div class="flex gap-2 items-end">
                     <div class="flex-1">
@@ -562,13 +583,25 @@
             activeBox.classList.remove('hidden');
             
             matches.slice(0, 10).forEach(c => {
+                // Tự động tìm lại phí ship và địa chỉ của đơn Ship gần nhất
+                const pastOrders = ordersDB.filter(o => o.customerPhone === c.phone && o.deliveryType === 'Ship').sort((a,b) => new Date(b.date) - new Date(a.date));
+                let suggestedAddress = c.address || '';
+                let suggestedFee = '';
+                if (pastOrders.length > 0) {
+                    suggestedAddress = pastOrders[0].shippingAddress || suggestedAddress;
+                    suggestedFee = pastOrders[0].shippingFee || '';
+                }
+
                 const d = document.createElement('div'); d.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-blue-50 active:bg-blue-100";
                 d.innerHTML = `<p class="font-bold text-blue-600">${c.phone || ''}</p><p class="text-xs text-gray-500 font-semibold mt-0.5">${c.name || 'Khách chưa có tên'}</p>`;
                 d.onmousedown = () => { 
                     document.getElementById('custPhone').value = c.phone || ''; 
                     document.getElementById('custName').value = c.name || ''; 
-                    document.getElementById('shippingAddress').value = c.address || ''; 
-                    activeBox.classList.add('hidden'); showToast("Đã điền tự động từ CRM"); 
+                    document.getElementById('shippingAddress').value = suggestedAddress; 
+                    document.getElementById('shippingFee').value = suggestedFee;
+                    activeBox.classList.add('hidden'); 
+                    calcTotal();
+                    showToast("Đã điền tự động từ CRM"); 
                 };
                 activeBox.appendChild(d);
             });
@@ -617,14 +650,14 @@
             const existingOrder = ordersDB.find(o => o.id === currentId);
             const shipInputText = document.getElementById('shippingFee').value.replace(/[^0-9]/g, ''); const shipFee = shipInputText ? parseInt(shipInputText, 10) : 0;
             
-            const order = {
-                id: currentId, date: existingOrder ? existingOrder.date : new Date().toISOString(), receiveDate: document.getElementById('orderDate').value,
-                customerName: name, customerPhone: phone, deliveryType: delivery, shippingAddress: document.getElementById('shippingAddress').value,
-                shippingFee: shipFee, products: prods, total: prods.reduce((s,p) => s + (p.qty*p.price), 0) + shipFee, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
-                notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value)
-            };
-
-            if(editOrderId) { const idx = ordersDB.findIndex(o => o.id === editOrderId); if(idx > -1) ordersDB[idx] = order; logAction('SỬA ĐƠN', `Sửa thông tin đơn [${editOrderId}]`); editOrderId = null; document.getElementById('mainTitle').innerText = "Lên đơn mới"; } 
+            if(editOrderId) { 
+                const idx = ordersDB.findIndex(o => o.id === editOrderId); if(idx > -1) ordersDB[idx] = order; 
+                logAction('SỬA ĐƠN', `Sửa thông tin đơn [${editOrderId}]`); 
+                editOrderId = null; 
+                document.getElementById('mainTitle').innerText = "Lên đơn mới"; 
+                document.getElementById('btnCancelEdit').classList.add('hidden-section');
+                document.getElementById('btnSubmitOrder').innerText = 'Hoàn tất đơn hàng';
+            } 
             else { ordersDB.unshift(order); logAction('TẠO ĐƠN', `Lên đơn hàng mới [${currentId}] trị giá ${formatCurrency(order.total)}`); }
             
             saveData(); showToast("Đã lưu đơn hàng");
@@ -781,9 +814,62 @@
                 else { btn.classList.remove('active'); content.classList.add('hidden-section'); }
             });
             setTimeout(window.updateSliderPosition, 50);
-            if(tabId === 'stats') { document.getElementById('selectAllBtn').checked = false; renderStats(); }
+            if(tabId === 'stats') { document.getElementById('selectAllBtn').checked = false; renderStats(); renderProductStats(); }
             if(tabId === 'crm') { renderCrmList(); }
             selectedOrders.clear(); updateBulkBar();
+        };
+
+        window.renderProductStats = function() {
+            const fromStr = document.getElementById('statFromDate').value; 
+            const toStr = document.getElementById('statToDate').value;
+            const resultDiv = document.getElementById('productStatsResult');
+            
+            if (!fromStr && !toStr) {
+                resultDiv.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-2">Chọn khoảng thời gian để xem</p>';
+                return;
+            }
+
+            let fromDate = fromStr ? new Date(fromStr) : new Date('2000-01-01');
+            fromDate.setHours(0,0,0,0);
+            let toDate = toStr ? new Date(toStr) : new Date('2100-01-01');
+            toDate.setHours(23,59,59,999);
+
+            let productCounts = {};
+            
+            ordersDB.forEach(o => {
+                if (!o.receiveDate) return;
+                try {
+                    let datePart = o.receiveDate.includes(' - ') ? o.receiveDate.split(' - ')[1] : o.receiveDate;
+                    const parts = datePart.split('/'); 
+                    if (parts.length === 3) {
+                        let rDate = new Date(parts[2], parts[1]-1, parts[0]);
+                        if (rDate >= fromDate && rDate <= toDate) {
+                            (o.products || []).forEach(p => {
+                                if (p.name) {
+                                    productCounts[p.name] = (productCounts[p.name] || 0) + p.qty;
+                                }
+                            });
+                        }
+                    }
+                } catch(e) {}
+            });
+
+            resultDiv.innerHTML = '';
+            const sortedProducts = Object.entries(productCounts).sort((a,b) => b[1] - a[1]);
+            
+            if (sortedProducts.length === 0) {
+                resultDiv.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-2">Không có đơn hàng trong thời gian này</p>';
+                return;
+            }
+
+            sortedProducts.forEach(([name, qty]) => {
+                resultDiv.innerHTML += `
+                    <div class="flex justify-between items-center text-sm border-b border-gray-100 py-2">
+                        <span class="font-medium text-gray-800">${name}</span>
+                        <span class="font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">${qty}</span>
+                    </div>
+                `;
+            });
         };
 
         window.openDatePicker = function() { calDate = new Date(selectedDate); renderCalendar(); document.getElementById('dateModal').classList.remove('opacity-0', 'pointer-events-none'); };
@@ -864,6 +950,9 @@
 
         window.editOrder = function(id) {
             const o = ordersDB.find(x => x.id === id); editOrderId = id; document.getElementById('mainTitle').innerText = "Sửa đơn: " + id; switchTab('order');
+            document.getElementById('btnCancelEdit').classList.remove('hidden-section');
+            document.getElementById('btnSubmitOrder').innerText = 'Lưu thay đổi';
+
             document.getElementById('custName').value = o.customerName; document.getElementById('custPhone').value = o.customerPhone; document.getElementById('orderDate').value = o.receiveDate;
             const r = document.querySelector(`input[name="deliveryType"][value="${o.deliveryType}"]`); if(r) r.checked = true;
             document.getElementById('shippingAddress').value = o.shippingAddress || ''; document.getElementById('shippingFee').value = o.shippingFee || '';
@@ -871,6 +960,18 @@
             document.querySelectorAll('input[name="orderNote"]').forEach(c => c.checked = false);
             o.notes.forEach(n => { const cb = document.querySelector(`input[name="orderNote"][value="${n}"]`); if(cb) cb.checked = true; else { document.getElementById('noteOther').checked = true; document.getElementById('otherNoteText').value = n; } });
             toggleShipping(); toggleOtherNote(); calcTotal();
+        };
+
+        window.cancelEdit = function() {
+            editOrderId = null;
+            document.getElementById('mainTitle').innerText = "Lên đơn mới";
+            document.getElementById('btnCancelEdit').classList.add('hidden-section');
+            document.getElementById('btnSubmitOrder').innerText = 'Hoàn tất đơn hàng';
+            
+            document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = '';
+            document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
+            toggleShipping(); toggleOtherNote(); calcTotal();
+            switchTab('stats');
         };
 
         window.openImageModal = function(imgData) { const img = document.getElementById('exportedImage'); img.src = imgData; document.getElementById('imageModal').classList.remove('opacity-0', 'pointer-events-none'); };
