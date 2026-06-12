@@ -79,7 +79,16 @@
             </div>
             <div class="space-y-4">
                 <input type="text" id="loginUsername" class="input-field bg-white" placeholder="Tên đăng nhập">
-                <input type="password" id="loginPassword" class="input-field bg-white" placeholder="Mật khẩu">
+                <div class="relative">
+                    <input type="password" id="loginPassword" class="input-field bg-white pr-10" placeholder="Mật khẩu">
+                    <button type="button" onclick="togglePassword()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 p-1 hover:text-black transition-colors">
+                        <svg id="eyeIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    </button>
+                </div>
+                <label class="flex items-center gap-2 mt-2 cursor-pointer">
+                    <input type="checkbox" id="rememberMe" class="w-4 h-4 accent-black rounded border-gray-300">
+                    <span class="text-sm font-medium text-gray-600">Nhớ đăng nhập trong 1 tuần</span>
+                </label>
                 <button onclick="handleLogin()" class="btn-primary w-full mt-2">Đăng nhập</button>
             </div>
             <p id="loginError" class="text-red-500 text-sm mt-4 text-center hidden-section font-medium">Sai thông tin đăng nhập!</p>
@@ -252,6 +261,11 @@
                             <option value="dateAsc">Cũ nhất</option>
                         </select>
                     </div>
+                    <!-- Nút Thùng rác mới thêm vào -->
+                    <button id="statsTrashBtn" onclick="openRecycleBin()" class="btn-secondary flex items-center justify-center gap-1 bg-orange-50 text-orange-600 border border-orange-200 py-2 px-3 h-[38px] rounded-xl text-sm font-semibold whitespace-nowrap">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        Thùng rác
+                    </button>
                 </div>
 
                 <div class="flex gap-2 items-center justify-between border-t border-gray-100 pt-3 mt-1">
@@ -404,6 +418,11 @@
                 <div id="usersList" class="space-y-3"></div>
             </div>
 
+            <div class="apple-card p-6" id="adminRecycleSection">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Dữ liệu đã xóa</h2>
+                <button onclick="openRecycleBin()" class="btn-secondary w-full bg-orange-50 text-orange-600 border border-orange-200">Xem Đơn Hàng Đã Xóa</button>
+            </div>
+
             <div class="apple-card p-6">
                 <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Đồng bộ Google Sheets</h2>
                 <div class="space-y-4 mb-4">
@@ -503,6 +522,16 @@
         </div>
     </div>
 
+    <!-- Modal Thùng Rác -->
+    <div id="recycleBinModal" class="fixed inset-0 bg-[#F5F5F7] z-[900] hidden-section flex flex-col fade-in pb-safe">
+        <header class="flex justify-between items-center p-4 bg-white shadow-sm rounded-b-3xl">
+            <button onclick="document.getElementById('recycleBinModal').classList.add('hidden-section')" class="font-semibold text-blue-500 text-sm bg-blue-50 px-3 py-1.5 rounded-full active:scale-95">&larr; Đóng</button>
+            <h2 class="font-bold text-lg">Đơn hàng đã xóa</h2>
+            <div class="w-16"></div>
+        </header>
+        <div class="flex-1 overflow-y-auto p-4 space-y-4" id="recycleBinList"></div>
+    </div>
+
     <div id="toast" class="fixed top-10 left-1/2 -translate-x-1/2 bg-black/90 text-white px-6 py-3 rounded-full text-sm font-medium opacity-0 pointer-events-none transition-all duration-300 z-[1100]">Thông báo</div>
 
     <script>
@@ -549,22 +578,51 @@
         let chartProductInstance = null;
 
         window.onload = function() {
-            document.getElementById('loginScreen').classList.remove('hidden-section');
-            document.getElementById('mainApp').classList.add('hidden-section');
+            const savedSession = JSON.parse(localStorage.getItem('mySession'));
+            if (savedSession && savedSession.expiresAt > Date.now()) {
+                const user = usersDB.find(x => x.username === savedSession.user.username);
+                if (user) {
+                    currentUser = user; document.getElementById('loginScreen').classList.add('hidden-section'); document.getElementById('mainApp').classList.remove('hidden-section');
+                    applyRoleRestrictions(); initApp(); logAction('ĐĂNG NHẬP', 'Tự động đăng nhập từ phiên cũ');
+                } else { document.getElementById('loginScreen').classList.remove('hidden-section'); document.getElementById('mainApp').classList.add('hidden-section'); }
+            } else {
+                localStorage.removeItem('mySession');
+                document.getElementById('loginScreen').classList.remove('hidden-section');
+                document.getElementById('mainApp').classList.add('hidden-section');
+            }
             window.addEventListener('resize', updateSliderPosition);
+        };
+
+        window.togglePassword = function() {
+            const pwdInput = document.getElementById('loginPassword');
+            const eyeIcon = document.getElementById('eyeIcon');
+            if (pwdInput.type === 'password') {
+                pwdInput.type = 'text';
+                eyeIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>`;
+            } else {
+                pwdInput.type = 'password';
+                eyeIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>`;
+            }
         };
 
         window.handleLogin = function() {
             const u = document.getElementById('loginUsername').value.trim(); const p = document.getElementById('loginPassword').value;
             const user = usersDB.find(x => x.username === u && x.password === p);
             if (user) {
-                currentUser = user; document.getElementById('loginScreen').classList.add('hidden-section'); document.getElementById('mainApp').classList.remove('hidden-section');
+                currentUser = user; 
+                if (document.getElementById('rememberMe').checked) {
+                    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+                    localStorage.setItem('mySession', JSON.stringify({ user: user, expiresAt: expiresAt }));
+                } else {
+                    localStorage.removeItem('mySession');
+                }
+                document.getElementById('loginScreen').classList.add('hidden-section'); document.getElementById('mainApp').classList.remove('hidden-section');
                 applyRoleRestrictions(); initApp(); logAction('ĐĂNG NHẬP', 'Đăng nhập thành công');
             } else { document.getElementById('loginError').classList.remove('hidden-section'); }
         };
 
         window.handleLogout = function() {
-            logAction('ĐĂNG XUẤT', 'Đã đăng xuất'); currentUser = null;
+            logAction('ĐĂNG XUẤT', 'Đã đăng xuất'); currentUser = null; localStorage.removeItem('mySession');
             document.getElementById('loginUsername').value = ''; document.getElementById('loginPassword').value = '';
             document.getElementById('loginScreen').classList.remove('hidden-section'); document.getElementById('mainApp').classList.add('hidden-section'); document.getElementById('loginError').classList.add('hidden-section');
         };
@@ -574,17 +632,22 @@
             const productsBtn = document.getElementById('btn-tab-products'); 
             const deleteBtn = document.getElementById('btn-bulk-delete');
             const revBtn = document.getElementById('btn-tab-revenue');
+            const statsTrashBtn = document.getElementById('statsTrashBtn');
             
             if (currentUser.role !== 'admin') { 
                 settingsBtn.style.display = 'none'; 
                 productsBtn.style.display = 'none'; 
                 deleteBtn.style.display = 'none'; 
                 revBtn.style.display = 'none';
+                if(document.getElementById('adminRecycleSection')) document.getElementById('adminRecycleSection').style.display = 'none';
+                if(statsTrashBtn) statsTrashBtn.style.display = 'none';
             } else { 
                 settingsBtn.style.display = ''; 
                 productsBtn.style.display = ''; 
                 deleteBtn.style.display = ''; 
                 revBtn.style.display = '';
+                if(document.getElementById('adminRecycleSection')) document.getElementById('adminRecycleSection').style.display = '';
+                if(statsTrashBtn) statsTrashBtn.style.display = '';
             }
             switchTab('order'); 
         }
@@ -683,7 +746,7 @@
             activeBox.classList.remove('hidden');
             
             matches.slice(0, 10).forEach(c => {
-                const pastOrders = ordersDB.filter(o => o.customerPhone === c.phone && o.deliveryType === 'Ship').sort((a,b) => new Date(b.date) - new Date(a.date));
+                const pastOrders = ordersDB.filter(o => o.customerPhone === c.phone && o.deliveryType === 'Ship' && !o.isDeleted).sort((a,b) => new Date(b.date) - new Date(a.date));
                 let suggestedAddress = c.address || '';
                 let suggestedFee = '';
                 if (pastOrders.length > 0) {
@@ -789,7 +852,7 @@
             const existingCustomer = customersDB.find(c => c.phone === phone);
             if (!existingCustomer) {
                 customersDB.push({ id: `KH${Date.now()}`, name: name, phone: phone, address: document.getElementById('shippingAddress').value.trim() || '', _updatedAt: Date.now() });
-                logAction('CRM', `Thêm mới khách hàng [${phone}]`); renderCrmList();
+                logAction('CRM', `Thêm mới khách hàng [${phone}]`); 
             } else {
                 existingCustomer.name = name; 
                 existingCustomer.address = document.getElementById('shippingAddress').value.trim() || existingCustomer.address;
@@ -841,7 +904,7 @@
 
             const orderCounts = {};
             ordersDB.forEach(o => {
-                if (o.customerPhone) {
+                if (o.customerPhone && !o.isDeleted) {
                     orderCounts[o.customerPhone] = (orderCounts[o.customerPhone] || 0) + 1;
                 }
             });
@@ -862,7 +925,7 @@
 
         window.openCrmDetail = function(phone) {
             const c = customersDB.find(x => x.phone === phone); if(!c) return;
-            const orders = ordersDB.filter(o => o.customerPhone === c.phone); orders.sort((a,b) => new Date(b.date) - new Date(a.date));
+            const orders = ordersDB.filter(o => o.customerPhone === c.phone && !o.isDeleted); orders.sort((a,b) => new Date(b.date) - new Date(a.date));
             const totalSpent = orders.reduce((sum, o) => sum + o.total, 0);
 
             const firstChar = c.name && c.name.length > 0 ? c.name.charAt(0).toUpperCase() : '?';
@@ -895,7 +958,7 @@
             const filterCus = document.getElementById('filterCustomerInput').value.toLowerCase();
             const filterProd = document.getElementById('filterProductInput').value.toLowerCase();
             
-            let filtered = ordersDB.filter(o => (o.customerName || '').toLowerCase().includes(kw) || (o.id || '').toLowerCase().includes(kw) || String(o.customerPhone || '').includes(kw));
+            let filtered = ordersDB.filter(o => !o.isDeleted && ((o.customerName || '').toLowerCase().includes(kw) || (o.id || '').toLowerCase().includes(kw) || String(o.customerPhone || '').includes(kw)));
             
             if (filterCus) {
                 filtered = filtered.filter(o => (o.customerName || '').toLowerCase().includes(filterCus) || String(o.customerPhone || '').includes(filterCus));
@@ -924,23 +987,45 @@
             if(sort === 'dateDesc') filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
             if(sort === 'dateAsc') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
 
-            const prodTotals = {};
+            const prodTotals = new Map();
+            // Khởi tạo map cho tất cả sản phẩm trong kho (để luôn hiển thị và giữ thứ tự)
+            productsDB.forEach(p => prodTotals.set(p.name, 0));
+
+            // Cộng dồn từ đơn hàng
             filtered.forEach(o => {
                 (o.products || []).forEach(p => {
-                    if (p.name) prodTotals[p.name] = (prodTotals[p.name] || 0) + p.qty;
+                    if (p.name) {
+                        if (prodTotals.has(p.name)) {
+                            prodTotals.set(p.name, prodTotals.get(p.name) + p.qty);
+                        } else {
+                            // Sản phẩm ngoài kho
+                            prodTotals.set(p.name, p.qty);
+                        }
+                    }
                 });
             });
 
             const summaryBox = document.getElementById('statsProductSummary');
             const summaryList = document.getElementById('statsProductSummaryList');
-            const prodKeys = Object.keys(prodTotals).sort((a,b) => prodTotals[b] - prodTotals[a]); // Sắp xếp theo số lượng giảm dần
 
-            if (prodKeys.length > 0) {
+            // Tái cấu trúc mảng để hiển thị (Ưu tiên thứ tự kho SP trước, các SP lạ xếp sau)
+            const summaryArray = [];
+            productsDB.forEach(p => {
+                summaryArray.push({ name: p.name, count: prodTotals.get(p.name) });
+                prodTotals.delete(p.name);
+            });
+            // Thêm các SP lạ còn lại
+            prodTotals.forEach((count, name) => {
+                summaryArray.push({ name: name, count: count });
+            });
+
+            if (summaryArray.length > 0) {
                 summaryBox.classList.remove('hidden-section');
-                summaryList.innerHTML = prodKeys.map(k => `
-                    <div class="flex justify-between items-center bg-gray-50 border border-gray-100 p-2.5 rounded-xl">
-                        <span class="font-semibold text-gray-700 truncate pr-2 text-xs">${k}</span>
-                        <span class="font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-lg text-xs">${prodTotals[k]}</span>
+                summaryList.className = 'flex flex-wrap gap-2 text-sm';
+                summaryList.innerHTML = summaryArray.map(item => `
+                    <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 px-3 py-2 rounded-xl flex-grow sm:flex-grow-0">
+                        <span class="font-semibold text-gray-700 whitespace-normal break-words leading-tight">${item.name}</span>
+                        <span class="font-bold ml-auto px-2 py-0.5 rounded-lg text-xs ${item.count > 0 ? 'text-blue-600 bg-blue-100' : 'text-gray-400 bg-gray-200'}">${item.count}</span>
                     </div>`).join('');
             } else {
                 summaryBox.classList.add('hidden-section');
@@ -1021,6 +1106,7 @@
             let toDate = toStr ? new Date(toStr) : new Date('2100-01-01'); toDate.setHours(23,59,59,999);
 
             let filteredOrders = ordersDB.filter(o => {
+                if (o.isDeleted) return false;
                 let rDate = parseDateStr(o.receiveDate) || new Date(o.date);
                 return rDate >= fromDate && rDate <= toDate && o.paymentStatus === 'paid';
             });
@@ -1161,7 +1247,24 @@
         window.toggleSelect = function(id) { selectedOrders.has(id) ? selectedOrders.delete(id) : selectedOrders.add(id); const currentFiltered = window.getFilteredOrders(); const allSelected = currentFiltered.length > 0 && currentFiltered.every(o => selectedOrders.has(o.id)); document.getElementById('selectAllBtn').checked = allSelected; renderStats(); };
         window.toggleSelectAll = function(checkbox) { const isChecked = checkbox.checked; const filtered = window.getFilteredOrders(); if (isChecked) { filtered.forEach(o => selectedOrders.add(o.id)); } else { filtered.forEach(o => selectedOrders.delete(o.id)); } renderStats(); };
         window.updateBulkBar = function() { const bar = document.getElementById('bulkActionBar'); document.getElementById('bulkCount').innerText = `${selectedOrders.size} đơn`; selectedOrders.size > 0 ? bar.classList.add('active') : bar.classList.remove('active'); };
-        window.bulkDelete = function() { logAction('XÓA ĐƠN', `Xóa ${selectedOrders.size} đơn hàng`); ordersDB = ordersDB.filter(o => !selectedOrders.has(o.id)); selectedOrders.clear(); saveData(); document.getElementById('selectAllBtn').checked = false; renderStats(); showToast("Đã xóa"); };
+        
+        // Cập nhật Cờ Xóa (Thêm (ĐÃ XÓA) vào tên Khách hàng để hiện lên Sheet)
+        window.bulkDelete = function() { 
+            logAction('XÓA ĐƠN', `Xóa mềm ${selectedOrders.size} đơn hàng`); 
+            ordersDB.forEach(o => { 
+                if(selectedOrders.has(o.id)) { 
+                    o.isDeleted = true; 
+                    o._updatedAt = Date.now(); 
+                    if(o.customerName && !o.customerName.endsWith(' (ĐÃ XÓA)')) o.customerName += ' (ĐÃ XÓA)';
+                } 
+            }); 
+            selectedOrders.clear(); 
+            saveData(); 
+            document.getElementById('selectAllBtn').checked = false; 
+            renderStats(); 
+            showToast("Đã chuyển vào Thùng rác"); 
+        };
+        
         window.bulkMarkPaid = function() { logAction('THANH TOÁN', `Đánh dấu thanh toán cho ${selectedOrders.size} đơn hàng`); ordersDB.forEach(o => { if (selectedOrders.has(o.id)) { o.paymentStatus = 'paid'; o._updatedAt = Date.now(); } }); selectedOrders.clear(); saveData(); document.getElementById('selectAllBtn').checked = false; renderStats(); showToast("Đã đổi trạng thái thanh toán"); };
         window.markSinglePaid = function(id) { const order = ordersDB.find(o => o.id === id); if(order) { order.paymentStatus = 'paid'; order._updatedAt = Date.now(); logAction('THANH TOÁN', `Xác nhận thanh toán đơn hàng [${id}]`); saveData(); renderStats(); showToast("Đã cập nhật"); } };
 
@@ -1189,6 +1292,55 @@
             document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
             toggleShipping(); toggleOtherNote(); calcTotal();
             switchTab('stats');
+        };
+
+        window.openRecycleBin = function() {
+            document.getElementById('recycleBinModal').classList.remove('hidden-section');
+            window.renderRecycleBin();
+        };
+
+        window.renderRecycleBin = function() {
+            const list = document.getElementById('recycleBinList');
+            const deletedOrders = ordersDB.filter(o => o.isDeleted).sort((a,b) => new Date(b.date) - new Date(a.date));
+            list.innerHTML = '';
+            
+            if(deletedOrders.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-400 mt-10 text-sm border-2 border-dashed border-gray-200 py-10 rounded-2xl">Thùng rác trống</p>';
+                return;
+            }
+
+            deletedOrders.forEach(o => {
+                const card = document.createElement('div'); card.className = `apple-card p-4 border border-gray-200 bg-white/50 opacity-80`;
+                let prodsHTML = (o.products || []).map(p => `<div class="flex justify-between text-sm"><span>${p.qty}x ${p.name}</span><span class="text-gray-500">${formatCurrency(p.qty * p.price)}</span></div>`).join('');
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2"><span class="text-xs font-mono bg-gray-200 px-2 rounded line-through text-gray-500">${o.id}</span><span class="text-xs text-gray-500">${o.receiveDate || ''}</span></div>
+                    <h3 class="font-bold text-base">${o.customerName || 'Khách chưa có tên'}</h3>
+                    <p class="text-xs text-gray-600 font-semibold">${o.customerPhone || 'Không có SĐT'}</p>
+                    <div class="mt-2 bg-white p-2 rounded border border-gray-100">${prodsHTML}</div>
+                    <div class="flex gap-2 mt-3 pt-3 border-t">
+                        <button type="button" onclick="restoreOrder('${o.id}')" class="btn-primary text-xs px-3 py-1.5 flex-1 bg-green-600">Khôi phục đơn</button>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        };
+
+        // Cập nhật khôi phục đơn: Tự động gỡ bỏ đuôi (ĐÃ XÓA)
+        window.restoreOrder = function(id) {
+            const o = ordersDB.find(x => x.id === id);
+            if(o) {
+                o.isDeleted = false;
+                o._updatedAt = Date.now();
+                if(o.customerName && o.customerName.endsWith(' (ĐÃ XÓA)')) {
+                    o.customerName = o.customerName.replace(' (ĐÃ XÓA)', '');
+                }
+                saveData();
+                renderRecycleBin();
+                if (!document.getElementById('tab-stats').classList.contains('hidden-section')) renderStats();
+                showToast("Đã khôi phục đơn hàng");
+                logAction('KHÔI PHỤC', `Khôi phục đơn hàng [${id}]`);
+            }
         };
 
         window.openImageModal = function(imgData) { const img = document.getElementById('exportedImage'); img.src = imgData; document.getElementById('imageModal').classList.remove('opacity-0', 'pointer-events-none'); };
