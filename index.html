@@ -81,14 +81,14 @@
                 <input type="text" id="loginUsername" class="input-field bg-white" placeholder="Tên đăng nhập">
                 <div class="relative">
                     <input type="password" id="loginPassword" class="input-field bg-white pr-10" placeholder="Mật khẩu">
-                    <button type="button" onclick="togglePassword()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 p-1 hover:text-black transition-colors">
+                    <button type="button" onclick="togglePassword()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 p-1">
                         <svg id="eyeIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                     </button>
                 </div>
-                <label class="flex items-center gap-2 mt-2 cursor-pointer">
-                    <input type="checkbox" id="rememberMe" class="w-4 h-4 accent-black rounded border-gray-300">
-                    <span class="text-sm font-medium text-gray-600">Nhớ đăng nhập trong 1 tuần</span>
-                </label>
+                <div class="flex items-center gap-2 mt-2">
+                    <input type="checkbox" id="rememberLogin" class="w-4 h-4 accent-black cursor-pointer">
+                    <label for="rememberLogin" class="text-sm text-gray-600 cursor-pointer">Nhớ đăng nhập 7 ngày</label>
+                </div>
                 <button onclick="handleLogin()" class="btn-primary w-full mt-2">Đăng nhập</button>
             </div>
             <p id="loginError" class="text-red-500 text-sm mt-4 text-center hidden-section font-medium">Sai thông tin đăng nhập!</p>
@@ -225,29 +225,55 @@
 
         <!-- ================= TAB: THỐNG KÊ ================= -->
         <div id="tab-stats" class="hidden-section space-y-6 fade-in">
+            <!-- TỔNG HỢP BÁNH THEO NGÀY (Nằm trên bộ lọc) -->
             <div class="apple-card p-4 space-y-3">
+                <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+                    <h2 class="text-xs font-bold uppercase text-gray-400">Tổng hợp bánh theo ngày nhận</h2>
+                </div>
+                <div id="productSumGrid" class="flex flex-wrap gap-2 mt-2">
+                    <p class="text-xs text-gray-400 italic text-center w-full py-2">Chọn ngày giao bánh ở dưới để xem số lượng</p>
+                </div>
+            </div>
+
+            <div class="apple-card p-4 space-y-3">
+                <div class="flex justify-between items-center mb-1">
+                    <h2 class="text-xs font-bold uppercase text-gray-400">Bộ lọc thống kê</h2>
+                    <button onclick="resetStatsFilters()" class="text-[10px] text-blue-500 font-semibold bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition active:scale-95">Reset bộ lọc</button>
+                </div>
                 <div class="grid grid-cols-2 gap-2 items-end">
-                    <div>
+                    <div class="relative">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Ngày giao bánh</label>
-                        <input type="date" id="filterCreateDate" class="input-field py-2 px-3 text-sm" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                        <input type="date" id="filterCreateDate" class="input-field py-2 px-3 text-sm pr-8" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                        <button type="button" onclick="document.getElementById('filterCreateDate').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="absolute right-2 bottom-[8px] text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
                     </div>
-                    <div>
+                    <div class="relative">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Mã đơn/SĐT</label>
-                        <input type="text" id="searchKeyword" class="input-field py-2 px-3 text-sm" placeholder="Tìm..." oninput="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                        <input type="text" id="searchKeyword" class="input-field py-2 px-3 text-sm pr-8" placeholder="Tìm..." oninput="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                        <button type="button" onclick="document.getElementById('searchKeyword').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="absolute right-2 bottom-[8px] text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
                     </div>
                     <div class="relative z-50">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Khách hàng</label>
                         <div class="relative">
-                            <input type="text" id="filterCustomerInput" placeholder="Gõ tên..." class="input-field py-2 px-3 text-sm bg-gray-50 pr-8" oninput="suggestStatsCus(this.value); renderStats(); document.getElementById('selectAllBtn').checked = false;" onfocus="suggestStatsCus(this.value, true)" autocomplete="off">
-                            <button type="button" onclick="toggleStatsCusDropdown(event)" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                            <input type="text" id="filterCustomerInput" placeholder="Gõ tên..." class="input-field py-2 px-3 text-sm bg-gray-50 pr-14" oninput="suggestStatsCus(this.value); renderStats(); document.getElementById('selectAllBtn').checked = false;" onfocus="suggestStatsCus(this.value, true)" autocomplete="off">
+                            <div class="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
+                                <button type="button" onclick="document.getElementById('filterCustomerInput').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                                <button type="button" onclick="toggleStatsCusDropdown(event)" class="text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                            </div>
                         </div>
                         <div id="statsCusDropdown" class="absolute bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-1"></div>
                     </div>
-                    <div class="relative z-40">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Loại bánh</label>
+                    <div class="relative z-40 flex flex-col justify-end">
+                        <div class="flex justify-between items-center mb-1 ml-1">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Loại bánh</label>
+                            <select id="filterProductLogic" class="text-[9px] bg-gray-200 rounded px-1 font-bold text-gray-600 outline-none" onchange="renderStats()">
+                                <option value="OR">HOẶC (OR)</option>
+                                <option value="AND">VÀ (AND)</option>
+                            </select>
+                        </div>
+                        <div id="selectedFilterProductsTags" class="flex flex-wrap gap-1 mb-1 empty:hidden"></div>
                         <div class="relative">
-                            <input type="text" id="filterProductInput" placeholder="Gõ bánh..." class="input-field py-2 px-3 text-sm bg-gray-50 pr-8" oninput="suggestStatsProd(this.value); renderStats(); document.getElementById('selectAllBtn').checked = false;" onfocus="suggestStatsProd(this.value, true)" autocomplete="off">
-                            <button type="button" onclick="toggleStatsProdDropdown(event)" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                            <input type="text" id="filterProductInput" placeholder="Chọn bánh..." class="input-field py-2 px-3 text-sm bg-gray-50 pr-8" oninput="suggestStatsProd(this.value); document.getElementById('selectAllBtn').checked = false;" onfocus="suggestStatsProd(this.value, true)" autocomplete="off">
+                            <button type="button" onclick="toggleStatsProdDropdown(event)" class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
                         </div>
                         <div id="statsProdDropdown" class="absolute bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-1"></div>
                     </div>
@@ -261,9 +287,9 @@
                             <option value="dateAsc">Cũ nhất</option>
                         </select>
                     </div>
-                    <!-- Nút Thùng rác mới thêm vào -->
-                    <button id="statsTrashBtn" onclick="openRecycleBin()" class="btn-secondary flex items-center justify-center gap-1 bg-orange-50 text-orange-600 border border-orange-200 py-2 px-3 h-[38px] rounded-xl text-sm font-semibold whitespace-nowrap">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    <!-- Nút Thùng Rác -->
+                    <button onclick="openTrash()" id="btnOpenTrash" class="flex items-center gap-1 text-xs font-bold text-orange-500 bg-orange-50 px-3 py-3 rounded-xl border border-orange-100 active:scale-95 transition-transform" style="display:none;">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> 
                         Thùng rác
                     </button>
                 </div>
@@ -274,12 +300,6 @@
                         Chọn tất cả
                     </label>
                 </div>
-            </div>
-
-            <!-- BẢNG TỔNG HỢP BÁNH THEO BỘ LỌC -->
-            <div id="statsProductSummary" class="apple-card p-4 hidden-section">
-                <h3 class="text-[10px] font-bold text-gray-400 uppercase mb-3 border-b border-gray-100 pb-2">Tổng hợp bánh cần làm (Theo bộ lọc)</h3>
-                <div id="statsProductSummaryList" class="grid grid-cols-2 gap-2 text-sm"></div>
             </div>
 
             <div id="statsOrdersList" class="space-y-4"></div>
@@ -418,11 +438,6 @@
                 <div id="usersList" class="space-y-3"></div>
             </div>
 
-            <div class="apple-card p-6" id="adminRecycleSection">
-                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Dữ liệu đã xóa</h2>
-                <button onclick="openRecycleBin()" class="btn-secondary w-full bg-orange-50 text-orange-600 border border-orange-200">Xem Đơn Hàng Đã Xóa</button>
-            </div>
-
             <div class="apple-card p-6">
                 <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Đồng bộ Google Sheets</h2>
                 <div class="space-y-4 mb-4">
@@ -480,6 +495,16 @@
         </div>
     </div>
 
+    <!-- Trash Modal -->
+    <div id="trashModal" class="fixed inset-0 bg-[#F5F5F7] z-[900] hidden-section flex flex-col fade-in pb-safe">
+        <header class="flex justify-between items-center p-4 bg-white shadow-sm rounded-b-3xl">
+            <button onclick="document.getElementById('trashModal').classList.add('hidden-section')" class="font-semibold text-blue-500 text-sm bg-blue-50 px-3 py-1.5 rounded-full active:scale-95">&larr; Quay lại</button>
+            <h2 class="font-bold text-lg text-orange-600">Thùng rác</h2>
+            <div class="w-20"></div>
+        </header>
+        <div class="flex-1 overflow-y-auto p-4 space-y-4" id="trashList"></div>
+    </div>
+
     <!-- Other Modals -->
     <div id="dateModal" class="fixed inset-0 bg-black/50 z-[1000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity">
         <div class="bg-white p-6 rounded-3xl max-w-sm w-full m-4 shadow-2xl">
@@ -498,10 +523,11 @@
         </div>
     </div>
 
+    <!-- Đã nâng cấp confirmModal để nhận message linh hoạt -->
     <div id="confirmModal" class="fixed inset-0 bg-black/50 z-[1000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity">
         <div class="bg-white p-6 rounded-3xl max-w-sm w-full m-4 shadow-2xl text-center">
             <h3 class="font-bold text-lg mb-2">Xác nhận</h3>
-            <p class="text-sm text-gray-500 mb-6">Bạn có chắc khách hàng không yêu cầu gì đặc biệt?</p>
+            <p id="confirmModalText" class="text-sm text-gray-500 mb-6">Bạn có chắc khách hàng không yêu cầu gì đặc biệt?</p>
             <div class="flex gap-2">
                 <button onclick="resolveConfirm(false)" class="btn-secondary flex-1">Quay lại</button>
                 <button onclick="resolveConfirm(true)" class="btn-primary flex-1 bg-black text-white">Chắc chắn</button>
@@ -520,16 +546,6 @@
             </div>
             <button onclick="closeModal('imageModal')" class="btn-primary w-full bg-black text-white py-4 rounded-2xl text-sm font-medium">Đóng cửa sổ</button>
         </div>
-    </div>
-
-    <!-- Modal Thùng Rác -->
-    <div id="recycleBinModal" class="fixed inset-0 bg-[#F5F5F7] z-[900] hidden-section flex flex-col fade-in pb-safe">
-        <header class="flex justify-between items-center p-4 bg-white shadow-sm rounded-b-3xl">
-            <button onclick="document.getElementById('recycleBinModal').classList.add('hidden-section')" class="font-semibold text-blue-500 text-sm bg-blue-50 px-3 py-1.5 rounded-full active:scale-95">&larr; Đóng</button>
-            <h2 class="font-bold text-lg">Đơn hàng đã xóa</h2>
-            <div class="w-16"></div>
-        </header>
-        <div class="flex-1 overflow-y-auto p-4 space-y-4" id="recycleBinList"></div>
     </div>
 
     <div id="toast" class="fixed top-10 left-1/2 -translate-x-1/2 bg-black/90 text-white px-6 py-3 rounded-full text-sm font-medium opacity-0 pointer-events-none transition-all duration-300 z-[1100]">Thông báo</div>
@@ -573,48 +589,55 @@
         let calDate = new Date();
         let selectedDate = new Date();
         let isCloudSyncReady = false;
+        let selectedFilterProducts = []; // Array để chứa các tag loại bánh
         
         let chartDailyInstance = null;
         let chartProductInstance = null;
 
         window.onload = function() {
-            const savedSession = JSON.parse(localStorage.getItem('mySession'));
-            if (savedSession && savedSession.expiresAt > Date.now()) {
-                const user = usersDB.find(x => x.username === savedSession.user.username);
-                if (user) {
-                    currentUser = user; document.getElementById('loginScreen').classList.add('hidden-section'); document.getElementById('mainApp').classList.remove('hidden-section');
-                    applyRoleRestrictions(); initApp(); logAction('ĐĂNG NHẬP', 'Tự động đăng nhập từ phiên cũ');
-                } else { document.getElementById('loginScreen').classList.remove('hidden-section'); document.getElementById('mainApp').classList.add('hidden-section'); }
-            } else {
-                localStorage.removeItem('mySession');
-                document.getElementById('loginScreen').classList.remove('hidden-section');
-                document.getElementById('mainApp').classList.add('hidden-section');
+            // Tự động đăng nhập nếu có remember
+            const savedLogin = localStorage.getItem('rememberedUser');
+            if (savedLogin) {
+                const loginData = JSON.parse(savedLogin);
+                if (Date.now() < loginData.expiry) {
+                    const user = usersDB.find(x => x.username === loginData.username);
+                    if (user) {
+                        currentUser = user;
+                        applyRoleRestrictions(); initApp();
+                        return; // Bỏ qua màn hình đăng nhập
+                    }
+                } else {
+                    localStorage.removeItem('rememberedUser');
+                }
             }
+            
+            document.getElementById('loginScreen').classList.remove('hidden-section');
+            document.getElementById('mainApp').classList.add('hidden-section');
             window.addEventListener('resize', updateSliderPosition);
         };
 
         window.togglePassword = function() {
             const pwdInput = document.getElementById('loginPassword');
-            const eyeIcon = document.getElementById('eyeIcon');
-            if (pwdInput.type === 'password') {
+            const icon = document.getElementById('eyeIcon');
+            if(pwdInput.type === 'password') {
                 pwdInput.type = 'text';
-                eyeIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>`;
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>';
             } else {
                 pwdInput.type = 'password';
-                eyeIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>`;
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>';
             }
         };
 
         window.handleLogin = function() {
             const u = document.getElementById('loginUsername').value.trim(); const p = document.getElementById('loginPassword').value;
+            const remember = document.getElementById('rememberLogin').checked;
             const user = usersDB.find(x => x.username === u && x.password === p);
+            
             if (user) {
                 currentUser = user; 
-                if (document.getElementById('rememberMe').checked) {
-                    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
-                    localStorage.setItem('mySession', JSON.stringify({ user: user, expiresAt: expiresAt }));
-                } else {
-                    localStorage.removeItem('mySession');
+                if (remember) {
+                    const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+                    localStorage.setItem('rememberedUser', JSON.stringify({ username: u, expiry: expiry }));
                 }
                 document.getElementById('loginScreen').classList.add('hidden-section'); document.getElementById('mainApp').classList.remove('hidden-section');
                 applyRoleRestrictions(); initApp(); logAction('ĐĂNG NHẬP', 'Đăng nhập thành công');
@@ -622,7 +645,8 @@
         };
 
         window.handleLogout = function() {
-            logAction('ĐĂNG XUẤT', 'Đã đăng xuất'); currentUser = null; localStorage.removeItem('mySession');
+            logAction('ĐĂNG XUẤT', 'Đã đăng xuất'); currentUser = null;
+            localStorage.removeItem('rememberedUser');
             document.getElementById('loginUsername').value = ''; document.getElementById('loginPassword').value = '';
             document.getElementById('loginScreen').classList.remove('hidden-section'); document.getElementById('mainApp').classList.add('hidden-section'); document.getElementById('loginError').classList.add('hidden-section');
         };
@@ -632,22 +656,20 @@
             const productsBtn = document.getElementById('btn-tab-products'); 
             const deleteBtn = document.getElementById('btn-bulk-delete');
             const revBtn = document.getElementById('btn-tab-revenue');
-            const statsTrashBtn = document.getElementById('statsTrashBtn');
+            const btnOpenTrash = document.getElementById('btnOpenTrash');
             
             if (currentUser.role !== 'admin') { 
                 settingsBtn.style.display = 'none'; 
                 productsBtn.style.display = 'none'; 
                 deleteBtn.style.display = 'none'; 
                 revBtn.style.display = 'none';
-                if(document.getElementById('adminRecycleSection')) document.getElementById('adminRecycleSection').style.display = 'none';
-                if(statsTrashBtn) statsTrashBtn.style.display = 'none';
+                btnOpenTrash.style.display = 'none';
             } else { 
                 settingsBtn.style.display = ''; 
                 productsBtn.style.display = ''; 
                 deleteBtn.style.display = ''; 
                 revBtn.style.display = '';
-                if(document.getElementById('adminRecycleSection')) document.getElementById('adminRecycleSection').style.display = '';
-                if(statsTrashBtn) statsTrashBtn.style.display = '';
+                btnOpenTrash.style.display = ''; // Hiển thị nút Thùng rác cho admin
             }
             switchTab('order'); 
         }
@@ -671,7 +693,7 @@
 
             if (appSettings.gasUrl) { window.pullDataFromGoogle(false); } else {
                 isCloudSyncReady = true; document.getElementById('syncStatus').innerText = "Sẵn sàng (Offline)";
-                if (productsDB.length === 0) { productsDB.push({id: 1, code: "CF01", name: "Cà phê sữa", price: 25000, _updatedAt: Date.now()}); saveData(); renderProductsList(); }
+                if (productsDB.length === 0) { productsDB.push({id: 1, code: "CF01", name: "Cà phê sữa", price: 25000}); saveData(); renderProductsList(); }
             }
 
             if (document.querySelectorAll('#productList > div').length === 0) addProductRow();
@@ -680,7 +702,7 @@
 
         function logAction(action, details) {
             if (!currentUser) return; logsDB.push({ timestamp: new Date().toLocaleString('vi-VN'), username: currentUser.username, action: action, details: details });
-            localStorage.setItem('myLogs', JSON.stringify(logsDB)); if (isCloudSyncReady) syncToGoogle();
+            localStorage.setItem('myLogs', JSON.stringify(logsDB)); if (isCloudSyncReady && appSettings.gasUrl) syncToGoogle();
         }
 
         function formatCurrency(n) { return new Intl.NumberFormat('vi-VN', {style: 'currency', currency: 'VND'}).format(n).replace('₫', 'đ'); }
@@ -693,11 +715,11 @@
             if (appSettings.gasUrl) syncToGoogle();
         }
 
+        /* Đồng bộ 2 Chiều - Khắc phục mất dữ liệu */
         function mergeDataLists(localList, cloudList) {
             const map = new Map();
             // Nạp dữ liệu từ Cloud vào Map trước
             (cloudList || []).forEach(item => { if(item && item.id) map.set(String(item.id), item); });
-            
             // Trộn dữ liệu Local vào, giải quyết xung đột bằng timestamp
             (localList || []).forEach(item => {
                 if(item && item.id) {
@@ -707,10 +729,9 @@
                         const localTime = item._updatedAt || 0;
                         const cloudTime = cloudItem._updatedAt || 0;
                         // Ưu tiên bản ghi có thời gian cập nhật gần nhất
-                        if (cloudTime > localTime) { map.set(id, cloudItem); } 
-                        else { map.set(id, item); }
+                        if (localTime > cloudTime) { map.set(id, item); } else { map.set(id, cloudItem); }
                     } else {
-                        // Nếu Cloud không có nhưng Local có (đơn mới tạo) -> Giữ nguyên
+                        // Nếu Cloud không có nhưng Local có (đơn mới tạo) -> Giữ nguyên map.set
                         map.set(id, item);
                     }
                 }
@@ -769,22 +790,7 @@
             });
         };
 
-        document.addEventListener('click', function(e) {
-            const pBox = document.getElementById('phoneSuggestions');
-            if(pBox && !pBox.contains(e.target) && e.target.id !== 'custPhone') pBox.classList.add('hidden');
-            
-            const nBox = document.getElementById('nameSuggestions');
-            if(nBox && !nBox.contains(e.target) && e.target.id !== 'custName') nBox.classList.add('hidden');
-            
-            const sCusBox = document.getElementById('statsCusDropdown');
-            if(sCusBox && !sCusBox.contains(e.target) && e.target.id !== 'filterCustomerInput') sCusBox.classList.add('hidden');
-            
-            const sProdBox = document.getElementById('statsProdDropdown');
-            if(sProdBox && !sProdBox.contains(e.target) && e.target.id !== 'filterProductInput') sProdBox.classList.add('hidden');
-
-            document.querySelectorAll('[id^="sug-"]').forEach(box => { const rowId = box.id.replace('sug-', ''); const row = document.getElementById(`row-${rowId}`); if (row && !row.contains(e.target)) box.classList.add('hidden'); });
-        });
-
+        // Custom Dropdown cho Thống kê (Khách hàng & Sản phẩm)
         window.suggestStatsCus = function(query, forceAll = false) {
             const box = document.getElementById('statsCusDropdown');
             if(!box) return;
@@ -816,23 +822,83 @@
             if(matches.length === 0) { box.classList.add('hidden'); return; }
             box.classList.remove('hidden');
             
-            const allOpt = document.createElement('div'); allOpt.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-gray-50 text-blue-600 font-bold"; allOpt.innerHTML = `Tất cả loại bánh`;
-            allOpt.onmousedown = () => { document.getElementById('filterProductInput').value = ''; box.classList.add('hidden'); renderStats(); document.getElementById('selectAllBtn').checked = false; };
-            box.appendChild(allOpt);
-
             matches.forEach(p => {
+                if(selectedFilterProducts.includes(p.name)) return; // Bỏ qua nếu đã được chọn dưới dạng tag
                 const d = document.createElement('div'); d.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-gray-50";
                 d.innerHTML = `<p class="font-bold">${p.name}</p>`;
-                d.onmousedown = () => { document.getElementById('filterProductInput').value = p.name; box.classList.add('hidden'); renderStats(); document.getElementById('selectAllBtn').checked = false; };
+                d.onmousedown = () => { 
+                    selectedFilterProducts.push(p.name);
+                    window.renderFilterProductTags();
+                    document.getElementById('filterProductInput').value = ''; 
+                    box.classList.add('hidden'); 
+                    renderStats(); 
+                    document.getElementById('selectAllBtn').checked = false; 
+                };
                 box.appendChild(d);
             });
+            if(box.innerHTML === '') box.classList.add('hidden'); // Nếu tất cả đã được chọn thì ẩn
         };
         window.toggleStatsProdDropdown = function(e) { e.stopPropagation(); const box = document.getElementById('statsProdDropdown'); if(box.classList.contains('hidden')) window.suggestStatsProd(document.getElementById('filterProductInput').value, true); else box.classList.add('hidden'); };
+
+        window.renderFilterProductTags = function() {
+            const container = document.getElementById('selectedFilterProductsTags');
+            container.innerHTML = '';
+            selectedFilterProducts.forEach(prod => {
+                const tag = document.createElement('div');
+                tag.className = "bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1";
+                tag.innerHTML = `<span>${prod}</span><button type="button" onclick="removeFilterProduct('${prod}')" class="hover:text-red-500 font-bold">&times;</button>`;
+                container.appendChild(tag);
+            });
+        };
+
+        window.removeFilterProduct = function(prod) {
+            selectedFilterProducts = selectedFilterProducts.filter(p => p !== prod);
+            window.renderFilterProductTags();
+            renderStats();
+        };
+
+        window.resetStatsFilters = function() {
+            document.getElementById('filterCreateDate').value = '';
+            document.getElementById('searchKeyword').value = '';
+            document.getElementById('filterCustomerInput').value = '';
+            document.getElementById('filterProductInput').value = '';
+            document.getElementById('filterProductLogic').value = 'OR';
+            selectedFilterProducts = [];
+            window.renderFilterProductTags();
+            document.getElementById('selectAllBtn').checked = false;
+            renderStats();
+        };
+
+        document.addEventListener('click', function(e) {
+            const pBox = document.getElementById('phoneSuggestions');
+            if(pBox && !pBox.contains(e.target) && e.target.id !== 'custPhone') pBox.classList.add('hidden');
+            
+            const nBox = document.getElementById('nameSuggestions');
+            if(nBox && !nBox.contains(e.target) && e.target.id !== 'custName') nBox.classList.add('hidden');
+            
+            const sCusBox = document.getElementById('statsCusDropdown');
+            if(sCusBox && !sCusBox.contains(e.target) && e.target.id !== 'filterCustomerInput') sCusBox.classList.add('hidden');
+            
+            const sProdBox = document.getElementById('statsProdDropdown');
+            if(sProdBox && !sProdBox.contains(e.target) && e.target.id !== 'filterProductInput') sProdBox.classList.add('hidden');
+
+            document.querySelectorAll('[id^="sug-"]').forEach(box => { const rowId = box.id.replace('sug-', ''); const row = document.getElementById(`row-${rowId}`); if (row && !row.contains(e.target)) box.classList.add('hidden'); });
+        });
+
+        window.showConfirmModal = function(msg) {
+            document.getElementById('confirmModalText').innerText = msg;
+            document.getElementById('confirmModal').classList.remove('opacity-0', 'pointer-events-none');
+            return new Promise(r => confirmResolver = r).then(res => {
+                document.getElementById('confirmModal').classList.add('opacity-0', 'pointer-events-none');
+                return res;
+            });
+        };
 
         window.submitOrder = async function() {
             const name = document.getElementById('custName').value.trim();
             const phone = window.normalizePhone(document.getElementById('custPhone').value.trim());
             const delivery = document.querySelector('input[name="deliveryType"]:checked')?.value;
+            const receiveDate = document.getElementById('orderDate').value;
             
             if(!name || !phone || !delivery) return showToast("Vui lòng nhập Tên, Số điện thoại và Nhận hàng");
             if(delivery === 'Ship' && !document.getElementById('shippingAddress').value.trim()){ return showToast("Vui lòng nhập địa chỉ giao hàng"); }
@@ -841,20 +907,27 @@
             const activeRows = Array.from(rows).filter(r => r.querySelector('.prod-name').value.trim() !== '');
             if(activeRows.length === 0) return showToast("Chưa chọn sản phẩm nào");
 
+            // 1. Cảnh báo trùng đơn (Cùng SĐT + Cùng Ngày Giao)
+            const isDuplicate = ordersDB.some(o => o.customerPhone === phone && o.receiveDate === receiveDate && o.id !== editOrderId && !o.isDeleted);
+            if (isDuplicate) {
+                const ok = await window.showConfirmModal(`Khách hàng này đã có đơn vào ngày ${receiveDate}. Bạn có chắc muốn lên thêm đơn nữa không?`);
+                if (!ok) return; // Hủy lên đơn nếu chọn Quay lại
+            }
+
+            // 2. Cảnh báo thiếu ghi chú
             const notesChecked = document.querySelectorAll('input[name="orderNote"]:checked');
             if(notesChecked.length === 0) {
-                document.getElementById('confirmModal').classList.remove('opacity-0', 'pointer-events-none');
-                const ok = await new Promise(r => confirmResolver = r);
-                document.getElementById('confirmModal').classList.add('opacity-0', 'pointer-events-none');
-                if(!ok) return;
+                const ok = await window.showConfirmModal("Bạn có chắc khách hàng không yêu cầu gì đặc biệt?");
+                if(!ok) return; // Hủy lên đơn nếu chọn Quay lại
             }
 
             const existingCustomer = customersDB.find(c => c.phone === phone);
             if (!existingCustomer) {
                 customersDB.push({ id: `KH${Date.now()}`, name: name, phone: phone, address: document.getElementById('shippingAddress').value.trim() || '', _updatedAt: Date.now() });
-                logAction('CRM', `Thêm mới khách hàng [${phone}]`); 
+                logAction('CRM', `Thêm mới khách hàng [${phone}]`); renderCrmList();
             } else {
-                existingCustomer.name = name; 
+                // Cập nhật lại thông tin mới nhất vào CRM
+                existingCustomer.name = name;
                 existingCustomer.address = document.getElementById('shippingAddress').value.trim() || existingCustomer.address;
                 existingCustomer._updatedAt = Date.now();
             }
@@ -867,11 +940,11 @@
             const shipInputText = document.getElementById('shippingFee').value.replace(/[^0-9]/g, ''); const shipFee = shipInputText ? parseInt(shipInputText, 10) : 0;
             
             const order = {
-                id: currentId, date: existingOrder ? existingOrder.date : new Date().toISOString(), receiveDate: document.getElementById('orderDate').value,
+                id: currentId, date: existingOrder ? existingOrder.date : new Date().toISOString(), receiveDate: receiveDate,
                 customerName: name, customerPhone: phone, deliveryType: delivery, shippingAddress: document.getElementById('shippingAddress').value,
                 shippingFee: shipFee, products: prods, total: prods.reduce((s,p) => s + (p.qty*p.price), 0) + shipFee, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
                 notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value),
-                _updatedAt: Date.now()
+                _updatedAt: Date.now() // Timestamp cho 2-way sync
             };
 
             if(editOrderId) { 
@@ -897,16 +970,11 @@
             
             let filtered = customersDB.filter(c => (c.name || '').toLowerCase().includes(kw) || String(c.phone || '').includes(kw));
             
-            if(filtered.length === 0) { 
-                list.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">Chưa có khách hàng</p>'; 
-                return; 
-            }
+            if(filtered.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">Chưa có khách hàng</p>'; return; }
 
             const orderCounts = {};
             ordersDB.forEach(o => {
-                if (o.customerPhone && !o.isDeleted) {
-                    orderCounts[o.customerPhone] = (orderCounts[o.customerPhone] || 0) + 1;
-                }
+                if (o.customerPhone && !o.isDeleted) { orderCounts[o.customerPhone] = (orderCounts[o.customerPhone] || 0) + 1; }
             });
 
             let htmlContent = '';
@@ -919,7 +987,6 @@
                     </div>
                 `;
             });
-            
             list.innerHTML = htmlContent;
         };
 
@@ -956,16 +1023,27 @@
         window.getFilteredOrders = function() {
             const kw = document.getElementById('searchKeyword').value.toLowerCase(); const createDate = document.getElementById('filterCreateDate').value; 
             const filterCus = document.getElementById('filterCustomerInput').value.toLowerCase();
-            const filterProd = document.getElementById('filterProductInput').value.toLowerCase();
+            const logic = document.getElementById('filterProductLogic').value;
             
+            // ẨN CÁC ĐƠN BỊ XÓA MỀM (isDeleted)
             let filtered = ordersDB.filter(o => !o.isDeleted && ((o.customerName || '').toLowerCase().includes(kw) || (o.id || '').toLowerCase().includes(kw) || String(o.customerPhone || '').includes(kw)));
             
             if (filterCus) {
                 filtered = filtered.filter(o => (o.customerName || '').toLowerCase().includes(filterCus) || String(o.customerPhone || '').includes(filterCus));
             }
             
-            if (filterProd) {
-                filtered = filtered.filter(o => o.products && o.products.some(p => (p.name || '').toLowerCase().includes(filterProd)));
+            // LỌC THEO THẺ BÁNH (AND / OR)
+            if (selectedFilterProducts.length > 0) {
+                if (logic === 'OR') {
+                    filtered = filtered.filter(o => o.products && o.products.some(p => selectedFilterProducts.includes(p.name)));
+                } else {
+                    // AND logic: Đơn phải chứa TẤT CẢ các bánh đã chọn
+                    filtered = filtered.filter(o => {
+                        if (!o.products) return false;
+                        const orderProductNames = o.products.map(p => p.name);
+                        return selectedFilterProducts.every(sp => orderProductNames.includes(sp));
+                    });
+                }
             }
 
             if (createDate) {
@@ -987,49 +1065,8 @@
             if(sort === 'dateDesc') filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
             if(sort === 'dateAsc') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
 
-            const prodTotals = new Map();
-            // Khởi tạo map cho tất cả sản phẩm trong kho (để luôn hiển thị và giữ thứ tự)
-            productsDB.forEach(p => prodTotals.set(p.name, 0));
-
-            // Cộng dồn từ đơn hàng
-            filtered.forEach(o => {
-                (o.products || []).forEach(p => {
-                    if (p.name) {
-                        if (prodTotals.has(p.name)) {
-                            prodTotals.set(p.name, prodTotals.get(p.name) + p.qty);
-                        } else {
-                            // Sản phẩm ngoài kho
-                            prodTotals.set(p.name, p.qty);
-                        }
-                    }
-                });
-            });
-
-            const summaryBox = document.getElementById('statsProductSummary');
-            const summaryList = document.getElementById('statsProductSummaryList');
-
-            // Tái cấu trúc mảng để hiển thị (Ưu tiên thứ tự kho SP trước, các SP lạ xếp sau)
-            const summaryArray = [];
-            productsDB.forEach(p => {
-                summaryArray.push({ name: p.name, count: prodTotals.get(p.name) });
-                prodTotals.delete(p.name);
-            });
-            // Thêm các SP lạ còn lại
-            prodTotals.forEach((count, name) => {
-                summaryArray.push({ name: name, count: count });
-            });
-
-            if (summaryArray.length > 0) {
-                summaryBox.classList.remove('hidden-section');
-                summaryList.className = 'flex flex-wrap gap-2 text-sm';
-                summaryList.innerHTML = summaryArray.map(item => `
-                    <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 px-3 py-2 rounded-xl flex-grow sm:flex-grow-0">
-                        <span class="font-semibold text-gray-700 whitespace-normal break-words leading-tight">${item.name}</span>
-                        <span class="font-bold ml-auto px-2 py-0.5 rounded-lg text-xs ${item.count > 0 ? 'text-blue-600 bg-blue-100' : 'text-gray-400 bg-gray-200'}">${item.count}</span>
-                    </div>`).join('');
-            } else {
-                summaryBox.classList.add('hidden-section');
-            }
+            // Gọi render luôn tổng hợp bánh
+            window.renderProductSumTable(filtered);
 
             if(filtered.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-10">Không có đơn hàng</p>'; return; }
 
@@ -1070,6 +1107,41 @@
             updateBulkBar();
         };
 
+        window.renderProductSumTable = function(filteredOrders) {
+            const grid = document.getElementById('productSumGrid');
+            if(!grid) return;
+            grid.innerHTML = '';
+            
+            let counts = {};
+            filteredOrders.forEach(o => {
+                (o.products || []).forEach(p => {
+                    if(p.name) counts[p.name] = (counts[p.name] || 0) + p.qty;
+                });
+            });
+
+            // Sắp xếp theo thứ tự Kho SP, loại nào không có thì cho bằng 0
+            productsDB.forEach(dbProd => {
+                const qty = counts[dbProd.name] || 0;
+                grid.innerHTML += `
+                    <div class="flex flex-col border border-gray-200 rounded-xl p-2 bg-white flex-1 min-w-[30%] text-center">
+                        <span class="text-[9px] font-bold text-gray-500 mb-1 line-clamp-2">${dbProd.name}</span>
+                        <span class="text-lg font-black ${qty > 0 ? 'text-blue-600' : 'text-gray-300'}">${qty}</span>
+                    </div>
+                `;
+                delete counts[dbProd.name]; // Xóa khỏi danh sách để lát duyệt các món lạ
+            });
+
+            // Duyệt nốt các món lạ (không có trong kho nhưng khách cứ đặt)
+            Object.entries(counts).forEach(([name, qty]) => {
+                grid.innerHTML += `
+                    <div class="flex flex-col border border-gray-200 rounded-xl p-2 bg-gray-50 flex-1 min-w-[30%] text-center">
+                        <span class="text-[9px] font-bold text-gray-500 mb-1 line-clamp-2">${name}</span>
+                        <span class="text-lg font-black text-orange-500">${qty}</span>
+                    </div>
+                `;
+            });
+        };
+
         window.updateSliderPosition = function() {
             const activeTab = document.querySelector('.segment-btn.active'); const bg = document.getElementById('segment-glider');
             if (activeTab && bg && activeTab.style.display !== 'none') { bg.style.width = activeTab.offsetWidth + 'px'; bg.style.transform = `translateX(${activeTab.offsetLeft}px)`; }
@@ -1105,26 +1177,31 @@
             let fromDate = fromStr ? new Date(fromStr) : new Date('2000-01-01'); fromDate.setHours(0,0,0,0);
             let toDate = toStr ? new Date(toStr) : new Date('2100-01-01'); toDate.setHours(23,59,59,999);
 
+            // Chỉ lọc những đơn Đã thanh toán & Không bị xóa
             let filteredOrders = ordersDB.filter(o => {
-                if (o.isDeleted) return false;
                 let rDate = parseDateStr(o.receiveDate) || new Date(o.date);
-                return rDate >= fromDate && rDate <= toDate && o.paymentStatus === 'paid';
+                return rDate >= fromDate && rDate <= toDate && o.paymentStatus === 'paid' && !o.isDeleted;
             });
 
+            // 1. Tóm tắt
             const totalRev = filteredOrders.reduce((sum, o) => sum + o.total, 0);
             document.getElementById('revTotalAmount').innerText = formatCurrency(totalRev);
             document.getElementById('revTotalOrders').innerText = filteredOrders.length;
 
+            // 2. Tính toán Data cho Chart
             let dailyRev = {}; let productQty = {}; let customerSpends = {};
             filteredOrders.forEach(o => {
+                // Theo ngày
                 let dateKey = parseDateStr(o.receiveDate);
                 dateKey = dateKey ? `${String(dateKey.getDate()).padStart(2,'0')}/${String(dateKey.getMonth()+1).padStart(2,'0')}` : 'Khác';
                 dailyRev[dateKey] = (dailyRev[dateKey] || 0) + o.total;
 
+                // Theo sản phẩm
                 (o.products || []).forEach(p => {
                     if (p.name) productQty[p.name] = (productQty[p.name] || 0) + p.qty;
                 });
 
+                // Theo Khách hàng
                 if(o.customerPhone) {
                     if(!customerSpends[o.customerPhone]) customerSpends[o.customerPhone] = { name: o.customerName || 'Khách lạ', spend: 0, count: 0 };
                     customerSpends[o.customerPhone].spend += o.total;
@@ -1132,6 +1209,7 @@
                 }
             });
 
+            // 3. Vẽ biểu đồ Đường (Doanh thu theo ngày)
             const dailyLabels = Object.keys(dailyRev).sort((a,b) => {
                 if(a==='Khác') return 1; if(b==='Khác') return -1;
                 let [da,ma] = a.split('/'); let [db,mb] = b.split('/');
@@ -1147,6 +1225,7 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function(val) { return val/1000 + 'k'; } } } } }
             });
 
+            // 4. Vẽ biểu đồ Tròn (Top 5 Bánh)
             const sortedProds = Object.entries(productQty).sort((a,b) => b[1] - a[1]).slice(0, 5);
             const ctxProd = document.getElementById('chartProducts').getContext('2d');
             if(chartProductInstance) chartProductInstance.destroy();
@@ -1159,6 +1238,7 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }
             });
 
+            // 5. Danh sách Top 10 khách hàng
             const topCus = Object.entries(customerSpends).sort((a,b) => b[1].spend - a[1].spend).slice(0, 10);
             const cusDiv = document.getElementById('revTopCustomers'); cusDiv.innerHTML = '';
             if(topCus.length === 0) cusDiv.innerHTML = '<p class="text-xs text-gray-400 italic py-2">Chưa có dữ liệu thanh toán</p>';
@@ -1205,7 +1285,7 @@
             const list = document.getElementById('productList'); const rows = list.querySelectorAll('.prod-row'); if (rows.length === 0) return;
             const lastRow = rows[rows.length - 1]; if (lastRow && lastRow.id === `row-${rowId}`) { const nameVal = lastRow.querySelector('.prod-name').value.trim(); if (nameVal !== "") addProductRow(); }
         };
-        
+
         window.addProductRow = function(data = null) {
             const list = document.getElementById('productList'); document.getElementById('emptyState').style.display = 'none';
             const id = Date.now() + Math.random(); const row = document.createElement('div'); row.id = `row-${id}`; row.className = "flex gap-2 relative border-b border-gray-100 pb-3 prod-row"; 
@@ -1248,25 +1328,53 @@
         window.toggleSelectAll = function(checkbox) { const isChecked = checkbox.checked; const filtered = window.getFilteredOrders(); if (isChecked) { filtered.forEach(o => selectedOrders.add(o.id)); } else { filtered.forEach(o => selectedOrders.delete(o.id)); } renderStats(); };
         window.updateBulkBar = function() { const bar = document.getElementById('bulkActionBar'); document.getElementById('bulkCount').innerText = `${selectedOrders.size} đơn`; selectedOrders.size > 0 ? bar.classList.add('active') : bar.classList.remove('active'); };
         
-        // Cập nhật Cờ Xóa (Thêm (ĐÃ XÓA) vào tên Khách hàng để hiện lên Sheet)
+        // SOFT DELETE AN TOÀN
         window.bulkDelete = function() { 
-            logAction('XÓA ĐƠN', `Xóa mềm ${selectedOrders.size} đơn hàng`); 
-            ordersDB.forEach(o => { 
-                if(selectedOrders.has(o.id)) { 
-                    o.isDeleted = true; 
-                    o._updatedAt = Date.now(); 
-                    if(o.customerName && !o.customerName.endsWith(' (ĐÃ XÓA)')) o.customerName += ' (ĐÃ XÓA)';
-                } 
-            }); 
-            selectedOrders.clear(); 
-            saveData(); 
-            document.getElementById('selectAllBtn').checked = false; 
-            renderStats(); 
-            showToast("Đã chuyển vào Thùng rác"); 
+            logAction('XÓA ĐƠN', `Chuyển vào thùng rác ${selectedOrders.size} đơn hàng`); 
+            ordersDB.forEach(o => {
+                if (selectedOrders.has(o.id)) {
+                    o.isDeleted = true; // Cờ xóa mềm
+                    o.customerName = o.customerName.replace(' (ĐÃ XÓA)', '') + ' (ĐÃ XÓA)'; // Thêm dấu hiệu nhận biết cho Google Sheets
+                    o._updatedAt = Date.now(); // Kích hoạt Sync
+                }
+            });
+            selectedOrders.clear(); saveData(); document.getElementById('selectAllBtn').checked = false; renderStats(); showToast("Đã chuyển vào thùng rác"); 
         };
         
         window.bulkMarkPaid = function() { logAction('THANH TOÁN', `Đánh dấu thanh toán cho ${selectedOrders.size} đơn hàng`); ordersDB.forEach(o => { if (selectedOrders.has(o.id)) { o.paymentStatus = 'paid'; o._updatedAt = Date.now(); } }); selectedOrders.clear(); saveData(); document.getElementById('selectAllBtn').checked = false; renderStats(); showToast("Đã đổi trạng thái thanh toán"); };
         window.markSinglePaid = function(id) { const order = ordersDB.find(o => o.id === id); if(order) { order.paymentStatus = 'paid'; order._updatedAt = Date.now(); logAction('THANH TOÁN', `Xác nhận thanh toán đơn hàng [${id}]`); saveData(); renderStats(); showToast("Đã cập nhật"); } };
+
+        // XỬ LÝ THÙNG RÁC
+        window.openTrash = function() {
+            const list = document.getElementById('trashList'); list.innerHTML = '';
+            const deletedOrders = ordersDB.filter(o => o.isDeleted);
+            if(deletedOrders.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-10">Thùng rác trống</p>'; }
+            else {
+                deletedOrders.forEach(o => {
+                    list.innerHTML += `
+                        <div class="apple-card p-4 flex justify-between items-center opacity-70 hover:opacity-100 transition-opacity">
+                            <div>
+                                <p class="text-xs font-mono text-gray-500">${o.id} - ${o.receiveDate || ''}</p>
+                                <p class="font-bold line-through">${o.customerName}</p>
+                                <p class="text-xs text-red-500">${formatCurrency(o.total)}</p>
+                            </div>
+                            <button onclick="restoreOrder('${o.id}')" class="bg-green-100 text-green-700 font-bold px-3 py-1.5 rounded-lg text-xs active:scale-95">Khôi phục</button>
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('trashModal').classList.remove('hidden-section');
+        };
+
+        window.restoreOrder = function(id) {
+            const order = ordersDB.find(o => o.id === id);
+            if(order) {
+                order.isDeleted = false;
+                order.customerName = order.customerName.replace(' (ĐÃ XÓA)', '');
+                order._updatedAt = Date.now();
+                saveData(); renderStats(); showToast("Đã khôi phục đơn hàng"); openTrash();
+            }
+        };
 
         window.editOrder = function(id) {
             const o = ordersDB.find(x => x.id === id); editOrderId = id; document.getElementById('mainTitle').innerText = "Sửa đơn: " + id; switchTab('order');
@@ -1292,55 +1400,6 @@
             document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
             toggleShipping(); toggleOtherNote(); calcTotal();
             switchTab('stats');
-        };
-
-        window.openRecycleBin = function() {
-            document.getElementById('recycleBinModal').classList.remove('hidden-section');
-            window.renderRecycleBin();
-        };
-
-        window.renderRecycleBin = function() {
-            const list = document.getElementById('recycleBinList');
-            const deletedOrders = ordersDB.filter(o => o.isDeleted).sort((a,b) => new Date(b.date) - new Date(a.date));
-            list.innerHTML = '';
-            
-            if(deletedOrders.length === 0) {
-                list.innerHTML = '<p class="text-center text-gray-400 mt-10 text-sm border-2 border-dashed border-gray-200 py-10 rounded-2xl">Thùng rác trống</p>';
-                return;
-            }
-
-            deletedOrders.forEach(o => {
-                const card = document.createElement('div'); card.className = `apple-card p-4 border border-gray-200 bg-white/50 opacity-80`;
-                let prodsHTML = (o.products || []).map(p => `<div class="flex justify-between text-sm"><span>${p.qty}x ${p.name}</span><span class="text-gray-500">${formatCurrency(p.qty * p.price)}</span></div>`).join('');
-                
-                card.innerHTML = `
-                    <div class="flex justify-between items-start mb-2"><span class="text-xs font-mono bg-gray-200 px-2 rounded line-through text-gray-500">${o.id}</span><span class="text-xs text-gray-500">${o.receiveDate || ''}</span></div>
-                    <h3 class="font-bold text-base">${o.customerName || 'Khách chưa có tên'}</h3>
-                    <p class="text-xs text-gray-600 font-semibold">${o.customerPhone || 'Không có SĐT'}</p>
-                    <div class="mt-2 bg-white p-2 rounded border border-gray-100">${prodsHTML}</div>
-                    <div class="flex gap-2 mt-3 pt-3 border-t">
-                        <button type="button" onclick="restoreOrder('${o.id}')" class="btn-primary text-xs px-3 py-1.5 flex-1 bg-green-600">Khôi phục đơn</button>
-                    </div>
-                `;
-                list.appendChild(card);
-            });
-        };
-
-        // Cập nhật khôi phục đơn: Tự động gỡ bỏ đuôi (ĐÃ XÓA)
-        window.restoreOrder = function(id) {
-            const o = ordersDB.find(x => x.id === id);
-            if(o) {
-                o.isDeleted = false;
-                o._updatedAt = Date.now();
-                if(o.customerName && o.customerName.endsWith(' (ĐÃ XÓA)')) {
-                    o.customerName = o.customerName.replace(' (ĐÃ XÓA)', '');
-                }
-                saveData();
-                renderRecycleBin();
-                if (!document.getElementById('tab-stats').classList.contains('hidden-section')) renderStats();
-                showToast("Đã khôi phục đơn hàng");
-                logAction('KHÔI PHỤC', `Khôi phục đơn hàng [${id}]`);
-            }
         };
 
         window.openImageModal = function(imgData) { const img = document.getElementById('exportedImage'); img.src = imgData; document.getElementById('imageModal').classList.remove('opacity-0', 'pointer-events-none'); };
@@ -1491,7 +1550,7 @@
         window.saveProduct = function() {
             const c = document.getElementById('newProdCode').value.trim().toUpperCase(); const n = document.getElementById('newProdName').value.trim(); const p = document.getElementById('newProdPrice').value;
             if(!c || !n || !p) return showToast("Nhập đủ Mã SP, Tên và Giá"); if(productsDB.some(prod => prod.code === c)) return showToast("Mã SP này đã tồn tại!");
-            productsDB.push({ id: Date.now(), code: c, name: n, price: Math.round(parseFloat(p)), _updatedAt: Date.now() }); saveData(); document.getElementById('newProdCode').value = ''; document.getElementById('newProdName').value = ''; document.getElementById('newProdPrice').value = ''; renderProductsList(); showToast("Đã thêm SP"); logAction('SẢN PHẨM', `Thêm sản phẩm mới [${c}] ${n}`);
+            productsDB.push({ id: Date.now(), code: c, name: n, price: Math.round(parseFloat(p)) }); saveData(); document.getElementById('newProdCode').value = ''; document.getElementById('newProdName').value = ''; document.getElementById('newProdPrice').value = ''; renderProductsList(); showToast("Đã thêm SP"); logAction('SẢN PHẨM', `Thêm sản phẩm mới [${c}] ${n}`);
         };
         window.renderProductsList = function() {
             const l = document.getElementById('dbProductList'); l.innerHTML = '';
@@ -1503,59 +1562,39 @@
         window.syncToGoogle = function(manual = false) {
             const status = document.getElementById('syncStatus'); const detailStatus = document.getElementById('syncDetailStatus');
             if(!appSettings.gasUrl) { if(manual) { showToast("Chưa cấu hình URL đồng bộ."); } status.innerText = "Chưa kết nối Cloud"; return; }
+            status.innerText = "Đang đồng bộ..."; if(detailStatus) detailStatus.innerText = "Đang xử lý dữ liệu...";
             
-            if (window.isSyncing) return;
-            window.isSyncing = true;
-            
-            status.innerText = "Đang đồng bộ..."; if(detailStatus) detailStatus.innerText = "B1: Đang nạp dữ liệu đám mây...";
-            
-            fetch(appSettings.gasUrl)
-            .then(res => res.json())
-            .then(cloudData => {
+            // Đồng bộ 2 chiều: Kéo dữ liệu về TRƯỚC -> Merge -> Rồi mới Push
+            fetch(appSettings.gasUrl).then(res => res.json()).then(cloudData => {
                 if(cloudData.status === 'success') {
-                    if(detailStatus) detailStatus.innerText = "B2: Đang trộn dữ liệu...";
+                    // Merge Data
+                    if (cloudData.orders) ordersDB = mergeDataLists(ordersDB, cloudData.orders);
+                    if (cloudData.customers) customersDB = mergeDataLists(customersDB, cloudData.customers.map(c => ({...c, phone: window.normalizePhone(c.phone)})));
+                    if (cloudData.products) productsDB = mergeDataLists(productsDB, cloudData.products);
                     
-                    ordersDB = mergeDataLists(ordersDB, cloudData.orders);
-                    ordersDB.sort((a,b) => { let dA = a.date ? new Date(a.date).getTime() : 0; let dB = b.date ? new Date(b.date).getTime() : 0; return dB - dA; });
-                    productsDB = mergeDataLists(productsDB, cloudData.products);
-                    customersDB = mergeDataLists(customersDB, cloudData.customers);
-                    
-                    if (!document.getElementById('tab-stats').classList.contains('hidden-section')) renderStats();
-                    if (!document.getElementById('tab-crm').classList.contains('hidden-section')) renderCrmList();
-                    if (!document.getElementById('tab-products').classList.contains('hidden-section')) renderProductsList();
-                    if (!document.getElementById('tab-revenue').classList.contains('hidden-section')) renderRevenueCharts();
-                    
-                    if(detailStatus) detailStatus.innerText = "B3: Đang tải khối dữ liệu mới lên Server...";
-                    
-                    return fetch(appSettings.gasUrl, { 
-                        method: 'POST', redirect: 'follow', 
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-                        body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, customers: customersDB, logs: logsDB, settings: appSettings }) 
-                    });
-                } else { throw new Error("Không thể kết nối Cloud gốc"); }
-            })
-            .then(res => res.json())
-            .then(data => {
-                window.isSyncing = false;
-                if(data && data.status === 'success') {
-                    logsDB = []; localStorage.setItem('myLogs', '[]'); 
                     localStorage.setItem('myOrders', JSON.stringify(ordersDB));
-                    localStorage.setItem('myProds', JSON.stringify(productsDB));
                     localStorage.setItem('myCustomers', JSON.stringify(customersDB));
-                    
-                    status.innerText = "Đã đồng bộ an toàn"; status.className = "text-green-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-green-600";
-                    if(detailStatus) detailStatus.innerText = `Cập nhật lúc: ${new Date().toLocaleTimeString()}`; 
-                    if(manual) showToast("Đã đồng bộ dữ liệu an toàn!");
-                    isCloudSyncReady = true;
-                } else { throw new Error(data ? data.message : "Lỗi không xác định"); }
-            })
-            .catch(e => { 
-                window.isSyncing = false;
-                status.innerText = "Lỗi đồng bộ"; status.className = "text-red-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-red-600"; 
-                if(detailStatus) detailStatus.innerText = `Lỗi: ${e.message}`; 
-                console.error("Sync error:", e); 
-                if(manual) showToast("Lỗi đồng bộ: " + e.message);
-            });
+                    localStorage.setItem('myProds', JSON.stringify(productsDB));
+
+                    // Sau khi merge, mới push lên
+                    fetch(appSettings.gasUrl, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, customers: customersDB, logs: logsDB, settings: appSettings }) })
+                    .then(res => res.json())
+                    .then(data => {
+                        if(data.status === 'success') {
+                            logsDB = []; localStorage.setItem('myLogs', '[]'); status.innerText = "Đã đồng bộ"; status.className = "text-green-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-green-600 transition-colors";
+                            if(detailStatus) detailStatus.innerText = `Đồng bộ 2 chiều thành công: ${new Date().toLocaleTimeString()}`; 
+                            if(manual) showToast("Đã đồng bộ dữ liệu mới lên Sheets");
+                            isCloudSyncReady = true;
+                            // Cập nhật lại UI sau khi merge xong
+                            if (!document.getElementById('tab-stats').classList.contains('hidden-section')) renderStats();
+                            if (!document.getElementById('tab-crm').classList.contains('hidden-section')) renderCrmList();
+                        } else { status.innerText = "Lỗi dữ liệu"; status.className = "text-red-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-red-600 transition-colors"; if(detailStatus) detailStatus.innerText = `Lỗi: ${data.message || 'Không xác định'}`; }
+                    }).catch(e => { status.innerText = "Lỗi đồng bộ"; status.className = "text-red-500 text-[11px] font-semibold mt-1"; if(detailStatus) detailStatus.innerText = `Lỗi đẩy lên: ${e.message}`; console.error("Sync push error:", e); });
+
+                } else {
+                    if(manual) showToast("Lỗi lấy dữ liệu đám mây");
+                }
+            }).catch(e => { status.innerText = "Lỗi kết nối"; status.className = "text-red-500 text-[11px] font-semibold mt-1"; console.error("Sync pull error:", e); });
         };
 
         window.pullDataFromGoogle = function(manual = false) {
@@ -1569,7 +1608,7 @@
                     
                     if (data.customers) { 
                         customersDB = data.customers.map(c => ({...c, phone: window.normalizePhone(c.phone)})); 
-                        localStorage.setItem('myCustomers', JSON.stringify(customersDB));
+                        localStorage.setItem('myCustomers', JSON.stringify(customersDB)); 
                         if (!document.getElementById('tab-crm').classList.contains('hidden-section')) { renderCrmList(); } 
                     }
                     if (data.orders) { 
@@ -1579,10 +1618,10 @@
                     }
                     if (data.settings && data.settings.invoiceConfig) { appSettings.invoiceConfig = data.settings.invoiceConfig; if(data.settings.qrCode) appSettings.qrCode = data.settings.qrCode; localStorage.setItem('mySettings', JSON.stringify(appSettings)); }
                     
-                    isCloudSyncReady = true; status.innerText = "Đồng bộ hoàn tất"; status.className = "text-green-500 text-[11px] font-semibold mt-1";
+                    isCloudSyncReady = true; status.innerText = "Đồng bộ hoàn tất"; status.className = "text-green-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-green-600 transition-colors";
                     if(detailStatus) detailStatus.innerText = `Tải về gần nhất: ${new Date().toLocaleTimeString()}`; if(manual) showToast("Đã cập nhật dữ liệu mới nhất!");
                     if (document.querySelectorAll('#productList > div').length === 0) addProductRow();
-                } else { status.innerText = "Lỗi dữ liệu"; status.className = "text-red-500 text-[11px] font-semibold mt-1"; if(manual) showToast("Lỗi: " + (data.message || "Không thể tải dữ liệu")); }
+                } else { status.innerText = "Lỗi dữ liệu"; status.className = "text-red-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-red-600 transition-colors"; if(manual) showToast("Lỗi: " + (data.message || "Không thể tải dữ liệu")); }
             }).catch(e => { status.innerText = "Lỗi kết nối"; status.className = "text-red-500 text-[11px] font-semibold mt-1"; console.error("Pull error:", e); });
         };
     </script>
