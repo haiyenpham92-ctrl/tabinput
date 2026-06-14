@@ -90,6 +90,12 @@
                     <label for="rememberLogin" class="text-sm text-gray-600 cursor-pointer">Nhớ đăng nhập 7 ngày</label>
                 </div>
                 <button onclick="handleLogin()" class="btn-primary w-full mt-2">Đăng nhập</button>
+                
+                <!-- Nút Đăng nhập Sinh trắc học -->
+                <button type="button" onclick="handleBiometricLogin()" id="btnBiometric" class="btn-secondary w-full mt-3 flex items-center justify-center gap-2 bg-purple-50 text-purple-600 border border-purple-200 hidden-section">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"></path></svg>
+                    Sinh trắc học
+                </button>
             </div>
             <p id="loginError" class="text-red-500 text-sm mt-4 text-center hidden-section font-medium">Sai thông tin đăng nhập!</p>
         </div>
@@ -105,6 +111,10 @@
                 <p class="text-gray-400 text-sm mt-1 cursor-pointer hover:text-blue-500 transition-colors" id="syncStatus" onclick="window.syncToGoogle(true)" title="Nhấn để ép đồng bộ">Đang khởi tạo...</p>
             </div>
             <div class="flex items-center gap-2">
+                <!-- Nút Thiết lập Sinh trắc học -->
+                <button onclick="registerBiometric()" class="p-2 bg-purple-50 text-purple-600 rounded-full active:scale-95 transition-transform" title="Bật Sinh trắc học (FaceID/Vân tay)">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"></path></svg>
+                </button>
                 <button onclick="window.syncToGoogle(true)" class="p-2 bg-blue-50 text-blue-600 rounded-full active:scale-95 transition-transform" title="Đồng bộ thủ công">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                 </button>
@@ -613,6 +623,7 @@
         let chartProductInstance = null;
 
         window.onload = function() {
+            window.checkBiometricSupport(); // Kiểm tra nút sinh trắc học
             // Tự động đăng nhập nếu có remember
             const savedLogin = localStorage.getItem('rememberedUser');
             if (savedLogin) {
@@ -667,6 +678,78 @@
             localStorage.removeItem('rememberedUser');
             document.getElementById('loginUsername').value = ''; document.getElementById('loginPassword').value = '';
             document.getElementById('loginScreen').classList.remove('hidden-section'); document.getElementById('mainApp').classList.add('hidden-section'); document.getElementById('loginError').classList.add('hidden-section');
+            window.checkBiometricSupport();
+        };
+
+        // --- SINH TRẮC HỌC (WEBAUTHN) ---
+        function bufferToBase64url(buffer) { const bytes = new Uint8Array(buffer); let str = ''; for (const charCode of bytes) { str += String.fromCharCode(charCode); } return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); }
+        function base64urlToBuffer(base64url) { const padding = '='.repeat((4 - base64url.length % 4) % 4); const base64 = (base64url + padding).replace(/\-/g, '+').replace(/_/g, '/'); const rawData = atob(base64); const buffer = new Uint8Array(rawData.length); for (let i = 0; i < rawData.length; ++i) { buffer[i] = rawData.charCodeAt(i); } return buffer.buffer; }
+
+        window.checkBiometricSupport = function() {
+            const btn = document.getElementById('btnBiometric');
+            if (!btn) return;
+            // Chỉ hiện nút Đăng nhập sinh trắc học nếu thiết bị hỗ trợ và CÓ ÍT NHẤT 1 user đã đăng ký sinh trắc
+            if (window.PublicKeyCredential && usersDB.some(u => u.biometricId)) {
+                btn.classList.remove('hidden-section');
+            } else {
+                btn.classList.add('hidden-section');
+            }
+        };
+
+        window.registerBiometric = async function() {
+            if (!window.PublicKeyCredential) return showToast("Trình duyệt không hỗ trợ Sinh trắc học!");
+            try {
+                const challenge = new Uint8Array(32); crypto.getRandomValues(challenge);
+                const userId = new Uint8Array(16); crypto.getRandomValues(userId);
+                const options = {
+                    challenge: challenge,
+                    rp: { name: "Quản Lý Đơn" }, 
+                    user: { id: userId, name: currentUser.username, displayName: currentUser.username },
+                    pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
+                    authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+                    timeout: 60000
+                };
+                if (window.location.hostname && window.location.hostname !== "localhost" && window.location.hostname !== "") { options.rp.id = window.location.hostname; }
+                const credential = await navigator.credentials.create({ publicKey: options });
+                const credIdBase64 = bufferToBase64url(credential.rawId);
+                const user = usersDB.find(u => u.username === currentUser.username);
+                if(user) {
+                    user.biometricId = credIdBase64;
+                    localStorage.setItem('myUsers', JSON.stringify(usersDB));
+                    showToast("Bật Sinh trắc học thành công!");
+                    logAction('CÀI ĐẶT', `Bật đăng nhập Sinh trắc học cho ${currentUser.username}`);
+                    window.checkBiometricSupport();
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Lỗi cài đặt (có thể do thiết bị từ chối hoặc chưa thiết lập vân tay).");
+            }
+        };
+
+        window.handleBiometricLogin = async function() {
+            if (!window.PublicKeyCredential) return showToast("Trình duyệt không hỗ trợ!");
+            const usersWithBio = usersDB.filter(u => u.biometricId);
+            if (usersWithBio.length === 0) return showToast("Chưa có tài khoản nào cài Sinh trắc học.");
+            try {
+                const challenge = new Uint8Array(32); crypto.getRandomValues(challenge);
+                const allowCredentials = usersWithBio.map(u => ({ type: 'public-key', id: base64urlToBuffer(u.biometricId) }));
+                const options = { challenge: challenge, allowCredentials: allowCredentials, userVerification: "required", timeout: 60000 };
+                
+                const assertion = await navigator.credentials.get({ publicKey: options });
+                const returnedId = bufferToBase64url(assertion.rawId);
+                const matchedUser = usersDB.find(u => u.biometricId === returnedId);
+
+                if (matchedUser) {
+                    currentUser = matchedUser;
+                    const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000;
+                    localStorage.setItem('rememberedUser', JSON.stringify({ username: currentUser.username, expiry: expiry }));
+                    document.getElementById('loginScreen').classList.add('hidden-section'); document.getElementById('mainApp').classList.remove('hidden-section');
+                    applyRoleRestrictions(); initApp(); logAction('ĐĂNG NHẬP', 'Đăng nhập bằng Sinh trắc học');
+                } else { showToast("Không khớp tài khoản nào!"); }
+            } catch (e) {
+                console.error(e);
+                showToast("Xác thực bị hủy hoặc không nhận diện được.");
+            }
         };
 
         function applyRoleRestrictions() {
