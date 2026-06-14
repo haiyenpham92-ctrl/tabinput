@@ -277,6 +277,24 @@
                         </div>
                         <div id="statsProdDropdown" class="absolute bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-1"></div>
                     </div>
+                    
+                    <div class="relative flex flex-col justify-end">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Thanh toán</label>
+                        <select id="filterPayment" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                            <option value="all">Tất cả</option>
+                            <option value="paid">Đã thanh toán</option>
+                            <option value="unpaid">Chưa thanh toán</option>
+                        </select>
+                    </div>
+                    <div class="relative flex flex-col justify-end">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Nhận hàng</label>
+                        <select id="filterDelivery" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                            <option value="all">Tất cả</option>
+                            <option value="Thụy Khuê">Pickup Thuỵ Khuê</option>
+                            <option value="Hòa Mã">Pickup Hoà Mã</option>
+                            <option value="Ship">Ship</option>
+                        </select>
+                    </div>
                 </div>
                 
                 <div class="flex gap-2 items-end mt-2 border-t border-gray-100 pt-3">
@@ -863,6 +881,8 @@
             document.getElementById('filterCustomerInput').value = '';
             document.getElementById('filterProductInput').value = '';
             document.getElementById('filterProductLogic').value = 'OR';
+            document.getElementById('filterPayment').value = 'all';
+            document.getElementById('filterDelivery').value = 'all';
             selectedFilterProducts = [];
             window.renderFilterProductTags();
             document.getElementById('selectAllBtn').checked = false;
@@ -1024,6 +1044,8 @@
             const kw = document.getElementById('searchKeyword').value.toLowerCase(); const createDate = document.getElementById('filterCreateDate').value; 
             const filterCus = document.getElementById('filterCustomerInput').value.toLowerCase();
             const logic = document.getElementById('filterProductLogic').value;
+            const filterPayment = document.getElementById('filterPayment').value;
+            const filterDelivery = document.getElementById('filterDelivery').value;
             
             // ẨN CÁC ĐƠN BỊ XÓA MỀM (isDeleted)
             let filtered = ordersDB.filter(o => !o.isDeleted && ((o.customerName || '').toLowerCase().includes(kw) || (o.id || '').toLowerCase().includes(kw) || String(o.customerPhone || '').includes(kw)));
@@ -1032,6 +1054,14 @@
                 filtered = filtered.filter(o => (o.customerName || '').toLowerCase().includes(filterCus) || String(o.customerPhone || '').includes(filterCus));
             }
             
+            if (filterPayment !== 'all') {
+                filtered = filtered.filter(o => o.paymentStatus === filterPayment);
+            }
+
+            if (filterDelivery !== 'all') {
+                filtered = filtered.filter(o => o.deliveryType === filterDelivery);
+            }
+
             // LỌC THEO THẺ BÁNH (AND / OR)
             if (selectedFilterProducts.length > 0) {
                 if (logic === 'OR') {
