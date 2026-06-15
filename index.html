@@ -129,6 +129,7 @@
             <div id="btn-tab-crm" class="segment-btn" onclick="switchTab('crm')">Khách hàng</div>
             <div id="btn-tab-stats" class="segment-btn" onclick="switchTab('stats')">Thống kê</div>
             <div id="btn-tab-revenue" class="segment-btn" onclick="switchTab('revenue')">Doanh thu</div>
+            <div id="btn-tab-shipping" class="segment-btn" onclick="switchTab('shipping')">Giao hàng</div>
             <div id="btn-tab-settings" class="segment-btn" onclick="switchTab('settings')">Cài đặt</div>
             <div id="segment-glider" class="segment-bg"></div>
         </div>
@@ -165,6 +166,9 @@
                 <div id="shippingInputs" class="hidden-section space-y-4 border-t border-gray-100 pt-4">
                     <input type="text" id="shippingAddress" class="input-field" placeholder="Địa chỉ giao hàng (Tự động nhớ)...">
                     <input type="number" id="shippingFee" class="input-field" placeholder="Phí ship (VNĐ)" oninput="calcTotal()">
+                    <select id="shippingShipper" class="input-field bg-white">
+                        <option value="">-- Chọn Shipper (Tùy chọn) --</option>
+                    </select>
                 </div>
             </div>
 
@@ -375,6 +379,42 @@
             <div class="apple-card p-4">
                 <h2 class="text-xs font-bold uppercase text-gray-400 mb-2">Top Khách hàng mua nhiều</h2>
                 <div id="revTopCustomers" class="space-y-2 mt-3 max-h-48 overflow-y-auto pr-1"></div>
+            </div>
+        </div>
+
+        <!-- ================= TAB: SHIPPING (GIAO HÀNG) ================= -->
+        <div id="tab-shipping" class="hidden-section space-y-6 fade-in">
+            <!-- Quản lý danh sách Shipper -->
+            <div class="apple-card p-6">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Quản lý Shipper</h2>
+                <div class="flex gap-2 mb-4">
+                    <input type="text" id="newShipperName" class="input-field py-2 text-sm" placeholder="Tên Shipper mới...">
+                    <button onclick="addShipper()" class="btn-primary py-2 px-4 text-sm whitespace-nowrap">Thêm</button>
+                </div>
+                <div id="shippersList" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
+            </div>
+
+            <!-- Thống kê Shipping -->
+            <div class="apple-card p-6">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Thống kê Giao hàng</h2>
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Ngày giao</label>
+                        <input type="date" id="filterShipDate" class="input-field py-2 px-3 text-sm" onchange="renderShippingStats()">
+                    </div>
+                    <div class="relative flex flex-col justify-end">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Shipper</label>
+                        <select id="filterShipperName" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderShippingStats()">
+                            <option value="all">Tất cả Shipper</option>
+                            <option value="Chưa gán">-- Đơn chưa gán Shipper --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl flex flex-col justify-center mb-4">
+                    <p class="text-[10px] uppercase text-blue-500 font-bold mb-1">Tổng tiền Ship (theo bộ lọc)</p>
+                    <p class="text-lg font-black text-blue-700" id="totalShippingFee">0đ</p>
+                </div>
+                <div id="shippingStatsList" class="space-y-3 max-h-80 overflow-y-auto pr-1"></div>
             </div>
         </div>
 
@@ -602,6 +642,7 @@
         let productsDB = JSON.parse(localStorage.getItem('myProds') || '[]') || [];
         let customersDB = JSON.parse(localStorage.getItem('myCustomers') || '[]') || []; 
         let logsDB = JSON.parse(localStorage.getItem('myLogs') || '[]') || [];
+        let shippersDB = JSON.parse(localStorage.getItem('myShippers') || '[]') || [];
         
         let appSettings = JSON.parse(localStorage.getItem('mySettings') || JSON.stringify({
             gasUrl: DEFAULT_GAS_URL, qrCode: null,
@@ -757,6 +798,7 @@
             const productsBtn = document.getElementById('btn-tab-products'); 
             const deleteBtn = document.getElementById('btn-bulk-delete');
             const revBtn = document.getElementById('btn-tab-revenue');
+            const shippingBtn = document.getElementById('btn-tab-shipping');
             const btnOpenTrash = document.getElementById('btnOpenTrash');
             
             if (currentUser.role !== 'admin') { 
@@ -764,12 +806,14 @@
                 productsBtn.style.display = 'none'; 
                 deleteBtn.style.display = 'none'; 
                 revBtn.style.display = 'none';
+                shippingBtn.style.display = 'none';
                 btnOpenTrash.style.display = 'none';
             } else { 
                 settingsBtn.style.display = ''; 
                 productsBtn.style.display = ''; 
                 deleteBtn.style.display = ''; 
                 revBtn.style.display = '';
+                shippingBtn.style.display = '';
                 btnOpenTrash.style.display = ''; // Hiển thị nút Thùng rác cho admin
             }
             switchTab('order'); 
@@ -777,7 +821,7 @@
 
         function initApp() {
             document.getElementById('gasUrl').value = appSettings.gasUrl || ''; document.getElementById('orderDate').value = formatFullDate(selectedDate);
-            renderProductsList(); renderUsers(); renderCrmList();
+            renderProductsList(); renderUsers(); renderCrmList(); renderShipperManagementList(); populateShipperDropdowns(); renderShippingStats();
             
             if (appSettings.qrCode) { document.getElementById('qrPreview').src = appSettings.qrCode; document.getElementById('qrPreview').classList.remove('hidden-section'); }
             
@@ -813,6 +857,7 @@
         window.saveData = function() {
             localStorage.setItem('myOrders', JSON.stringify(ordersDB)); localStorage.setItem('myProds', JSON.stringify(productsDB));
             localStorage.setItem('myCustomers', JSON.stringify(customersDB)); localStorage.setItem('mySettings', JSON.stringify(appSettings)); 
+            localStorage.setItem('myShippers', JSON.stringify(shippersDB));
             if (appSettings.gasUrl) syncToGoogle();
         }
 
@@ -1041,11 +1086,12 @@
             const currentId = editOrderId || `DH${Date.now().toString().slice(-6)}`;
             const existingOrder = ordersDB.find(o => o.id === currentId);
             const shipInputText = document.getElementById('shippingFee').value.replace(/[^0-9]/g, ''); const shipFee = shipInputText ? parseInt(shipInputText, 10) : 0;
+            const shipperName = document.getElementById('shippingShipper').value;
             
             const order = {
                 id: currentId, date: existingOrder ? existingOrder.date : new Date().toISOString(), receiveDate: receiveDate,
                 customerName: name, customerPhone: phone, deliveryType: delivery, shippingAddress: document.getElementById('shippingAddress').value,
-                shippingFee: shipFee, products: prods, total: prods.reduce((s,p) => s + (p.qty*p.price), 0) + shipFee, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
+                shippingFee: shipFee, shipperName: delivery === 'Ship' ? shipperName : '', products: prods, total: prods.reduce((s,p) => s + (p.qty*p.price), 0) + shipFee, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
                 notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value),
                 _updatedAt: Date.now() // Timestamp cho 2-way sync
             };
@@ -1062,7 +1108,7 @@
             
             saveData(); showToast("Đã lưu đơn hàng");
             
-            document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = '';
+            document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = ''; document.getElementById('shippingShipper').value = '';
             document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
             toggleShipping(); toggleOtherNote(); calcTotal(); if (!document.getElementById('tab-crm').classList.contains('hidden-section')) renderCrmList();
         };
@@ -1261,7 +1307,7 @@
         };
 
         window.switchTab = function(tabId) {
-            const tabs = ['order', 'products', 'crm', 'stats', 'revenue', 'settings'];
+            const tabs = ['order', 'products', 'crm', 'stats', 'revenue', 'shipping', 'settings'];
             tabs.forEach((t) => {
                 const btn = document.getElementById(`btn-tab-${t}`); const content = document.getElementById(`tab-${t}`);
                 if(t === tabId) { btn.classList.add('active'); content.classList.remove('hidden-section'); } 
@@ -1271,6 +1317,7 @@
             if(tabId === 'stats') { document.getElementById('selectAllBtn').checked = false; renderStats(); }
             if(tabId === 'crm') { renderCrmList(); }
             if(tabId === 'revenue') { renderRevenueCharts(); }
+            if(tabId === 'shipping') { renderShipperManagementList(); populateShipperDropdowns(); renderShippingStats(); }
             selectedOrders.clear(); updateBulkBar();
         };
 
@@ -1497,6 +1544,7 @@
             document.getElementById('custName').value = o.customerName; document.getElementById('custPhone').value = o.customerPhone; document.getElementById('orderDate').value = o.receiveDate;
             const r = document.querySelector(`input[name="deliveryType"][value="${o.deliveryType}"]`); if(r) r.checked = true;
             document.getElementById('shippingAddress').value = o.shippingAddress || ''; document.getElementById('shippingFee').value = o.shippingFee || '';
+            document.getElementById('shippingShipper').value = o.shipperName || '';
             document.getElementById('productList').innerHTML = ''; o.products.forEach(p => addProductRow(p)); addProductRow();
             document.querySelectorAll('input[name="orderNote"]').forEach(c => c.checked = false);
             o.notes.forEach(n => { const cb = document.querySelector(`input[name="orderNote"][value="${n}"]`); if(cb) cb.checked = true; else { document.getElementById('noteOther').checked = true; document.getElementById('otherNoteText').value = n; } });
@@ -1509,7 +1557,7 @@
             document.getElementById('btnCancelEdit').classList.add('hidden-section');
             document.getElementById('btnSubmitOrder').innerText = 'Hoàn tất đơn hàng';
             
-            document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = '';
+            document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = ''; document.getElementById('shippingShipper').value = '';
             document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
             toggleShipping(); toggleOtherNote(); calcTotal();
             switchTab('stats');
@@ -1613,6 +1661,132 @@
         };
         window.removeAdvancedImage = function(type) { appSettings.invoiceConfig[type] = null; const previewId = type === 'logo' ? 'invLogoPreview' : 'invBgPreview'; document.getElementById(previewId).src = ''; document.getElementById(previewId).classList.add('hidden-section'); saveData(); showToast("Đã xóa ảnh"); if(window.renderInvoicePreview) renderInvoicePreview(); };
 
+        // === CÁC HÀM XỬ LÝ SHIPPING ===
+        window.addShipper = function() {
+            const name = document.getElementById('newShipperName').value.trim();
+            if(!name) return showToast("Vui lòng nhập tên Shipper");
+            if(shippersDB.some(s => !s.isDeleted && s.name.toLowerCase() === name.toLowerCase())) return showToast("Shipper này đã tồn tại!");
+            shippersDB.push({ id: `SP${Date.now()}`, name: name, _updatedAt: Date.now() });
+            saveData(); document.getElementById('newShipperName').value = ''; 
+            renderShipperManagementList(); populateShipperDropdowns(); showToast("Đã thêm Shipper");
+        };
+
+        window.deleteShipper = function(id) {
+            const shipper = shippersDB.find(s => s.id === id);
+            if(shipper) {
+                shipper.isDeleted = true; // Xóa mềm để an toàn khi đồng bộ
+                shipper._updatedAt = Date.now();
+                saveData(); renderShipperManagementList(); populateShipperDropdowns(); showToast("Đã xóa Shipper");
+            }
+        };
+
+        window.renderShipperManagementList = function() {
+            const list = document.getElementById('shippersList'); list.innerHTML = '';
+            const activeShippers = shippersDB.filter(s => !s.isDeleted);
+            if(activeShippers.length === 0) { list.innerHTML = '<p class="text-xs text-gray-400 italic">Chưa có dữ liệu</p>'; return; }
+            activeShippers.forEach(s => {
+                list.innerHTML += `
+                    <div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm">
+                        <p class="font-bold text-sm text-gray-700">${s.name}</p>
+                        <button onclick="deleteShipper('${s.id}')" class="text-red-400 font-bold p-2 hover:bg-red-50 rounded-lg transition-colors">&times;</button>
+                    </div>`;
+            });
+        };
+
+        window.populateShipperDropdowns = function() {
+            const orderDropdown = document.getElementById('shippingShipper');
+            const filterDropdown = document.getElementById('filterShipperName');
+            
+            const currentOrderVal = orderDropdown.value; 
+            const currentFilterVal = filterDropdown.value;
+
+            orderDropdown.innerHTML = '<option value="">-- Chọn Shipper (Tùy chọn) --</option>';
+            filterDropdown.innerHTML = '<option value="all">Tất cả Shipper</option><option value="Chưa gán">-- Đơn chưa gán Shipper --</option>';
+
+            const activeShippers = shippersDB.filter(s => !s.isDeleted);
+            activeShippers.forEach(s => {
+                orderDropdown.innerHTML += `<option value="${s.name}">${s.name}</option>`;
+                filterDropdown.innerHTML += `<option value="${s.name}">${s.name}</option>`;
+            });
+
+            orderDropdown.value = currentOrderVal; 
+            if(!orderDropdown.value) orderDropdown.value = ""; 
+            filterDropdown.value = currentFilterVal;
+            if(!filterDropdown.value) filterDropdown.value = "all";
+        };
+
+        window.renderShippingStats = function() {
+            const filterDate = document.getElementById('filterShipDate').value;
+            const filterShipper = document.getElementById('filterShipperName').value;
+            const list = document.getElementById('shippingStatsList');
+            list.innerHTML = '';
+
+            let shipOrders = ordersDB.filter(o => !o.isDeleted && o.deliveryType === 'Ship');
+
+            if(filterDate) {
+                shipOrders = shipOrders.filter(o => {
+                    if (!o.receiveDate) return false;
+                    try { let datePart = o.receiveDate.includes(' - ') ? o.receiveDate.split(' - ')[1] : o.receiveDate; const parts = datePart.split('/'); if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` === filterDate; return false; } catch(e) { return false; }
+                });
+            }
+
+            if(filterShipper !== 'all') {
+                if(filterShipper === 'Chưa gán') { shipOrders = shipOrders.filter(o => !o.shipperName); }
+                else { shipOrders = shipOrders.filter(o => o.shipperName === filterShipper); }
+            }
+
+            let totalFee = 0;
+            if(shipOrders.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-6 text-sm">Không có đơn giao hàng nào</p>'; document.getElementById('totalShippingFee').innerText = '0đ'; return; }
+
+            const activeShippers = shippersDB.filter(s => !s.isDeleted);
+
+            shipOrders.forEach(o => {
+                totalFee += (o.shippingFee || 0);
+                
+                let selectHTML = `<select onchange="quickAssignShipper('${o.id}', this.value)" class="text-[10px] ml-2 ${o.shipperName ? 'text-green-700 bg-green-50 border-green-200' : 'text-orange-600 bg-orange-50 border-orange-200'} px-1 py-0.5 rounded font-bold border outline-none cursor-pointer max-w-[120px] truncate">`;
+                selectHTML += `<option value="">Chưa gán Shipper</option>`;
+                
+                // Giữ lại hiển thị cho các Shipper đã bị xóa nhưng vẫn còn được gán vào đơn cũ
+                let isCurrentShipperDeleted = o.shipperName && !activeShippers.some(s => s.name === o.shipperName);
+                if (isCurrentShipperDeleted) {
+                    selectHTML += `<option value="${o.shipperName}" selected>${o.shipperName} (Đã xóa)</option>`;
+                }
+
+                activeShippers.forEach(s => {
+                    selectHTML += `<option value="${s.name}" ${o.shipperName === s.name ? 'selected' : ''}>${s.name}</option>`;
+                });
+                selectHTML += `</select>`;
+
+                list.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm relative">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center">
+                                <span class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">${o.id}</span>
+                                ${selectHTML}
+                            </div>
+                            <span class="font-bold text-black">${formatCurrency(o.shippingFee || 0)}</span>
+                        </div>
+                        <p class="text-xs text-gray-600"><strong>Giao đến:</strong> ${o.shippingAddress || 'Không ghi địa chỉ'}</p>
+                        <p class="text-[10px] text-gray-400 mt-1">Ngày giao: ${o.receiveDate || ''}</p>
+                    </div>
+                `;
+            });
+
+            document.getElementById('totalShippingFee').innerText = formatCurrency(totalFee);
+        };
+
+        window.quickAssignShipper = function(orderId, shipperName) {
+            const order = ordersDB.find(o => o.id === orderId);
+            if(order) {
+                order.shipperName = shipperName;
+                order._updatedAt = Date.now(); 
+                saveData();
+                logAction('SHIPPING', `Gán shipper [${shipperName || 'Trống'}] cho đơn ${orderId}`);
+                showToast("Đã cập nhật Shipper");
+                renderShippingStats(); 
+            }
+        };
+
         window.renderInvoicePreview = function() {
             const previewDiv = document.getElementById('liveInvoicePreview'); if (!previewDiv) return; const cfg = appSettings.invoiceConfig || {};
             const bgStyle = cfg.bgImage ? `background-image: url('${cfg.bgImage}'); background-size: cover; background-position: center;` : 'background: #FFFFFF;';
@@ -1672,42 +1846,63 @@
         window.saveSettings = function() { appSettings.gasUrl = document.getElementById('gasUrl').value.trim(); saveData(); showToast("Đã lưu cấu hình"); logAction('CÀI ĐẶT', 'Cập nhật Web App URL'); window.pullDataFromGoogle(true); };
         window.clearAllData = function() { if(confirm("Khôi phục sẽ xóa dữ liệu và đưa app về cấu hình lúc đầu. Bạn có chắc không?")) { localStorage.clear(); location.reload(); } };
 
-        window.syncToGoogle = function(manual = false) {
+        window.syncToGoogle = async function(manual = false) {
             const status = document.getElementById('syncStatus'); const detailStatus = document.getElementById('syncDetailStatus');
             if(!appSettings.gasUrl) { if(manual) { showToast("Chưa cấu hình URL đồng bộ."); } status.innerText = "Chưa kết nối Cloud"; return; }
             status.innerText = "Đang đồng bộ..."; if(detailStatus) detailStatus.innerText = "Đang xử lý dữ liệu...";
             
-            // Đồng bộ 2 chiều: Kéo dữ liệu về TRƯỚC -> Merge -> Rồi mới Push
-            fetch(appSettings.gasUrl).then(res => res.json()).then(cloudData => {
+            try {
+                // Thêm tuỳ chọn method và redirect follow
+                const pullRes = await fetch(appSettings.gasUrl, { method: 'GET', redirect: 'follow' });
+                if (!pullRes.ok) throw new Error("HTTP " + pullRes.status);
+                const cloudData = await pullRes.json();
+                
                 if(cloudData.status === 'success') {
-                    // Merge Data
                     if (cloudData.orders) ordersDB = mergeDataLists(ordersDB, cloudData.orders);
                     if (cloudData.customers) customersDB = mergeDataLists(customersDB, cloudData.customers.map(c => ({...c, phone: window.normalizePhone(c.phone)})));
                     if (cloudData.products) productsDB = mergeDataLists(productsDB, cloudData.products);
+                    if (cloudData.shippers) shippersDB = mergeDataLists(shippersDB, cloudData.shippers); // Merge danh sách Shipper
                     
                     localStorage.setItem('myOrders', JSON.stringify(ordersDB));
                     localStorage.setItem('myCustomers', JSON.stringify(customersDB));
                     localStorage.setItem('myProds', JSON.stringify(productsDB));
+                    localStorage.setItem('myShippers', JSON.stringify(shippersDB));
 
-                    // Sau khi merge, mới push lên
-                    fetch(appSettings.gasUrl, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, customers: customersDB, logs: logsDB, settings: appSettings }) })
-                    .then(res => res.json())
-                    .then(data => {
-                        if(data.status === 'success') {
-                            logsDB = []; localStorage.setItem('myLogs', '[]'); status.innerText = "Đã đồng bộ"; status.className = "text-green-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-green-600 transition-colors";
-                            if(detailStatus) detailStatus.innerText = `Đồng bộ 2 chiều thành công: ${new Date().toLocaleTimeString()}`; 
-                            if(manual) showToast("Đã đồng bộ dữ liệu mới lên Sheets");
-                            isCloudSyncReady = true;
-                            // Cập nhật lại UI sau khi merge xong
-                            if (!document.getElementById('tab-stats').classList.contains('hidden-section')) renderStats();
-                            if (!document.getElementById('tab-crm').classList.contains('hidden-section')) renderCrmList();
-                        } else { status.innerText = "Lỗi dữ liệu"; status.className = "text-red-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-red-600 transition-colors"; if(detailStatus) detailStatus.innerText = `Lỗi: ${data.message || 'Không xác định'}`; }
-                    }).catch(e => { status.innerText = "Lỗi đồng bộ"; status.className = "text-red-500 text-[11px] font-semibold mt-1"; if(detailStatus) detailStatus.innerText = `Lỗi đẩy lên: ${e.message}`; console.error("Sync push error:", e); });
+                    // Delay an toàn giúp tránh bị chặn Rate Limit hoặc CORS Preflight do call liên tục
+                    await new Promise(resolve => setTimeout(resolve, 800));
 
+                    const pushRes = await fetch(appSettings.gasUrl, { 
+                        method: 'POST', 
+                        redirect: 'follow', 
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+                        body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, customers: customersDB, shippers: shippersDB, logs: logsDB, settings: appSettings }) 
+                    });
+                    
+                    if (!pushRes.ok) throw new Error("HTTP " + pushRes.status);
+                    const data = await pushRes.json();
+                    
+                    if(data.status === 'success') {
+                        logsDB = []; localStorage.setItem('myLogs', '[]'); status.innerText = "Đã đồng bộ"; status.className = "text-green-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-green-600 transition-colors";
+                        if(detailStatus) detailStatus.innerText = `Đồng bộ 2 chiều thành công: ${new Date().toLocaleTimeString()}`; 
+                        if(manual) showToast("Đã đồng bộ dữ liệu mới lên Sheets");
+                        isCloudSyncReady = true;
+                        
+                        if (!document.getElementById('tab-stats').classList.contains('hidden-section')) renderStats();
+                        if (!document.getElementById('tab-crm').classList.contains('hidden-section')) renderCrmList();
+                        if (!document.getElementById('tab-shipping').classList.contains('hidden-section')) { renderShipperManagementList(); populateShipperDropdowns(); renderShippingStats(); }
+                    } else { 
+                        throw new Error(data.message || 'Lỗi không xác định từ Server'); 
+                    }
                 } else {
-                    if(manual) showToast("Lỗi lấy dữ liệu đám mây");
+                    throw new Error("Lỗi lấy dữ liệu đám mây");
                 }
-            }).catch(e => { status.innerText = "Lỗi kết nối"; status.className = "text-red-500 text-[11px] font-semibold mt-1"; console.error("Sync pull error:", e); });
+            } catch (error) {
+                status.innerText = "Lỗi đồng bộ"; 
+                status.className = "text-red-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-red-600 transition-colors"; 
+                if(detailStatus) detailStatus.innerText = `Lỗi: ${error.message}`; 
+                console.error("Sync error:", error);
+                if(manual) showToast("Lỗi đồng bộ. Vui lòng thử lại!");
+            }
         };
 
         window.pullDataFromGoogle = function(manual = false) {
@@ -1715,10 +1910,19 @@
             if(!appSettings.gasUrl) return;
             status.innerText = "Đang tải về..."; if(detailStatus) detailStatus.innerText = "Đang kéo dữ liệu từ đám mây...";
             if (manual) showToast("Đang tải dữ liệu từ Sheets...");
-            fetch(appSettings.gasUrl).then(response => response.json()).then(data => {
+            fetch(appSettings.gasUrl, { method: 'GET', redirect: 'follow' })
+            .then(response => {
+                if (!response.ok) throw new Error("HTTP " + response.status);
+                return response.json();
+            })
+            .then(data => {
                 if(data.status === 'success') {
                     if (data.products) { productsDB = data.products; localStorage.setItem('myProds', JSON.stringify(productsDB)); renderProductsList(); }
-                    
+                    if (data.shippers) { 
+                        shippersDB = data.shippers; localStorage.setItem('myShippers', JSON.stringify(shippersDB)); 
+                        populateShipperDropdowns();
+                        if (!document.getElementById('tab-shipping').classList.contains('hidden-section')) { renderShipperManagementList(); renderShippingStats(); } 
+                    }
                     if (data.customers) { 
                         customersDB = data.customers.map(c => ({...c, phone: window.normalizePhone(c.phone)})); 
                         localStorage.setItem('myCustomers', JSON.stringify(customersDB)); 
