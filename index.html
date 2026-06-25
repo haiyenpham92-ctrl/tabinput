@@ -26,7 +26,8 @@
         }
         
         .apple-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); }
-        .input-field { background: #FFFFFF; border: 1.5px solid #E5E5E7; border-radius: 14px; padding: 14px 16px; width: 100%; outline: none; font-size: 16px; transition: border-color 0.2s; }
+        /* FIX iOS ZOOM BUG: Force 16px font size on inputs to prevent Safari auto-zoom on mobile */
+        .input-field { background: #FFFFFF; border: 1.5px solid #E5E5E7; border-radius: 14px; padding: 14px 16px; width: 100%; outline: none; font-size: 16px !important; transition: border-color 0.2s; }
         .input-field:focus { border-color: #000; }
         .input-field:disabled { background: #F2F2F7; color: #8E8E93; }
         .btn-primary { background: #1D1D1F; color: #FFFFFF; padding: 16px; border-radius: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.1s; }
@@ -263,26 +264,37 @@
                 </div>
             </div>
 
+            <!-- BỘ LỌC ĐÃ ĐƯỢC FIX LẠI GRID CHO IPHONE -->
             <div class="apple-card p-4 space-y-3">
                 <div class="flex justify-between items-center mb-1">
                     <h2 class="text-xs font-bold uppercase text-gray-400">Bộ lọc thống kê</h2>
                     <button onclick="resetStatsFilters()" class="text-[10px] text-blue-500 font-semibold bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition active:scale-95">Reset bộ lọc</button>
                 </div>
-                <div class="grid grid-cols-2 gap-2 items-end">
-                    <div class="relative">
+                <div class="grid grid-cols-2 gap-3 items-end">
+                    
+                    <!-- Ngày giao bánh -->
+                    <div class="relative col-span-1">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Ngày giao bánh</label>
-                        <input type="date" id="filterCreateDate" class="input-field py-2 px-3 text-sm pr-8" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
-                        <button type="button" onclick="document.getElementById('filterCreateDate').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="absolute right-2 bottom-[8px] text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                        <div class="relative">
+                            <input type="date" id="filterCreateDate" class="input-field py-2 pl-3 pr-10" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                            <button type="button" onclick="document.getElementById('filterCreateDate').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                        </div>
                     </div>
-                    <div class="relative">
+                    
+                    <!-- Mã đơn/SĐT -->
+                    <div class="relative col-span-1">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Mã đơn/SĐT</label>
-                        <input type="text" id="searchKeyword" class="input-field py-2 px-3 text-sm pr-8" placeholder="Tìm..." oninput="renderStats(); document.getElementById('selectAllBtn').checked = false;">
-                        <button type="button" onclick="document.getElementById('searchKeyword').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="absolute right-2 bottom-[8px] text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                        <div class="relative">
+                            <input type="text" id="searchKeyword" class="input-field py-2 pl-3 pr-10" placeholder="Tìm kiếm..." oninput="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                            <button type="button" onclick="document.getElementById('searchKeyword').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                        </div>
                     </div>
-                    <div class="relative z-50">
+                    
+                    <!-- Khách hàng (FULL WIDTH) -->
+                    <div class="relative z-50 col-span-2">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Khách hàng</label>
                         <div class="relative">
-                            <input type="text" id="filterCustomerInput" placeholder="Gõ tên..." class="input-field py-2 px-3 text-sm bg-gray-50 pr-14" oninput="suggestStatsCus(this.value); renderStats(); document.getElementById('selectAllBtn').checked = false;" onfocus="suggestStatsCus(this.value, true)" autocomplete="off">
+                            <input type="text" id="filterCustomerInput" placeholder="Gõ tên khách hàng..." class="input-field py-2 px-3 bg-gray-50 pr-14" oninput="suggestStatsCus(this.value); renderStats(); document.getElementById('selectAllBtn').checked = false;" onfocus="suggestStatsCus(this.value, true)" autocomplete="off">
                             <div class="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
                                 <button type="button" onclick="document.getElementById('filterCustomerInput').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
                                 <button type="button" onclick="toggleStatsCusDropdown(event)" class="text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
@@ -290,9 +302,11 @@
                         </div>
                         <div id="statsCusDropdown" class="absolute bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-1"></div>
                     </div>
-                    <div class="relative z-40 flex flex-col justify-end">
+                    
+                    <!-- Loại bánh (FULL WIDTH) -->
+                    <div class="relative z-40 flex flex-col justify-end col-span-2">
                         <div class="flex justify-between items-center mb-1 ml-1">
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Loại bánh</label>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Lọc theo bánh</label>
                             <select id="filterProductLogic" class="text-[9px] bg-gray-200 rounded px-1 font-bold text-gray-600 outline-none" onchange="renderStats()">
                                 <option value="OR">HOẶC (OR)</option>
                                 <option value="AND">VÀ (AND)</option>
@@ -300,23 +314,26 @@
                         </div>
                         <div id="selectedFilterProductsTags" class="flex flex-wrap gap-1 mb-1 empty:hidden"></div>
                         <div class="relative">
-                            <input type="text" id="filterProductInput" placeholder="Chọn bánh..." class="input-field py-2 px-3 text-sm bg-gray-50 pr-8" oninput="suggestStatsProd(this.value); document.getElementById('selectAllBtn').checked = false;" onfocus="suggestStatsProd(this.value, true)" autocomplete="off">
-                            <button type="button" onclick="toggleStatsProdDropdown(event)" class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                            <input type="text" id="filterProductInput" placeholder="Chọn bánh..." class="input-field py-2 px-3 bg-gray-50 pr-8" oninput="suggestStatsProd(this.value); document.getElementById('selectAllBtn').checked = false;" onfocus="suggestStatsProd(this.value, true)" autocomplete="off">
+                            <button type="button" onclick="toggleStatsProdDropdown(event)" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
                         </div>
                         <div id="statsProdDropdown" class="absolute bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-1"></div>
                     </div>
                     
-                    <div class="relative flex flex-col justify-end">
+                    <!-- Thanh toán -->
+                    <div class="relative flex flex-col justify-end col-span-1">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Thanh toán</label>
-                        <select id="filterPayment" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                        <select id="filterPayment" class="input-field py-2 px-3 bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
                             <option value="all">Tất cả</option>
                             <option value="paid">Đã thanh toán</option>
                             <option value="unpaid">Chưa thanh toán</option>
                         </select>
                     </div>
-                    <div class="relative flex flex-col justify-end">
+                    
+                    <!-- Nhận hàng -->
+                    <div class="relative flex flex-col justify-end col-span-1">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Nhận hàng</label>
-                        <select id="filterDelivery" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                        <select id="filterDelivery" class="input-field py-2 px-3 bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
                             <option value="all">Tất cả</option>
                             <option value="Thụy Khuê">Pickup Thuỵ Khuê</option>
                             <option value="Hòa Mã">Pickup Hoà Mã</option>
@@ -328,7 +345,7 @@
                 <div class="flex gap-2 items-end mt-2 border-t border-gray-100 pt-3">
                     <div class="flex-1">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Sắp xếp</label>
-                        <select id="sortType" class="input-field py-2 px-3 text-sm bg-gray-50 w-full" onchange="renderStats()">
+                        <select id="sortType" class="input-field py-2 px-3 bg-gray-50 w-full" onchange="renderStats()">
                             <option value="dateDesc">Mới nhất</option>
                             <option value="dateAsc">Cũ nhất</option>
                         </select>
@@ -357,11 +374,11 @@
                 <div class="flex gap-2 items-end">
                     <div class="flex-1">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Từ ngày</label>
-                        <input type="date" id="revFromDate" class="input-field py-2 px-3 text-sm" onchange="renderRevenueCharts()">
+                        <input type="date" id="revFromDate" class="input-field py-2 px-3" onchange="renderRevenueCharts()">
                     </div>
                     <div class="flex-1">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Đến ngày</label>
-                        <input type="date" id="revToDate" class="input-field py-2 px-3 text-sm" onchange="renderRevenueCharts()">
+                        <input type="date" id="revToDate" class="input-field py-2 px-3" onchange="renderRevenueCharts()">
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-2 mt-2">
@@ -402,8 +419,8 @@
             <div class="apple-card p-6">
                 <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Quản lý Shipper</h2>
                 <div class="flex gap-2 mb-4">
-                    <input type="text" id="newShipperName" class="input-field py-2 text-sm" placeholder="Tên Shipper mới...">
-                    <button onclick="addShipper()" class="btn-primary py-2 px-4 text-sm whitespace-nowrap">Thêm</button>
+                    <input type="text" id="newShipperName" class="input-field py-2" placeholder="Tên Shipper mới...">
+                    <button onclick="addShipper()" class="btn-primary py-2 px-4 whitespace-nowrap">Thêm</button>
                 </div>
                 <div id="shippersList" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
             </div>
@@ -414,11 +431,11 @@
                 <div class="grid grid-cols-2 gap-2 mb-4">
                     <div>
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Ngày giao</label>
-                        <input type="date" id="filterShipDate" class="input-field py-2 px-3 text-sm" onchange="renderShippingStats()">
+                        <input type="date" id="filterShipDate" class="input-field py-2 px-3" onchange="renderShippingStats()">
                     </div>
                     <div class="relative flex flex-col justify-end">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Shipper</label>
-                        <select id="filterShipperName" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderShippingStats()">
+                        <select id="filterShipperName" class="input-field py-2 px-3 bg-gray-50" onchange="renderShippingStats()">
                             <option value="all">Tất cả Shipper</option>
                             <option value="Chưa gán">-- Đơn chưa gán Shipper --</option>
                         </select>
@@ -443,11 +460,11 @@
                 <div class="space-y-4">
                     <div>
                         <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Tên Cửa Hàng / Tiêu đề</label>
-                        <input type="text" id="invShopName" class="input-field py-2 text-sm" placeholder="VD: TIỆM BÁNH ABC" oninput="updateInvoiceSettings()">
+                        <input type="text" id="invShopName" class="input-field py-2" placeholder="VD: TIỆM BÁNH ABC" oninput="updateInvoiceSettings()">
                     </div>
                     <div>
                         <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Câu Cảm ơn (Cuối bill)</label>
-                        <input type="text" id="invThankYou" class="input-field py-2 text-sm" placeholder="Cảm ơn quý khách đã ủng hộ!" oninput="updateInvoiceSettings()">
+                        <input type="text" id="invThankYou" class="input-field py-2" placeholder="Cảm ơn quý khách đã ủng hộ!" oninput="updateInvoiceSettings()">
                     </div>
                     
                     <div class="grid grid-cols-2 gap-2 text-sm border-t border-gray-100 pt-3">
@@ -605,7 +622,6 @@
         </div>
     </div>
 
-    <!-- Đã nâng cấp confirmModal để nhận message linh hoạt -->
     <div id="confirmModal" class="fixed inset-0 bg-black/50 z-[1000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity">
         <div class="bg-white p-6 rounded-3xl max-w-sm w-full m-4 shadow-2xl text-center">
             <h3 class="font-bold text-lg mb-2">Xác nhận</h3>
@@ -672,14 +688,13 @@
         let calDate = new Date();
         let selectedDate = new Date();
         let isCloudSyncReady = false;
-        let selectedFilterProducts = []; // Array để chứa các tag loại bánh
+        let selectedFilterProducts = []; 
         
         let chartDailyInstance = null;
         let chartProductInstance = null;
 
         window.onload = function() {
-            window.checkBiometricSupport(); // Kiểm tra nút sinh trắc học
-            // Tự động đăng nhập nếu có remember
+            window.checkBiometricSupport();
             const savedLogin = localStorage.getItem('rememberedUser');
             if (savedLogin) {
                 const loginData = JSON.parse(savedLogin);
@@ -688,7 +703,7 @@
                     if (user) {
                         currentUser = user;
                         applyRoleRestrictions(); initApp();
-                        return; // Bỏ qua màn hình đăng nhập
+                        return;
                     }
                 } else {
                     localStorage.removeItem('rememberedUser');
@@ -720,7 +735,7 @@
             if (user) {
                 currentUser = user; 
                 if (remember) {
-                    const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+                    const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000;
                     localStorage.setItem('rememberedUser', JSON.stringify({ username: u, expiry: expiry }));
                 }
                 document.getElementById('loginScreen').classList.add('hidden-section'); document.getElementById('mainApp').classList.remove('hidden-section');
@@ -736,14 +751,12 @@
             window.checkBiometricSupport();
         };
 
-        // --- SINH TRẮC HỌC (WEBAUTHN) ---
         function bufferToBase64url(buffer) { const bytes = new Uint8Array(buffer); let str = ''; for (const charCode of bytes) { str += String.fromCharCode(charCode); } return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); }
         function base64urlToBuffer(base64url) { const padding = '='.repeat((4 - base64url.length % 4) % 4); const base64 = (base64url + padding).replace(/\-/g, '+').replace(/_/g, '/'); const rawData = atob(base64); const buffer = new Uint8Array(rawData.length); for (let i = 0; i < rawData.length; ++i) { buffer[i] = rawData.charCodeAt(i); } return buffer.buffer; }
 
         window.checkBiometricSupport = function() {
             const btn = document.getElementById('btnBiometric');
             if (!btn) return;
-            // Chỉ hiện nút Đăng nhập sinh trắc học nếu thiết bị hỗ trợ và CÓ ÍT NHẤT 1 user đã đăng ký sinh trắc
             if (window.PublicKeyCredential && usersDB.some(u => u.biometricId)) {
                 btn.classList.remove('hidden-section');
             } else {
@@ -828,7 +841,7 @@
                 deleteBtn.style.display = ''; 
                 revBtn.style.display = '';
                 shippingBtn.style.display = '';
-                btnOpenTrash.style.display = ''; // Hiển thị nút Thùng rác cho admin
+                btnOpenTrash.style.display = ''; 
             }
             switchTab('order'); 
         }
@@ -875,12 +888,9 @@
             if (appSettings.gasUrl) syncToGoogle();
         }
 
-        /* Đồng bộ 2 Chiều - Khắc phục mất dữ liệu */
         function mergeDataLists(localList, cloudList) {
             const map = new Map();
-            // Nạp dữ liệu từ Cloud vào Map trước
             (cloudList || []).forEach(item => { if(item && item.id) map.set(String(item.id), item); });
-            // Trộn dữ liệu Local vào, giải quyết xung đột bằng timestamp
             (localList || []).forEach(item => {
                 if(item && item.id) {
                     const id = String(item.id);
@@ -888,10 +898,8 @@
                         const cloudItem = map.get(id);
                         const localTime = item._updatedAt || 0;
                         const cloudTime = cloudItem._updatedAt || 0;
-                        // Ưu tiên bản ghi có thời gian cập nhật gần nhất
                         if (localTime > cloudTime) { map.set(id, item); } else { map.set(id, cloudItem); }
                     } else {
-                        // Nếu Cloud không có nhưng Local có (đơn mới tạo) -> Giữ nguyên map.set
                         map.set(id, item);
                     }
                 }
@@ -950,7 +958,6 @@
             });
         };
 
-        // Custom Dropdown cho Thống kê (Khách hàng & Sản phẩm)
         window.suggestStatsCus = function(query, forceAll = false) {
             const box = document.getElementById('statsCusDropdown');
             if(!box) return;
@@ -983,7 +990,7 @@
             box.classList.remove('hidden');
             
             matches.forEach(p => {
-                if(selectedFilterProducts.includes(p.name)) return; // Bỏ qua nếu đã được chọn dưới dạng tag
+                if(selectedFilterProducts.includes(p.name)) return;
                 const d = document.createElement('div'); d.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-gray-50";
                 d.innerHTML = `<p class="font-bold">${p.name}</p>`;
                 d.onmousedown = () => { 
@@ -996,7 +1003,7 @@
                 };
                 box.appendChild(d);
             });
-            if(box.innerHTML === '') box.classList.add('hidden'); // Nếu tất cả đã được chọn thì ẩn
+            if(box.innerHTML === '') box.classList.add('hidden');
         };
         window.toggleStatsProdDropdown = function(e) { e.stopPropagation(); const box = document.getElementById('statsProdDropdown'); if(box.classList.contains('hidden')) window.suggestStatsProd(document.getElementById('filterProductInput').value, true); else box.classList.add('hidden'); };
 
@@ -1069,18 +1076,16 @@
             const activeRows = Array.from(rows).filter(r => r.querySelector('.prod-name').value.trim() !== '');
             if(activeRows.length === 0) return showToast("Chưa chọn sản phẩm nào");
 
-            // 1. Cảnh báo trùng đơn (Cùng SĐT + Cùng Ngày Giao)
             const isDuplicate = ordersDB.some(o => o.customerPhone === phone && o.receiveDate === receiveDate && o.id !== editOrderId && !o.isDeleted);
             if (isDuplicate) {
                 const ok = await window.showConfirmModal(`Khách hàng này đã có đơn vào ngày ${receiveDate}. Bạn có chắc muốn lên thêm đơn nữa không?`);
-                if (!ok) return; // Hủy lên đơn nếu chọn Quay lại
+                if (!ok) return; 
             }
 
-            // 2. Cảnh báo thiếu ghi chú
             const notesChecked = document.querySelectorAll('input[name="orderNote"]:checked');
             if(notesChecked.length === 0) {
                 const ok = await window.showConfirmModal("Bạn có chắc khách hàng không yêu cầu gì đặc biệt?");
-                if(!ok) return; // Hủy lên đơn nếu chọn Quay lại
+                if(!ok) return; 
             }
 
             const existingCustomer = customersDB.find(c => c.phone === phone);
@@ -1088,7 +1093,6 @@
                 customersDB.push({ id: `KH${Date.now()}`, name: name, phone: phone, address: document.getElementById('shippingAddress').value.trim() || '', _updatedAt: Date.now() });
                 logAction('CRM', `Thêm mới khách hàng [${phone}]`); renderCrmList();
             } else {
-                // Cập nhật lại thông tin mới nhất vào CRM
                 existingCustomer.name = name;
                 existingCustomer.address = document.getElementById('shippingAddress').value.trim() || existingCustomer.address;
                 existingCustomer._updatedAt = Date.now();
@@ -1117,7 +1121,7 @@
                 discountType: discountType, discountValue: discountValue,
                 total: finalTotal, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
                 notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value),
-                _updatedAt: Date.now() // Timestamp cho 2-way sync
+                _updatedAt: Date.now() 
             };
 
             if(editOrderId) { 
@@ -1201,7 +1205,6 @@
             const filterPayment = document.getElementById('filterPayment').value;
             const filterDelivery = document.getElementById('filterDelivery').value;
             
-            // ẨN CÁC ĐƠN BỊ XÓA MỀM (isDeleted)
             let filtered = ordersDB.filter(o => !o.isDeleted && ((o.customerName || '').toLowerCase().includes(kw) || (o.id || '').toLowerCase().includes(kw) || String(o.customerPhone || '').includes(kw)));
             
             if (filterCus) {
@@ -1216,12 +1219,10 @@
                 filtered = filtered.filter(o => o.deliveryType === filterDelivery);
             }
 
-            // LỌC THEO THẺ BÁNH (AND / OR)
             if (selectedFilterProducts.length > 0) {
                 if (logic === 'OR') {
                     filtered = filtered.filter(o => o.products && o.products.some(p => selectedFilterProducts.includes(p.name)));
                 } else {
-                    // AND logic: Đơn phải chứa TẤT CẢ các bánh đã chọn
                     filtered = filtered.filter(o => {
                         if (!o.products) return false;
                         const orderProductNames = o.products.map(p => p.name);
@@ -1249,7 +1250,6 @@
             if(sort === 'dateDesc') filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
             if(sort === 'dateAsc') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
 
-            // Gọi render luôn tổng hợp bánh
             window.renderProductSumTable(filtered);
 
             if(filtered.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-10">Không có đơn hàng</p>'; return; }
@@ -1311,7 +1311,6 @@
                 });
             });
 
-            // Sắp xếp theo thứ tự Kho SP, loại nào không có thì cho bằng 0
             productsDB.forEach(dbProd => {
                 const qty = counts[dbProd.name] || 0;
                 grid.innerHTML += `
@@ -1320,10 +1319,9 @@
                         <span class="text-lg font-black ${qty > 0 ? 'text-blue-600' : 'text-gray-300'}">${qty}</span>
                     </div>
                 `;
-                delete counts[dbProd.name]; // Xóa khỏi danh sách để lát duyệt các món lạ
+                delete counts[dbProd.name]; 
             });
 
-            // Duyệt nốt các món lạ (không có trong kho nhưng khách cứ đặt)
             Object.entries(counts).forEach(([name, qty]) => {
                 grid.innerHTML += `
                     <div class="flex flex-col border border-gray-200 rounded-xl p-2 bg-gray-50 flex-1 min-w-[30%] text-center">
@@ -1370,31 +1368,25 @@
             let fromDate = fromStr ? new Date(fromStr) : new Date('2000-01-01'); fromDate.setHours(0,0,0,0);
             let toDate = toStr ? new Date(toStr) : new Date('2100-01-01'); toDate.setHours(23,59,59,999);
 
-            // Chỉ lọc những đơn Đã thanh toán & Không bị xóa
             let filteredOrders = ordersDB.filter(o => {
                 let rDate = parseDateStr(o.receiveDate) || new Date(o.date);
                 return rDate >= fromDate && rDate <= toDate && o.paymentStatus === 'paid' && !o.isDeleted;
             });
 
-            // 1. Tóm tắt
             const totalRev = filteredOrders.reduce((sum, o) => sum + o.total, 0);
             document.getElementById('revTotalAmount').innerText = formatCurrency(totalRev);
             document.getElementById('revTotalOrders').innerText = filteredOrders.length;
 
-            // 2. Tính toán Data cho Chart
             let dailyRev = {}; let productQty = {}; let customerSpends = {};
             filteredOrders.forEach(o => {
-                // Theo ngày
                 let dateKey = parseDateStr(o.receiveDate);
                 dateKey = dateKey ? `${String(dateKey.getDate()).padStart(2,'0')}/${String(dateKey.getMonth()+1).padStart(2,'0')}` : 'Khác';
                 dailyRev[dateKey] = (dailyRev[dateKey] || 0) + o.total;
 
-                // Theo sản phẩm
                 (o.products || []).forEach(p => {
                     if (p.name) productQty[p.name] = (productQty[p.name] || 0) + p.qty;
                 });
 
-                // Theo Khách hàng
                 if(o.customerPhone) {
                     if(!customerSpends[o.customerPhone]) customerSpends[o.customerPhone] = { name: o.customerName || 'Khách lạ', spend: 0, count: 0 };
                     customerSpends[o.customerPhone].spend += o.total;
@@ -1402,7 +1394,6 @@
                 }
             });
 
-            // 3. Vẽ biểu đồ Đường (Doanh thu theo ngày)
             const dailyLabels = Object.keys(dailyRev).sort((a,b) => {
                 if(a==='Khác') return 1; if(b==='Khác') return -1;
                 let [da,ma] = a.split('/'); let [db,mb] = b.split('/');
@@ -1418,7 +1409,6 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function(val) { return val/1000 + 'k'; } } } } }
             });
 
-            // 4. Vẽ biểu đồ Tròn (Top 5 Bánh)
             const sortedProds = Object.entries(productQty).sort((a,b) => b[1] - a[1]).slice(0, 5);
             const ctxProd = document.getElementById('chartProducts').getContext('2d');
             if(chartProductInstance) chartProductInstance.destroy();
@@ -1431,7 +1421,6 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }
             });
 
-            // 5. Danh sách Top 10 khách hàng
             const topCus = Object.entries(customerSpends).sort((a,b) => b[1].spend - a[1].spend).slice(0, 10);
             const cusDiv = document.getElementById('revTopCustomers'); cusDiv.innerHTML = '';
             if(topCus.length === 0) cusDiv.innerHTML = '<p class="text-xs text-gray-400 italic py-2">Chưa có dữ liệu thanh toán</p>';
@@ -1486,13 +1475,13 @@
             row.innerHTML = `
                 <div class="flex-grow space-y-2">
                     <div class="relative flex items-center">
-                        <input type="text" placeholder="Tên SP" class="input-field py-2 text-sm prod-name pr-8" value="${data ? data.name : ''}" data-code="${pCode}" oninput="searchProd(this, '${id}')" onfocus="searchProd(this, '${id}', true)" onclick="searchProd(this, '${id}', true)" onchange="window.checkAndAutoAppend('${id}')">
+                        <input type="text" placeholder="Tên SP" class="input-field py-2 pr-8" value="${data ? data.name : ''}" data-code="${pCode}" oninput="searchProd(this, '${id}')" onfocus="searchProd(this, '${id}', true)" onclick="searchProd(this, '${id}', true)" onchange="window.checkAndAutoAppend('${id}')">
                         <button type="button" onclick="toggleProdDropdown('${id}', event)" class="absolute right-2 text-gray-400 hover:text-black focus:outline-none p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
                     </div>
                     <div id="sug-${id}" class="absolute z-50 bg-white border shadow-lg w-full rounded-xl hidden max-h-40 overflow-y-auto mt-1"></div>
                     <div class="flex gap-2">
-                        <input type="number" placeholder="SL" class="input-field py-2 text-sm prod-qty w-1/3" value="${data ? data.qty : 1}" oninput="calcTotal()" onchange="window.checkAndAutoAppend('${id}')">
-                        <input type="number" placeholder="Đơn giá" class="input-field py-2 text-sm prod-price w-2/3" value="${data ? data.price : ''}" oninput="calcTotal()" onchange="window.checkAndAutoAppend('${id}')">
+                        <input type="number" placeholder="SL" class="input-field py-2 prod-qty w-1/3" value="${data ? data.qty : 1}" oninput="calcTotal()" onchange="window.checkAndAutoAppend('${id}')">
+                        <input type="number" placeholder="Đơn giá" class="input-field py-2 prod-price w-2/3" value="${data ? data.price : ''}" oninput="calcTotal()" onchange="window.checkAndAutoAppend('${id}')">
                     </div>
                 </div>
                 <button type="button" onclick="document.getElementById('row-${id}').remove(); calcTotal();" class="text-gray-400 p-2">&times;</button>
@@ -1542,14 +1531,13 @@
         window.toggleSelectAll = function(checkbox) { const isChecked = checkbox.checked; const filtered = window.getFilteredOrders(); if (isChecked) { filtered.forEach(o => selectedOrders.add(o.id)); } else { filtered.forEach(o => selectedOrders.delete(o.id)); } renderStats(); };
         window.updateBulkBar = function() { const bar = document.getElementById('bulkActionBar'); document.getElementById('bulkCount').innerText = `${selectedOrders.size} đơn`; selectedOrders.size > 0 ? bar.classList.add('active') : bar.classList.remove('active'); };
         
-        // SOFT DELETE AN TOÀN
         window.bulkDelete = function() { 
             logAction('XÓA ĐƠN', `Chuyển vào thùng rác ${selectedOrders.size} đơn hàng`); 
             ordersDB.forEach(o => {
                 if (selectedOrders.has(o.id)) {
-                    o.isDeleted = true; // Cờ xóa mềm
-                    o.customerName = o.customerName.replace(' (ĐÃ XÓA)', '') + ' (ĐÃ XÓA)'; // Thêm dấu hiệu nhận biết cho Google Sheets
-                    o._updatedAt = Date.now(); // Kích hoạt Sync
+                    o.isDeleted = true;
+                    o.customerName = o.customerName.replace(' (ĐÃ XÓA)', '') + ' (ĐÃ XÓA)';
+                    o._updatedAt = Date.now();
                 }
             });
             selectedOrders.clear(); saveData(); document.getElementById('selectAllBtn').checked = false; renderStats(); showToast("Đã chuyển vào thùng rác"); 
@@ -1558,7 +1546,6 @@
         window.bulkMarkPaid = function() { logAction('THANH TOÁN', `Đánh dấu thanh toán cho ${selectedOrders.size} đơn hàng`); ordersDB.forEach(o => { if (selectedOrders.has(o.id)) { o.paymentStatus = 'paid'; o._updatedAt = Date.now(); } }); selectedOrders.clear(); saveData(); document.getElementById('selectAllBtn').checked = false; renderStats(); showToast("Đã đổi trạng thái thanh toán"); };
         window.markSinglePaid = function(id) { const order = ordersDB.find(o => o.id === id); if(order) { order.paymentStatus = 'paid'; order._updatedAt = Date.now(); logAction('THANH TOÁN', `Xác nhận thanh toán đơn hàng [${id}]`); saveData(); renderStats(); showToast("Đã cập nhật"); } };
 
-        // XỬ LÝ THÙNG RÁC
         window.openTrash = function() {
             const list = document.getElementById('trashList'); list.innerHTML = '';
             const deletedOrders = ordersDB.filter(o => o.isDeleted);
@@ -1745,7 +1732,6 @@
         };
         window.removeAdvancedImage = function(type) { appSettings.invoiceConfig[type] = null; const previewId = type === 'logo' ? 'invLogoPreview' : 'invBgPreview'; document.getElementById(previewId).src = ''; document.getElementById(previewId).classList.add('hidden-section'); saveData(); showToast("Đã xóa ảnh"); if(window.renderInvoicePreview) renderInvoicePreview(); };
 
-        // === CÁC HÀM XỬ LÝ SHIPPING ===
         window.addShipper = function() {
             const name = document.getElementById('newShipperName').value.trim();
             if(!name) return showToast("Vui lòng nhập tên Shipper");
@@ -1758,7 +1744,7 @@
         window.deleteShipper = function(id) {
             const shipper = shippersDB.find(s => s.id === id);
             if(shipper) {
-                shipper.isDeleted = true; // Xóa mềm để an toàn khi đồng bộ
+                shipper.isDeleted = true;
                 shipper._updatedAt = Date.now();
                 saveData(); renderShipperManagementList(); populateShipperDropdowns(); showToast("Đã xóa Shipper");
             }
@@ -1830,7 +1816,6 @@
                 let selectHTML = `<select onchange="quickAssignShipper('${o.id}', this.value)" class="text-[10px] ml-2 ${o.shipperName ? 'text-green-700 bg-green-50 border-green-200' : 'text-orange-600 bg-orange-50 border-orange-200'} px-1 py-0.5 rounded font-bold border outline-none cursor-pointer max-w-[120px] truncate">`;
                 selectHTML += `<option value="">Chưa gán Shipper</option>`;
                 
-                // Giữ lại hiển thị cho các Shipper đã bị xóa nhưng vẫn còn được gán vào đơn cũ
                 let isCurrentShipperDeleted = o.shipperName && !activeShippers.some(s => s.name === o.shipperName);
                 if (isCurrentShipperDeleted) {
                     selectHTML += `<option value="${o.shipperName}" selected>${o.shipperName} (Đã xóa)</option>`;
@@ -1936,7 +1921,6 @@
             status.innerText = "Đang đồng bộ..."; if(detailStatus) detailStatus.innerText = "Đang xử lý dữ liệu...";
             
             try {
-                // Thêm tuỳ chọn method và redirect follow
                 const pullRes = await fetch(appSettings.gasUrl, { method: 'GET', redirect: 'follow' });
                 if (!pullRes.ok) throw new Error("HTTP " + pullRes.status);
                 const cloudData = await pullRes.json();
@@ -1945,14 +1929,13 @@
                     if (cloudData.orders) ordersDB = mergeDataLists(ordersDB, cloudData.orders);
                     if (cloudData.customers) customersDB = mergeDataLists(customersDB, cloudData.customers.map(c => ({...c, phone: window.normalizePhone(c.phone)})));
                     if (cloudData.products) productsDB = mergeDataLists(productsDB, cloudData.products);
-                    if (cloudData.shippers) shippersDB = mergeDataLists(shippersDB, cloudData.shippers); // Merge danh sách Shipper
+                    if (cloudData.shippers) shippersDB = mergeDataLists(shippersDB, cloudData.shippers); 
                     
                     localStorage.setItem('myOrders', JSON.stringify(ordersDB));
                     localStorage.setItem('myCustomers', JSON.stringify(customersDB));
                     localStorage.setItem('myProds', JSON.stringify(productsDB));
                     localStorage.setItem('myShippers', JSON.stringify(shippersDB));
 
-                    // Delay an toàn giúp tránh bị chặn Rate Limit hoặc CORS Preflight do call liên tục
                     await new Promise(resolve => setTimeout(resolve, 800));
 
                     const pushRes = await fetch(appSettings.gasUrl, { 
