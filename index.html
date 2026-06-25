@@ -605,6 +605,7 @@
         </div>
     </div>
 
+    <!-- Confirm Modal -->
     <div id="confirmModal" class="fixed inset-0 bg-black/50 z-[1000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity">
         <div class="bg-white p-6 rounded-3xl max-w-sm w-full m-4 shadow-2xl text-center">
             <h3 class="font-bold text-lg mb-2">Xác nhận</h3>
@@ -671,13 +672,14 @@
         let calDate = new Date();
         let selectedDate = new Date();
         let isCloudSyncReady = false;
-        let selectedFilterProducts = []; 
+        let selectedFilterProducts = []; // Array để chứa các tag loại bánh
         
         let chartDailyInstance = null;
         let chartProductInstance = null;
 
         window.onload = function() {
-            window.checkBiometricSupport();
+            window.checkBiometricSupport(); // Kiểm tra nút sinh trắc học
+            // Tự động đăng nhập nếu có remember
             const savedLogin = localStorage.getItem('rememberedUser');
             if (savedLogin) {
                 const loginData = JSON.parse(savedLogin);
@@ -686,7 +688,7 @@
                     if (user) {
                         currentUser = user;
                         applyRoleRestrictions(); initApp();
-                        return; 
+                        return; // Bỏ qua màn hình đăng nhập
                     }
                 } else {
                     localStorage.removeItem('rememberedUser');
@@ -718,7 +720,7 @@
             if (user) {
                 currentUser = user; 
                 if (remember) {
-                    const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000;
+                    const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
                     localStorage.setItem('rememberedUser', JSON.stringify({ username: u, expiry: expiry }));
                 }
                 document.getElementById('loginScreen').classList.add('hidden-section'); document.getElementById('mainApp').classList.remove('hidden-section');
@@ -741,6 +743,7 @@
         window.checkBiometricSupport = function() {
             const btn = document.getElementById('btnBiometric');
             if (!btn) return;
+            // Chỉ hiện nút Đăng nhập sinh trắc học nếu thiết bị hỗ trợ và CÓ ÍT NHẤT 1 user đã đăng ký sinh trắc
             if (window.PublicKeyCredential && usersDB.some(u => u.biometricId)) {
                 btn.classList.remove('hidden-section');
             } else {
@@ -825,7 +828,7 @@
                 deleteBtn.style.display = ''; 
                 revBtn.style.display = '';
                 shippingBtn.style.display = '';
-                btnOpenTrash.style.display = '';
+                btnOpenTrash.style.display = ''; // Hiển thị nút Thùng rác cho admin
             }
             switchTab('order'); 
         }
@@ -875,7 +878,9 @@
         /* Đồng bộ 2 Chiều - Khắc phục mất dữ liệu */
         function mergeDataLists(localList, cloudList) {
             const map = new Map();
+            // Nạp dữ liệu từ Cloud vào Map trước
             (cloudList || []).forEach(item => { if(item && item.id) map.set(String(item.id), item); });
+            // Trộn dữ liệu Local vào, giải quyết xung đột bằng timestamp
             (localList || []).forEach(item => {
                 if(item && item.id) {
                     const id = String(item.id);
@@ -883,8 +888,10 @@
                         const cloudItem = map.get(id);
                         const localTime = item._updatedAt || 0;
                         const cloudTime = cloudItem._updatedAt || 0;
+                        // Ưu tiên bản ghi có thời gian cập nhật gần nhất
                         if (localTime > cloudTime) { map.set(id, item); } else { map.set(id, cloudItem); }
                     } else {
+                        // Nếu Cloud không có nhưng Local có (đơn mới tạo) -> Giữ nguyên map.set
                         map.set(id, item);
                     }
                 }
@@ -919,8 +926,9 @@
             
             activeBox.classList.remove('hidden');
             
+            let html = '';
             matches.slice(0, 10).forEach(c => {
-                const pastOrders = ordersDB.filter(o => o.customerPhone === c.phone && o.deliveryType === 'Ship' && !o.isDeleted).sort((a,b) => ((b.date || '') > (a.date || '') ? 1 : -1));
+                const pastOrders = ordersDB.filter(o => o.customerPhone === c.phone && o.deliveryType === 'Ship' && !o.isDeleted).sort((a,b) => new Date(b.date) - new Date(a.date));
                 let suggestedAddress = c.address || '';
                 let suggestedFee = '';
                 if (pastOrders.length > 0) {
@@ -928,6 +936,7 @@
                     suggestedFee = pastOrders[0].shippingFee || '';
                 }
 
+                // Chống gán trực tiếp innerHTML +=
                 const d = document.createElement('div'); d.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-blue-50 active:bg-blue-100";
                 d.innerHTML = `<p class="font-bold text-blue-600">${c.phone || ''}</p><p class="text-xs text-gray-500 font-semibold mt-0.5">${c.name || 'Khách chưa có tên'}</p>`;
                 d.onmousedown = () => { 
@@ -943,6 +952,7 @@
             });
         };
 
+        // Custom Dropdown cho Thống kê (Khách hàng & Sản phẩm)
         window.suggestStatsCus = function(query, forceAll = false) {
             const box = document.getElementById('statsCusDropdown');
             if(!box) return;
@@ -975,7 +985,7 @@
             box.classList.remove('hidden');
             
             matches.forEach(p => {
-                if(selectedFilterProducts.includes(p.name)) return; 
+                if(selectedFilterProducts.includes(p.name)) return; // Bỏ qua nếu đã được chọn dưới dạng tag
                 const d = document.createElement('div'); d.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-gray-50";
                 d.innerHTML = `<p class="font-bold">${p.name}</p>`;
                 d.onmousedown = () => { 
@@ -988,19 +998,19 @@
                 };
                 box.appendChild(d);
             });
-            if(box.innerHTML === '') box.classList.add('hidden'); 
+            if(box.innerHTML === '') box.classList.add('hidden'); // Nếu tất cả đã được chọn thì ẩn
         };
         window.toggleStatsProdDropdown = function(e) { e.stopPropagation(); const box = document.getElementById('statsProdDropdown'); if(box.classList.contains('hidden')) window.suggestStatsProd(document.getElementById('filterProductInput').value, true); else box.classList.add('hidden'); };
 
         window.renderFilterProductTags = function() {
             const container = document.getElementById('selectedFilterProductsTags');
-            container.innerHTML = '';
+            let html = '';
             selectedFilterProducts.forEach(prod => {
-                const tag = document.createElement('div');
-                tag.className = "bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1";
-                tag.innerHTML = `<span>${prod}</span><button type="button" onclick="removeFilterProduct('${prod}')" class="hover:text-red-500 font-bold">&times;</button>`;
-                container.appendChild(tag);
+                html += `<div class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1">
+                    <span>${prod}</span><button type="button" onclick="removeFilterProduct('${prod}')" class="hover:text-red-500 font-bold">&times;</button>
+                </div>`;
             });
+            container.innerHTML = html;
         };
 
         window.removeFilterProduct = function(prod) {
@@ -1061,16 +1071,18 @@
             const activeRows = Array.from(rows).filter(r => r.querySelector('.prod-name').value.trim() !== '');
             if(activeRows.length === 0) return showToast("Chưa chọn sản phẩm nào");
 
+            // 1. Cảnh báo trùng đơn (Cùng SĐT + Cùng Ngày Giao)
             const isDuplicate = ordersDB.some(o => o.customerPhone === phone && o.receiveDate === receiveDate && o.id !== editOrderId && !o.isDeleted);
             if (isDuplicate) {
                 const ok = await window.showConfirmModal(`Khách hàng này đã có đơn vào ngày ${receiveDate}. Bạn có chắc muốn lên thêm đơn nữa không?`);
-                if (!ok) return; 
+                if (!ok) return; // Hủy lên đơn nếu chọn Quay lại
             }
 
+            // 2. Cảnh báo thiếu ghi chú
             const notesChecked = document.querySelectorAll('input[name="orderNote"]:checked');
             if(notesChecked.length === 0) {
                 const ok = await window.showConfirmModal("Bạn có chắc khách hàng không yêu cầu gì đặc biệt?");
-                if(!ok) return; 
+                if(!ok) return; // Hủy lên đơn nếu chọn Quay lại
             }
 
             const existingCustomer = customersDB.find(c => c.phone === phone);
@@ -1078,6 +1090,7 @@
                 customersDB.push({ id: `KH${Date.now()}`, name: name, phone: phone, address: document.getElementById('shippingAddress').value.trim() || '', _updatedAt: Date.now() });
                 logAction('CRM', `Thêm mới khách hàng [${phone}]`); renderCrmList();
             } else {
+                // Cập nhật lại thông tin mới nhất vào CRM
                 existingCustomer.name = name;
                 existingCustomer.address = document.getElementById('shippingAddress').value.trim() || existingCustomer.address;
                 existingCustomer._updatedAt = Date.now();
@@ -1106,7 +1119,7 @@
                 discountType: discountType, discountValue: discountValue,
                 total: finalTotal, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
                 notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value),
-                _updatedAt: Date.now() 
+                _updatedAt: Date.now() // Timestamp cho 2-way sync
             };
 
             if(editOrderId) { 
@@ -1131,25 +1144,17 @@
             const list = document.getElementById('crmList'); 
             const kw = document.getElementById('searchCrm').value.toLowerCase().trim();
             
-            let filtered = [];
-            for (let i = 0; i < customersDB.length; i++) {
-                const c = customersDB[i];
-                if ((c.name || '').toLowerCase().includes(kw) || String(c.phone || '').includes(kw)) {
-                    filtered.push(c);
-                }
-            }
+            let filtered = customersDB.filter(c => (c.name || '').toLowerCase().includes(kw) || String(c.phone || '').includes(kw));
             
             if(filtered.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">Chưa có khách hàng</p>'; return; }
 
             const orderCounts = {};
-            for (let i = 0; i < ordersDB.length; i++) {
-                const o = ordersDB[i];
+            ordersDB.forEach(o => {
                 if (o.customerPhone && !o.isDeleted) { orderCounts[o.customerPhone] = (orderCounts[o.customerPhone] || 0) + 1; }
-            }
+            });
 
             let htmlContent = '';
-            for (let i = 0; i < filtered.length; i++) {
-                const c = filtered[i];
+            filtered.forEach(c => {
                 const count = orderCounts[c.phone] || 0; 
                 htmlContent += `
                     <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center cursor-pointer active:scale-95 transition-transform" onclick="openCrmDetail('${c.phone}')">
@@ -1157,23 +1162,14 @@
                         <div class="text-right"><p class="text-[11px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-full">${count} đơn</p></div>
                     </div>
                 `;
-            }
+            });
             list.innerHTML = htmlContent;
         };
 
         window.openCrmDetail = function(phone) {
             const c = customersDB.find(x => x.phone === phone); if(!c) return;
-            
-            let orders = [];
-            let totalSpent = 0;
-            for (let i = 0; i < ordersDB.length; i++) {
-                const o = ordersDB[i];
-                if (o.customerPhone === c.phone && !o.isDeleted) {
-                    orders.push(o);
-                    totalSpent += o.total;
-                }
-            }
-            orders.sort((a,b) => ((b.date || '') > (a.date || '') ? 1 : -1));
+            const orders = ordersDB.filter(o => o.customerPhone === c.phone && !o.isDeleted); orders.sort((a,b) => new Date(b.date) - new Date(a.date));
+            const totalSpent = orders.reduce((sum, o) => sum + o.total, 0);
 
             const firstChar = c.name && c.name.length > 0 ? c.name.charAt(0).toUpperCase() : '?';
             document.getElementById('crmDetailAvatar').innerText = firstChar;
@@ -1183,10 +1179,11 @@
             document.getElementById('crmDetailOrdersCount').innerText = `${orders.length}`;
             document.getElementById('crmDetailTotalSpent').innerText = formatCurrency(totalSpent);
 
-            const list = document.getElementById('crmDetailOrdersList'); list.innerHTML = '';
-            if(orders.length === 0) list.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">Chưa có đơn hàng</p>';
+            const list = document.getElementById('crmDetailOrdersList');
+            let html = '';
+            if(orders.length === 0) html = '<p class="text-center text-gray-400 text-sm py-4">Chưa có đơn hàng</p>';
             orders.forEach(o => {
-                list.innerHTML += `
+                html += `
                     <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
                         <div class="flex justify-between font-bold text-sm mb-1"><span>${(o.receiveDate || '').replace(/^[^-]+ - /, '')}</span><span class="text-black">${formatCurrency(o.total)}</span></div>
                         <p class="text-xs text-gray-600 mb-2 leading-relaxed">${(o.products || []).map(p => `<span class="font-semibold">${p.qty}x</span> ${p.name}`).join('<br>')}</p>
@@ -1197,72 +1194,79 @@
                     </div>
                 `;
             });
+            list.innerHTML = html;
             document.getElementById('crmDetailModal').classList.remove('hidden-section');
         };
 
-        // ĐÃ TỐI ƯU: Không dùng chaining array làm tràn RAM
         window.getFilteredOrders = function() {
-            const kw = document.getElementById('searchKeyword').value.toLowerCase().trim(); 
-            const createDate = document.getElementById('filterCreateDate').value; 
-            const filterCus = document.getElementById('filterCustomerInput').value.toLowerCase().trim();
+            const kw = document.getElementById('searchKeyword').value.toLowerCase(); const createDate = document.getElementById('filterCreateDate').value; 
+            const filterCus = document.getElementById('filterCustomerInput').value.toLowerCase();
             const logic = document.getElementById('filterProductLogic').value;
             const filterPayment = document.getElementById('filterPayment').value;
             const filterDelivery = document.getElementById('filterDelivery').value;
             
-            let result = [];
+            // ẨN CÁC ĐƠN BỊ XÓA MỀM (isDeleted)
+            let filtered = ordersDB.filter(o => !o.isDeleted && ((o.customerName || '').toLowerCase().includes(kw) || (o.id || '').toLowerCase().includes(kw) || String(o.customerPhone || '').includes(kw)));
             
-            // Dùng vòng lặp for truyền thống cực kỳ nhẹ RAM và siêu tốc
-            for (let i = 0; i < ordersDB.length; i++) {
-                const o = ordersDB[i];
-                if (o.isDeleted) continue; 
-                
-                if (kw && !((o.customerName || '').toLowerCase().includes(kw) || (o.id || '').toLowerCase().includes(kw) || String(o.customerPhone || '').includes(kw))) continue;
-                if (filterCus && !((o.customerName || '').toLowerCase().includes(filterCus) || String(o.customerPhone || '').includes(filterCus))) continue;
-                if (filterPayment !== 'all' && o.paymentStatus !== filterPayment) continue;
-                if (filterDelivery !== 'all' && o.deliveryType !== filterDelivery) continue;
+            if (filterCus) {
+                filtered = filtered.filter(o => (o.customerName || '').toLowerCase().includes(filterCus) || String(o.customerPhone || '').includes(filterCus));
+            }
+            
+            if (filterPayment !== 'all') {
+                filtered = filtered.filter(o => o.paymentStatus === filterPayment);
+            }
 
-                if (selectedFilterProducts.length > 0) {
-                    if (!o.products) continue;
-                    const orderProductNames = o.products.map(p => p.name);
-                    if (logic === 'OR') {
-                        if (!selectedFilterProducts.some(sp => orderProductNames.includes(sp))) continue;
-                    } else {
-                        if (!selectedFilterProducts.every(sp => orderProductNames.includes(sp))) continue;
-                    }
+            if (filterDelivery !== 'all') {
+                filtered = filtered.filter(o => o.deliveryType === filterDelivery);
+            }
+
+            // LỌC THEO THẺ BÁNH (AND / OR)
+            if (selectedFilterProducts.length > 0) {
+                if (logic === 'OR') {
+                    filtered = filtered.filter(o => o.products && o.products.some(p => selectedFilterProducts.includes(p.name)));
+                } else {
+                    // AND logic: Đơn phải chứa TẤT CẢ các bánh đã chọn
+                    filtered = filtered.filter(o => {
+                        if (!o.products) return false;
+                        const orderProductNames = o.products.map(p => p.name);
+                        return selectedFilterProducts.every(sp => orderProductNames.includes(sp));
+                    });
                 }
+            }
 
-                if (createDate) {
-                    if (!o.receiveDate) continue;
+            if (createDate) {
+                filtered = filtered.filter(o => {
+                    if (!o.receiveDate) return false;
                     try {
                         let datePart = o.receiveDate.includes(' - ') ? o.receiveDate.split(' - ')[1] : o.receiveDate;
-                        const parts = datePart.split('/'); 
-                        if (parts.length === 3) {
-                            if (`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` !== createDate) continue;
-                        } else continue;
-                    } catch(e) { continue; }
-                }
-
-                result.push(o);
+                        const parts = datePart.split('/'); if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` === createDate;
+                        return false;
+                    } catch(e) { return false; }
+                });
             }
-            return result;
+            return filtered;
         };
 
         window.renderStats = function() {
             const list = document.getElementById('statsOrdersList'); list.innerHTML = '';
             const sort = document.getElementById('sortType').value; let filtered = window.getFilteredOrders();
-            
-            // ĐÃ TỐI ƯU CPU: So sánh chuỗi trực tiếp, Không dùng new Date() trong vòng lặp sort
-            if(sort === 'dateDesc') filtered.sort((a,b) => ((b.date || '') > (a.date || '') ? 1 : -1));
-            if(sort === 'dateAsc') filtered.sort((a,b) => ((a.date || '') > (b.date || '') ? 1 : -1));
+            if(sort === 'dateDesc') filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+            if(sort === 'dateAsc') filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
 
+            // Gọi render luôn tổng hợp bánh
             window.renderProductSumTable(filtered);
 
             if(filtered.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-10">Không có đơn hàng</p>'; return; }
 
-            let htmlContent = '';
-            for (let i = 0; i < filtered.length; i++) {
-                const o = filtered[i];
+            // TỐI ƯU MEMORY LEAK: Dùng DocumentFragment và giới hạn tối đa đơn hàng (Lazy load/Pagination)
+            // Khắc phục lỗi crash Safari trên iPhone do append hàng loạt thẻ DOM
+            const fragment = document.createDocumentFragment();
+            const MAX_RENDER = 100; // Chỉ vẽ 100 đơn đầu tiên để bảo vệ RAM
+            const displayOrders = filtered.slice(0, MAX_RENDER);
+
+            displayOrders.forEach(o => {
                 const isSel = selectedOrders.has(o.id);
+                const card = document.createElement('div'); card.className = `apple-card p-5 border-2 transition-all ${isSel ? 'border-black bg-gray-50' : 'border-transparent'}`;
                 let prodsHTML = (o.products || []).map(p => `<div class="flex justify-between text-sm"><span>${p.qty}x ${p.name}</span><span class="text-gray-500">${formatCurrency(p.qty * p.price)}</span></div>`).join('');
                 
                 let discountHTML = '';
@@ -1272,77 +1276,85 @@
                     discountHTML = `<div class="flex justify-between text-sm text-orange-500 mt-1 font-medium"><span>Giảm giá</span><span>-${formatCurrency(dAmt)}</span></div>`;
                 }
 
-                htmlContent += `
-                    <div class="apple-card p-5 border-2 transition-all ${isSel ? 'border-black bg-gray-50' : 'border-transparent'}">
-                        <div class="flex items-start gap-3">
-                            <input type="checkbox" class="mt-1" ${isSel ? 'checked' : ''} onchange="toggleSelect('${o.id}')">
-                            <div class="flex-grow">
-                                <div class="flex justify-between"><span class="text-xs font-mono bg-gray-200 px-2 rounded">${o.id}</span><span class="text-xs text-gray-500">${o.receiveDate || ''}</span></div>
-                                <h3 class="font-bold text-lg mt-1">${o.customerName || 'Khách chưa có tên'}</h3>
-                                <p class="text-xs text-blue-600 font-semibold">${o.customerPhone || 'Không có SĐT'} <span class="text-gray-500 font-normal">• ${o.deliveryType || ''}</span></p>
-                                ${o.shippingAddress ? `<p class="text-xs text-neutral-600 mt-1">Địa chỉ: ${o.shippingAddress}</p>` : ''}
-                                
-                                <div class="mt-3 bg-white p-3 rounded-xl border border-gray-100">
-                                    ${prodsHTML}
-                                    ${discountHTML}
-                                    ${o.shippingFee ? `<div class="flex justify-between text-sm text-gray-400 mt-1"><span>Phí ship</span><span>${formatCurrency(o.shippingFee)}</span></div>` : ''}
-                                    <div class="border-t mt-2 pt-2 flex justify-between font-bold"><span>Tổng cộng</span><span class="text-black text-lg">${formatCurrency(o.total)}</span></div>
-                                </div>
-                                
-                                <div class="flex gap-2 items-center justify-between mt-3 text-xs">
-                                    <span class="px-3 py-1 rounded-full font-bold ${o.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${o.paymentStatus === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}</span>
-                                    ${o.paymentStatus !== 'paid' ? `<button onclick="markSinglePaid('${o.id}')" class="text-blue-500 font-semibold underline">Xác nhận thanh toán</button>` : ''}
-                                </div>
-                                
-                                <div class="flex gap-2 mt-4 border-t pt-3">
-                                    <button type="button" onclick="editOrder('${o.id}')" class="btn-secondary text-xs px-3 py-1 flex-1">Sửa</button>
-                                    <button type="button" onclick="exportImage('${o.id}')" class="btn-primary text-xs px-3 py-1 flex-1">Xuất ảnh</button>
-                                </div>
+                card.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <input type="checkbox" class="mt-1" ${isSel ? 'checked' : ''} onchange="toggleSelect('${o.id}')">
+                        <div class="flex-grow">
+                            <div class="flex justify-between"><span class="text-xs font-mono bg-gray-200 px-2 rounded">${o.id}</span><span class="text-xs text-gray-500">${o.receiveDate || ''}</span></div>
+                            <h3 class="font-bold text-lg mt-1">${o.customerName || 'Khách chưa có tên'}</h3>
+                            <p class="text-xs text-blue-600 font-semibold">${o.customerPhone || 'Không có SĐT'} <span class="text-gray-500 font-normal">• ${o.deliveryType || ''}</span></p>
+                            ${o.shippingAddress ? `<p class="text-xs text-neutral-600 mt-1">Địa chỉ: ${o.shippingAddress}</p>` : ''}
+                            
+                            <div class="mt-3 bg-white p-3 rounded-xl border border-gray-100">
+                                ${prodsHTML}
+                                ${discountHTML}
+                                ${o.shippingFee ? `<div class="flex justify-between text-sm text-gray-400 mt-1"><span>Phí ship</span><span>${formatCurrency(o.shippingFee)}</span></div>` : ''}
+                                <div class="border-t mt-2 pt-2 flex justify-between font-bold"><span>Tổng cộng</span><span class="text-black text-lg">${formatCurrency(o.total)}</span></div>
+                            </div>
+                            
+                            <div class="flex gap-2 items-center justify-between mt-3 text-xs">
+                                <span class="px-3 py-1 rounded-full font-bold ${o.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${o.paymentStatus === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}</span>
+                                ${o.paymentStatus !== 'paid' ? `<button onclick="markSinglePaid('${o.id}')" class="text-blue-500 font-semibold underline">Xác nhận thanh toán</button>` : ''}
+                            </div>
+                            
+                            <div class="flex gap-2 mt-4 border-t pt-3">
+                                <button type="button" onclick="editOrder('${o.id}')" class="btn-secondary text-xs px-3 py-1 flex-1">Sửa</button>
+                                <button type="button" onclick="exportImage('${o.id}')" class="btn-primary text-xs px-3 py-1 flex-1">Xuất ảnh</button>
                             </div>
                         </div>
                     </div>
                 `;
+                fragment.appendChild(card);
+            });
+            list.appendChild(fragment);
+
+            // Hiện thông báo nếu số lượng đơn vượt giới hạn
+            if (filtered.length > MAX_RENDER) {
+                const warningText = document.createElement('p');
+                warningText.className = "text-center text-gray-400 py-4 text-xs italic font-medium";
+                warningText.innerText = `Đang hiển thị ${MAX_RENDER}/${filtered.length} đơn hàng. Hãy sử dụng bộ lọc tìm kiếm để xem chính xác các đơn cũ hơn.`;
+                list.appendChild(warningText);
             }
-            list.innerHTML = htmlContent;
+            
             updateBulkBar();
         };
 
         window.renderProductSumTable = function(filteredOrders) {
             const grid = document.getElementById('productSumGrid');
             if(!grid) return;
-            grid.innerHTML = '';
             
             let counts = {};
-            for (let i = 0; i < filteredOrders.length; i++) {
-                const o = filteredOrders[i];
-                if (!o.products) continue;
-                for (let j = 0; j < o.products.length; j++) {
-                    const p = o.products[j];
+            filteredOrders.forEach(o => {
+                (o.products || []).forEach(p => {
                     if(p.name) counts[p.name] = (counts[p.name] || 0) + p.qty;
-                }
-            }
+                });
+            });
 
-            let htmlContent = '';
+            // GOM HTML: Khắc phục crash innerHTML trong vòng lặp
+            let html = '';
+
+            // Sắp xếp theo thứ tự Kho SP, loại nào không có thì cho bằng 0
             productsDB.forEach(dbProd => {
                 const qty = counts[dbProd.name] || 0;
-                htmlContent += `
+                html += `
                     <div class="flex flex-col border border-gray-200 rounded-xl p-2 bg-white flex-1 min-w-[30%] text-center">
                         <span class="text-[9px] font-bold text-gray-500 mb-1 line-clamp-2">${dbProd.name}</span>
                         <span class="text-lg font-black ${qty > 0 ? 'text-blue-600' : 'text-gray-300'}">${qty}</span>
                     </div>
                 `;
-                delete counts[dbProd.name]; 
+                delete counts[dbProd.name]; // Xóa khỏi danh sách để lát duyệt các món lạ
             });
 
+            // Duyệt nốt các món lạ (không có trong kho nhưng khách cứ đặt)
             Object.entries(counts).forEach(([name, qty]) => {
-                htmlContent += `
+                html += `
                     <div class="flex flex-col border border-gray-200 rounded-xl p-2 bg-gray-50 flex-1 min-w-[30%] text-center">
                         <span class="text-[9px] font-bold text-gray-500 mb-1 line-clamp-2">${name}</span>
                         <span class="text-lg font-black text-orange-500">${qty}</span>
                     </div>
                 `;
             });
-            grid.innerHTML = htmlContent;
+            grid.innerHTML = html;
         };
 
         window.updateSliderPosition = function() {
@@ -1375,53 +1387,45 @@
             } catch(e) { return null; }
         }
 
-        // ĐÃ TỐI ƯU Tab Doanh Thu để xử lý RAM tốt hơn
         window.renderRevenueCharts = function() {
             const fromStr = document.getElementById('revFromDate').value; 
             const toStr = document.getElementById('revToDate').value;
             let fromDate = fromStr ? new Date(fromStr) : new Date('2000-01-01'); fromDate.setHours(0,0,0,0);
             let toDate = toStr ? new Date(toStr) : new Date('2100-01-01'); toDate.setHours(23,59,59,999);
 
-            let totalRev = 0;
-            let totalOrders = 0;
-            let dailyRev = {}; 
-            let productQty = {}; 
-            let customerSpends = {};
+            // Chỉ lọc những đơn Đã thanh toán & Không bị xóa
+            let filteredOrders = ordersDB.filter(o => {
+                let rDate = parseDateStr(o.receiveDate) || new Date(o.date);
+                return rDate >= fromDate && rDate <= toDate && o.paymentStatus === 'paid' && !o.isDeleted;
+            });
 
-            // 1 Vòng lặp duy nhất lấy dữ liệu
-            for (let i = 0; i < ordersDB.length; i++) {
-                const o = ordersDB[i];
-                if (o.paymentStatus !== 'paid' || o.isDeleted) continue;
-
-                let rDate = parseDateStr(o.receiveDate);
-                if (!rDate && o.date) { rDate = new Date(o.date); } 
-                if (!rDate) continue;
-
-                if (rDate >= fromDate && rDate <= toDate) {
-                    totalRev += o.total;
-                    totalOrders++;
-
-                    let dateKey = `${String(rDate.getDate()).padStart(2,'0')}/${String(rDate.getMonth()+1).padStart(2,'0')}`;
-                    dailyRev[dateKey] = (dailyRev[dateKey] || 0) + o.total;
-
-                    if (o.products) {
-                        for (let j = 0; j < o.products.length; j++) {
-                            const p = o.products[j];
-                            if (p.name) productQty[p.name] = (productQty[p.name] || 0) + p.qty;
-                        }
-                    }
-
-                    if(o.customerPhone) {
-                        if(!customerSpends[o.customerPhone]) customerSpends[o.customerPhone] = { name: o.customerName || 'Khách lạ', spend: 0, count: 0 };
-                        customerSpends[o.customerPhone].spend += o.total;
-                        customerSpends[o.customerPhone].count += 1;
-                    }
-                }
-            }
-
+            // 1. Tóm tắt
+            const totalRev = filteredOrders.reduce((sum, o) => sum + o.total, 0);
             document.getElementById('revTotalAmount').innerText = formatCurrency(totalRev);
-            document.getElementById('revTotalOrders').innerText = totalOrders;
+            document.getElementById('revTotalOrders').innerText = filteredOrders.length;
 
+            // 2. Tính toán Data cho Chart
+            let dailyRev = {}; let productQty = {}; let customerSpends = {};
+            filteredOrders.forEach(o => {
+                // Theo ngày
+                let dateKey = parseDateStr(o.receiveDate);
+                dateKey = dateKey ? `${String(dateKey.getDate()).padStart(2,'0')}/${String(dateKey.getMonth()+1).padStart(2,'0')}` : 'Khác';
+                dailyRev[dateKey] = (dailyRev[dateKey] || 0) + o.total;
+
+                // Theo sản phẩm
+                (o.products || []).forEach(p => {
+                    if (p.name) productQty[p.name] = (productQty[p.name] || 0) + p.qty;
+                });
+
+                // Theo Khách hàng
+                if(o.customerPhone) {
+                    if(!customerSpends[o.customerPhone]) customerSpends[o.customerPhone] = { name: o.customerName || 'Khách lạ', spend: 0, count: 0 };
+                    customerSpends[o.customerPhone].spend += o.total;
+                    customerSpends[o.customerPhone].count += 1;
+                }
+            });
+
+            // 3. Vẽ biểu đồ Đường (Doanh thu theo ngày)
             const dailyLabels = Object.keys(dailyRev).sort((a,b) => {
                 if(a==='Khác') return 1; if(b==='Khác') return -1;
                 let [da,ma] = a.split('/'); let [db,mb] = b.split('/');
@@ -1437,6 +1441,7 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function(val) { return val/1000 + 'k'; } } } } }
             });
 
+            // 4. Vẽ biểu đồ Tròn (Top 5 Bánh)
             const sortedProds = Object.entries(productQty).sort((a,b) => b[1] - a[1]).slice(0, 5);
             const ctxProd = document.getElementById('chartProducts').getContext('2d');
             if(chartProductInstance) chartProductInstance.destroy();
@@ -1449,11 +1454,13 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }
             });
 
+            // 5. Danh sách Top 10 khách hàng
             const topCus = Object.entries(customerSpends).sort((a,b) => b[1].spend - a[1].spend).slice(0, 10);
-            const cusDiv = document.getElementById('revTopCustomers'); cusDiv.innerHTML = '';
-            if(topCus.length === 0) cusDiv.innerHTML = '<p class="text-xs text-gray-400 italic py-2">Chưa có dữ liệu thanh toán</p>';
+            const cusDiv = document.getElementById('revTopCustomers'); 
+            let cusHtml = '';
+            if(topCus.length === 0) cusHtml = '<p class="text-xs text-gray-400 italic py-2">Chưa có dữ liệu thanh toán</p>';
             topCus.forEach(([phone, data], idx) => {
-                cusDiv.innerHTML += `
+                cusHtml += `
                     <div class="flex justify-between items-center p-2 border-b border-gray-50 last:border-0">
                         <div class="flex items-center gap-2">
                             <span class="text-[10px] font-bold w-5 h-5 rounded-full ${idx < 3 ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'} flex items-center justify-center">${idx+1}</span>
@@ -1463,6 +1470,7 @@
                     </div>
                 `;
             });
+            cusDiv.innerHTML = cusHtml;
         };
 
         window.openDatePicker = function() { calDate = new Date(selectedDate); renderCalendar(); document.getElementById('dateModal').classList.remove('opacity-0', 'pointer-events-none'); };
@@ -1471,17 +1479,19 @@
         
         window.renderCalendar = function() {
             const y = calDate.getFullYear(), m = calDate.getMonth(); document.getElementById('dateModalTitle').innerText = `Tháng ${m+1}, ${y}`;
-            const grid = document.getElementById('calendarGrid'); grid.innerHTML = '';
+            const grid = document.getElementById('calendarGrid'); 
+            let html = '';
             let firstDay = new Date(y, m, 1).getDay() - 1; if(firstDay < 0) firstDay = 6;
             const daysInMonth = new Date(y, m+1, 0).getDate(); const today = new Date(); today.setHours(0,0,0,0);
 
-            for(let i=0; i<firstDay; i++) grid.innerHTML += `<div></div>`;
+            for(let i=0; i<firstDay; i++) html += `<div></div>`;
             for(let d=1; d<=daysInMonth; d++) {
                 const dObj = new Date(y, m, d); const isPast = dObj < today; const isTueThuSat = [2,4,6].includes(dObj.getDay()); const isSel = dObj.toDateString() === selectedDate.toDateString();
                 let classes = "w-9 h-9 flex items-center justify-center rounded-full text-sm font-medium mx-auto cursor-pointer transition-colors";
                 if(isPast) classes += " text-gray-300 pointer-events-none"; else if(isSel) classes += " bg-black text-white"; else if(isTueThuSat) classes += " bg-indigo-50 text-indigo-600"; else classes += " text-gray-700 hover:bg-gray-100";
-                grid.innerHTML += `<div class="${classes}" onclick="selectDate(${y},${m},${d})">${d}</div>`;
+                html += `<div class="${classes}" onclick="selectDate(${y},${m},${d})">${d}</div>`;
             }
+            grid.innerHTML = html;
         };
         window.selectDate = function(y, m, d) { selectedDate = new Date(y, m, d); document.getElementById('orderDate').value = formatFullDate(selectedDate); closeModal('dateModal'); };
         window.toggleShipping = function() {
@@ -1577,12 +1587,13 @@
 
         // XỬ LÝ THÙNG RÁC
         window.openTrash = function() {
-            const list = document.getElementById('trashList'); list.innerHTML = '';
+            const list = document.getElementById('trashList'); 
+            let html = '';
             const deletedOrders = ordersDB.filter(o => o.isDeleted);
-            if(deletedOrders.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-10">Thùng rác trống</p>'; }
+            if(deletedOrders.length === 0) { html = '<p class="text-center text-gray-400 py-10">Thùng rác trống</p>'; }
             else {
                 deletedOrders.forEach(o => {
-                    list.innerHTML += `
+                    html += `
                         <div class="apple-card p-4 flex justify-between items-center opacity-70 hover:opacity-100 transition-opacity">
                             <div>
                                 <p class="text-xs font-mono text-gray-500">${o.id} - ${o.receiveDate || ''}</p>
@@ -1594,6 +1605,7 @@
                     `;
                 });
             }
+            list.innerHTML = html;
             document.getElementById('trashModal').classList.remove('hidden-section');
         };
 
@@ -1782,16 +1794,20 @@
         };
 
         window.renderShipperManagementList = function() {
-            const list = document.getElementById('shippersList'); list.innerHTML = '';
+            const list = document.getElementById('shippersList'); 
+            let html = '';
             const activeShippers = shippersDB.filter(s => !s.isDeleted);
-            if(activeShippers.length === 0) { list.innerHTML = '<p class="text-xs text-gray-400 italic">Chưa có dữ liệu</p>'; return; }
-            activeShippers.forEach(s => {
-                list.innerHTML += `
-                    <div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm">
-                        <p class="font-bold text-sm text-gray-700">${s.name}</p>
-                        <button onclick="deleteShipper('${s.id}')" class="text-red-400 font-bold p-2 hover:bg-red-50 rounded-lg transition-colors">&times;</button>
-                    </div>`;
-            });
+            if(activeShippers.length === 0) { html = '<p class="text-xs text-gray-400 italic">Chưa có dữ liệu</p>'; }
+            else {
+                activeShippers.forEach(s => {
+                    html += `
+                        <div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm">
+                            <p class="font-bold text-sm text-gray-700">${s.name}</p>
+                            <button onclick="deleteShipper('${s.id}')" class="text-red-400 font-bold p-2 hover:bg-red-50 rounded-lg transition-colors">&times;</button>
+                        </div>`;
+                });
+            }
+            list.innerHTML = html;
         };
 
         window.populateShipperDropdowns = function() {
@@ -1801,14 +1817,17 @@
             const currentOrderVal = orderDropdown.value; 
             const currentFilterVal = filterDropdown.value;
 
-            orderDropdown.innerHTML = '<option value="">-- Chọn Shipper (Tùy chọn) --</option>';
-            filterDropdown.innerHTML = '<option value="all">Tất cả Shipper</option><option value="Chưa gán">-- Đơn chưa gán Shipper --</option>';
+            let orderHtml = '<option value="">-- Chọn Shipper (Tùy chọn) --</option>';
+            let filterHtml = '<option value="all">Tất cả Shipper</option><option value="Chưa gán">-- Đơn chưa gán Shipper --</option>';
 
             const activeShippers = shippersDB.filter(s => !s.isDeleted);
             activeShippers.forEach(s => {
-                orderDropdown.innerHTML += `<option value="${s.name}">${s.name}</option>`;
-                filterDropdown.innerHTML += `<option value="${s.name}">${s.name}</option>`;
+                orderHtml += `<option value="${s.name}">${s.name}</option>`;
+                filterHtml += `<option value="${s.name}">${s.name}</option>`;
             });
+
+            orderDropdown.innerHTML = orderHtml;
+            filterDropdown.innerHTML = filterHtml;
 
             orderDropdown.value = currentOrderVal; 
             if(!orderDropdown.value) orderDropdown.value = ""; 
@@ -1820,33 +1839,24 @@
             const filterDate = document.getElementById('filterShipDate').value;
             const filterShipper = document.getElementById('filterShipperName').value;
             const list = document.getElementById('shippingStatsList');
-            list.innerHTML = '';
 
-            let shipOrders = [];
-            for (let i = 0; i < ordersDB.length; i++) {
-                const o = ordersDB[i];
-                if (o.isDeleted || o.deliveryType !== 'Ship') continue;
+            let shipOrders = ordersDB.filter(o => !o.isDeleted && o.deliveryType === 'Ship');
 
-                if (filterDate) {
-                    if (!o.receiveDate) continue;
-                    try { 
-                        let datePart = o.receiveDate.includes(' - ') ? o.receiveDate.split(' - ')[1] : o.receiveDate; 
-                        const parts = datePart.split('/'); 
-                        if (parts.length === 3) {
-                            if (`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` !== filterDate) continue;
-                        } else continue;
-                    } catch(e) { continue; }
-                }
+            if(filterDate) {
+                shipOrders = shipOrders.filter(o => {
+                    if (!o.receiveDate) return false;
+                    try { let datePart = o.receiveDate.includes(' - ') ? o.receiveDate.split(' - ')[1] : o.receiveDate; const parts = datePart.split('/'); if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` === filterDate; return false; } catch(e) { return false; }
+                });
+            }
 
-                if (filterShipper !== 'all') {
-                    if(filterShipper === 'Chưa gán' && o.shipperName) continue;
-                    if(filterShipper !== 'Chưa gán' && o.shipperName !== filterShipper) continue;
-                }
-
-                shipOrders.push(o);
+            if(filterShipper !== 'all') {
+                if(filterShipper === 'Chưa gán') { shipOrders = shipOrders.filter(o => !o.shipperName); }
+                else { shipOrders = shipOrders.filter(o => o.shipperName === filterShipper); }
             }
 
             let totalFee = 0;
+            let html = '';
+            
             if(shipOrders.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-6 text-sm">Không có đơn giao hàng nào</p>'; document.getElementById('totalShippingFee').innerText = '0đ'; return; }
 
             const activeShippers = shippersDB.filter(s => !s.isDeleted);
@@ -1868,7 +1878,7 @@
                 });
                 selectHTML += `</select>`;
 
-                list.innerHTML += `
+                html += `
                     <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm relative">
                         <div class="flex justify-between items-start mb-2">
                             <div class="flex items-center">
@@ -1883,6 +1893,7 @@
                 `;
             });
 
+            list.innerHTML = html;
             document.getElementById('totalShippingFee').innerText = formatCurrency(totalFee);
         };
 
@@ -1934,15 +1945,17 @@
         };
 
         window.renderUsers = function() {
-            const list = document.getElementById('usersList'); list.innerHTML = '';
+            const list = document.getElementById('usersList'); 
+            let html = '';
             usersDB.forEach(u => {
                 const isAdminMaster = u.username === 'Admin';
-                list.innerHTML += `
+                html += `
                     <div class="flex items-center justify-between bg-gray-50 p-3 rounded-xl border">
                         <div><p class="font-bold text-sm">${u.username}</p><input type="text" value="${u.password}" id="pwd-${u.username}" class="text-xs border px-2 py-1 mt-1 rounded w-24 outline-none focus:border-black"></div>
                         <div class="flex gap-2 items-center"><select id="role-${u.username}" class="text-xs border px-2 py-1 rounded bg-white outline-none focus:border-black" ${isAdminMaster ? 'disabled' : ''}><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select><button onclick="saveUser('${u.username}')" class="text-xs bg-black text-white px-3 py-1.5 rounded-lg font-medium active:scale-95 transition-transform">Lưu</button></div>
                     </div>`;
             });
+            list.innerHTML = html;
         };
         window.saveUser = function(username) { const pwd = document.getElementById(`pwd-${username}`).value; const role = document.getElementById(`role-${username}`).value; const user = usersDB.find(u => u.username === username); if (user) { user.password = pwd; user.role = role; localStorage.setItem('myUsers', JSON.stringify(usersDB)); showToast("Đã cập nhật User"); logAction('PHÂN QUYỀN', `Cập nhật quyền/mật khẩu cho ${username}`); } };
         window.saveProduct = function() {
@@ -1951,8 +1964,10 @@
             productsDB.push({ id: Date.now(), code: c, name: n, price: Math.round(parseFloat(p)) }); saveData(); document.getElementById('newProdCode').value = ''; document.getElementById('newProdName').value = ''; document.getElementById('newProdPrice').value = ''; renderProductsList(); showToast("Đã thêm SP"); logAction('SẢN PHẨM', `Thêm sản phẩm mới [${c}] ${n}`);
         };
         window.renderProductsList = function() {
-            const l = document.getElementById('dbProductList'); l.innerHTML = '';
-            productsDB.forEach(p => { l.innerHTML += `<div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm"><div><p class="font-bold text-sm">${p.code ? `<span class="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mr-1">${p.code}</span>` : ''}${p.name || 'Sản phẩm'}</p><p class="text-xs text-gray-500 mt-1">${formatCurrency(p.price)}</p></div><button onclick="productsDB = productsDB.filter(x=>x.id!==${p.id}); saveData(); renderProductsList(); logAction('SẢN PHẨM', 'Xóa sản phẩm [${p.code}]');" class="text-red-400 font-bold p-2">&times;</button></div>`; });
+            const l = document.getElementById('dbProductList'); 
+            let html = '';
+            productsDB.forEach(p => { html += `<div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm"><div><p class="font-bold text-sm">${p.code ? `<span class="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mr-1">${p.code}</span>` : ''}${p.name || 'Sản phẩm'}</p><p class="text-xs text-gray-500 mt-1">${formatCurrency(p.price)}</p></div><button onclick="productsDB = productsDB.filter(x=>x.id!==${p.id}); saveData(); renderProductsList(); logAction('SẢN PHẨM', 'Xóa sản phẩm [${p.code}]');" class="text-red-400 font-bold p-2">&times;</button></div>`; });
+            l.innerHTML = html;
         };
         window.saveSettings = function() { appSettings.gasUrl = document.getElementById('gasUrl').value.trim(); saveData(); showToast("Đã lưu cấu hình"); logAction('CÀI ĐẶT', 'Cập nhật Web App URL'); window.pullDataFromGoogle(true); };
         window.clearAllData = function() { if(confirm("Khôi phục sẽ xóa dữ liệu và đưa app về cấu hình lúc đầu. Bạn có chắc không?")) { localStorage.clear(); location.reload(); } };
@@ -1963,6 +1978,7 @@
             status.innerText = "Đang đồng bộ..."; if(detailStatus) detailStatus.innerText = "Đang xử lý dữ liệu...";
             
             try {
+                // Thêm tuỳ chọn method và redirect follow
                 const pullRes = await fetch(appSettings.gasUrl, { method: 'GET', redirect: 'follow' });
                 if (!pullRes.ok) throw new Error("HTTP " + pullRes.status);
                 const cloudData = await pullRes.json();
@@ -1971,13 +1987,14 @@
                     if (cloudData.orders) ordersDB = mergeDataLists(ordersDB, cloudData.orders);
                     if (cloudData.customers) customersDB = mergeDataLists(customersDB, cloudData.customers.map(c => ({...c, phone: window.normalizePhone(c.phone)})));
                     if (cloudData.products) productsDB = mergeDataLists(productsDB, cloudData.products);
-                    if (cloudData.shippers) shippersDB = mergeDataLists(shippersDB, cloudData.shippers);
+                    if (cloudData.shippers) shippersDB = mergeDataLists(shippersDB, cloudData.shippers); // Merge danh sách Shipper
                     
                     localStorage.setItem('myOrders', JSON.stringify(ordersDB));
                     localStorage.setItem('myCustomers', JSON.stringify(customersDB));
                     localStorage.setItem('myProds', JSON.stringify(productsDB));
                     localStorage.setItem('myShippers', JSON.stringify(shippersDB));
 
+                    // Delay an toàn giúp tránh bị chặn Rate Limit hoặc CORS Preflight do call liên tục
                     await new Promise(resolve => setTimeout(resolve, 800));
 
                     const pushRes = await fetch(appSettings.gasUrl, { 
