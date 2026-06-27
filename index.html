@@ -25,6 +25,7 @@
             padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right);
         }
         
+        /* Bỏ backdrop-filter để chống văng app trên Safari iPhone (Lỗi tràn VRAM) */
         .apple-card { background: #FFFFFF; border-radius: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); }
         .input-field { background: #FFFFFF; border: 1.5px solid #E5E5E7; border-radius: 14px; padding: 14px 16px; width: 100%; outline: none; font-size: 16px; transition: border-color 0.2s; }
         .input-field:focus { border-color: #000; }
@@ -681,6 +682,33 @@
         let ordersDB = JSON.parse(localStorage.getItem('myOrders') || '[]') || [];
         let productsDB = JSON.parse(localStorage.getItem('myProds') || '[]') || [];
         let customersDB = JSON.parse(localStorage.getItem('myCustomers') || '[]') || []; 
+
+        // --- HÀM TỰ ĐỘNG LÀM SẠCH VÀ CHỐNG TRÙNG LẶP KHÁCH HÀNG CRM ---
+        function deduplicateCustomers(customerArray) {
+            const map = new Map();
+            (customerArray || []).forEach(c => {
+                if (!c || !c.phone) return;
+                const phone = window.normalizePhone(c.phone); // Chuẩn hóa SĐT làm mốc duy nhất
+                c.phone = phone;
+                if (!map.has(phone)) {
+                    map.set(phone, c);
+                } else {
+                    const existing = map.get(phone);
+                    const existingTime = existing._updatedAt || 0;
+                    const cTime = c._updatedAt || 0;
+                    // Giữ lại bản ghi được cập nhật mới nhất, hoặc bản ghi có tên đầy đủ hơn
+                    if (cTime > existingTime || (cTime === existingTime && (c.name || '').length > (existing.name || '').length)) {
+                        map.set(phone, c);
+                    }
+                }
+            });
+            return Array.from(map.values());
+        }
+        // Chạy khử trùng lặp ngay khi khởi động app
+        customersDB = deduplicateCustomers(customersDB);
+        localStorage.setItem('myCustomers', JSON.stringify(customersDB));
+        // -------------------------------------------------------------
+
         let logsDB = JSON.parse(localStorage.getItem('myLogs') || '[]') || [];
         let shippersDB = JSON.parse(localStorage.getItem('myShippers') || '[]') || [];
         
@@ -953,9 +981,8 @@
             
             activeBox.classList.remove('hidden');
             
-            let html = '';
             matches.slice(0, 10).forEach(c => {
-                const pastOrders = ordersDB.filter(o => o.customerPhone === c.phone && o.deliveryType === 'Ship' && !o.isDeleted).sort((a,b) => new Date(b.date) - new Date(a.date));
+                const pastOrders = ordersDB.filter(o => o.customerPhone === c.phone && o.deliveryType === 'Ship' && !o.isDeleted).sort((a,b) => (b.date || '').localeCompare(a.date || ''));
                 let suggestedAddress = c.address || '';
                 let suggestedFee = '';
                 if (pastOrders.length > 0) {
@@ -963,7 +990,6 @@
                     suggestedFee = pastOrders[0].shippingFee || '';
                 }
 
-                // Chống gán trực tiếp innerHTML +=
                 const d = document.createElement('div'); d.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-blue-50 active:bg-blue-100";
                 d.innerHTML = `<p class="font-bold text-blue-600">${c.phone || ''}</p><p class="text-xs text-gray-500 font-semibold mt-0.5">${c.name || 'Khách chưa có tên'}</p>`;
                 d.onmousedown = () => { 
@@ -1031,13 +1057,13 @@
 
         window.renderFilterProductTags = function() {
             const container = document.getElementById('selectedFilterProductsTags');
-            let html = '';
+            container.innerHTML = '';
             selectedFilterProducts.forEach(prod => {
-                html += `<div class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1">
-                    <span>${prod}</span><button type="button" onclick="removeFilterProduct('${prod}')" class="hover:text-red-500 font-bold">&times;</button>
-                </div>`;
+                const tag = document.createElement('div');
+                tag.className = "bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1";
+                tag.innerHTML = `<span>${prod}</span><button type="button" onclick="removeFilterProduct('${prod}')" class="hover:text-red-500 font-bold">&times;</button>`;
+                container.appendChild(tag);
             });
-            container.innerHTML = html;
         };
 
         window.removeFilterProduct = function(prod) {
@@ -1196,7 +1222,7 @@
         window.openCrmDetail = function(phone) {
             currentCrmPhone = phone;
             const c = customersDB.find(x => x.phone === phone); if(!c) return;
-            const orders = ordersDB.filter(o => o.customerPhone === c.phone && !o.isDeleted); orders.sort((a,b) => new Date(b.date) - new Date(a.date));
+            const orders = ordersDB.filter(o => o.customerPhone === c.phone && !o.isDeleted); orders.sort((a,b) => (b.date || '').localeCompare(a.date || ''));
             const totalSpent = orders.reduce((sum, o) => sum + o.total, 0);
 
             const firstChar = c.name && c.name.length > 0 ? c.name.charAt(0).toUpperCase() : '?';
@@ -1207,7 +1233,7 @@
             document.getElementById('crmDetailOrdersCount').innerText = `${orders.length}`;
             document.getElementById('crmDetailTotalSpent').innerText = formatCurrency(totalSpent);
 
-            const list = document.getElementById('crmDetailOrdersList');
+            const list = document.getElementById('crmDetailOrdersList'); 
             let html = '';
             if(orders.length === 0) html = '<p class="text-center text-gray-400 text-sm py-4">Chưa có đơn hàng</p>';
             orders.forEach(o => {
@@ -1402,7 +1428,7 @@
                 }
                 
                 updateBulkBar();
-            }, 100); // TỐI ƯU 2: Debounce 100ms - Đợi người dùng gõ xong chữ mới lọc và vẽ (chặn đứng văng máy do gõ chữ tìm kiếm)
+            }, 100); // TỐI ƯU 2: Debounce 100ms
         };
 
         window.renderProductSumTable = function(filteredOrders) {
@@ -1416,9 +1442,7 @@
                 });
             });
 
-            // GOM HTML: Khắc phục crash innerHTML trong vòng lặp
             let html = '';
-
             // Sắp xếp theo thứ tự Kho SP, loại nào không có thì cho bằng 0
             productsDB.forEach(dbProd => {
                 const qty = counts[dbProd.name] || 0;
@@ -1542,9 +1566,9 @@
 
             // 5. Danh sách Top 10 khách hàng
             const topCus = Object.entries(customerSpends).sort((a,b) => b[1].spend - a[1].spend).slice(0, 10);
-            const cusDiv = document.getElementById('revTopCustomers'); 
+            const cusDiv = document.getElementById('revTopCustomers'); cusDiv.innerHTML = '';
+            if(topCus.length === 0) cusDiv.innerHTML = '<p class="text-xs text-gray-400 italic py-2">Chưa có dữ liệu thanh toán</p>';
             let cusHtml = '';
-            if(topCus.length === 0) cusHtml = '<p class="text-xs text-gray-400 italic py-2">Chưa có dữ liệu thanh toán</p>';
             topCus.forEach(([phone, data], idx) => {
                 cusHtml += `
                     <div class="flex justify-between items-center p-2 border-b border-gray-50 last:border-0">
@@ -1565,11 +1589,11 @@
         
         window.renderCalendar = function() {
             const y = calDate.getFullYear(), m = calDate.getMonth(); document.getElementById('dateModalTitle').innerText = `Tháng ${m+1}, ${y}`;
-            const grid = document.getElementById('calendarGrid'); 
-            let html = '';
+            const grid = document.getElementById('calendarGrid'); grid.innerHTML = '';
             let firstDay = new Date(y, m, 1).getDay() - 1; if(firstDay < 0) firstDay = 6;
             const daysInMonth = new Date(y, m+1, 0).getDate(); const today = new Date(); today.setHours(0,0,0,0);
 
+            let html = '';
             for(let i=0; i<firstDay; i++) html += `<div></div>`;
             for(let d=1; d<=daysInMonth; d++) {
                 const dObj = new Date(y, m, d); const isPast = dObj < today; const isTueThuSat = [2,4,6].includes(dObj.getDay()); const isSel = dObj.toDateString() === selectedDate.toDateString();
@@ -1673,11 +1697,11 @@
 
         // XỬ LÝ THÙNG RÁC
         window.openTrash = function() {
-            const list = document.getElementById('trashList'); 
-            let html = '';
+            const list = document.getElementById('trashList'); list.innerHTML = '';
             const deletedOrders = ordersDB.filter(o => o.isDeleted);
-            if(deletedOrders.length === 0) { html = '<p class="text-center text-gray-400 py-10">Thùng rác trống</p>'; }
+            if(deletedOrders.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-10">Thùng rác trống</p>'; }
             else {
+                let html = '';
                 deletedOrders.forEach(o => {
                     html += `
                         <div class="apple-card p-4 flex justify-between items-center opacity-70 hover:opacity-100 transition-opacity">
@@ -1690,8 +1714,8 @@
                         </div>
                     `;
                 });
+                list.innerHTML = html;
             }
-            list.innerHTML = html;
             document.getElementById('trashModal').classList.remove('hidden-section');
         };
 
@@ -1880,19 +1904,17 @@
         };
 
         window.renderShipperManagementList = function() {
-            const list = document.getElementById('shippersList'); 
-            let html = '';
+            const list = document.getElementById('shippersList'); list.innerHTML = '';
             const activeShippers = shippersDB.filter(s => !s.isDeleted);
-            if(activeShippers.length === 0) { html = '<p class="text-xs text-gray-400 italic">Chưa có dữ liệu</p>'; }
-            else {
-                activeShippers.forEach(s => {
-                    html += `
-                        <div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm">
-                            <p class="font-bold text-sm text-gray-700">${s.name}</p>
-                            <button onclick="deleteShipper('${s.id}')" class="text-red-400 font-bold p-2 hover:bg-red-50 rounded-lg transition-colors">&times;</button>
-                        </div>`;
-                });
-            }
+            if(activeShippers.length === 0) { list.innerHTML = '<p class="text-xs text-gray-400 italic">Chưa có dữ liệu</p>'; return; }
+            let html = '';
+            activeShippers.forEach(s => {
+                html += `
+                    <div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm">
+                        <p class="font-bold text-sm text-gray-700">${s.name}</p>
+                        <button onclick="deleteShipper('${s.id}')" class="text-red-400 font-bold p-2 hover:bg-red-50 rounded-lg transition-colors">&times;</button>
+                    </div>`;
+            });
             list.innerHTML = html;
         };
 
@@ -1903,17 +1925,17 @@
             const currentOrderVal = orderDropdown.value; 
             const currentFilterVal = filterDropdown.value;
 
-            let orderHtml = '<option value="">-- Chọn Shipper (Tùy chọn) --</option>';
-            let filterHtml = '<option value="all">Tất cả Shipper</option><option value="Chưa gán">-- Đơn chưa gán Shipper --</option>';
+            let orderHTML = '<option value="">-- Chọn Shipper (Tùy chọn) --</option>';
+            let filterHTML = '<option value="all">Tất cả Shipper</option><option value="Chưa gán">-- Đơn chưa gán Shipper --</option>';
 
             const activeShippers = shippersDB.filter(s => !s.isDeleted);
             activeShippers.forEach(s => {
-                orderHtml += `<option value="${s.name}">${s.name}</option>`;
-                filterHtml += `<option value="${s.name}">${s.name}</option>`;
+                orderHTML += `<option value="${s.name}">${s.name}</option>`;
+                filterHTML += `<option value="${s.name}">${s.name}</option>`;
             });
-
-            orderDropdown.innerHTML = orderHtml;
-            filterDropdown.innerHTML = filterHtml;
+            
+            orderDropdown.innerHTML = orderHTML;
+            filterDropdown.innerHTML = filterHTML;
 
             orderDropdown.value = currentOrderVal; 
             if(!orderDropdown.value) orderDropdown.value = ""; 
@@ -1925,6 +1947,7 @@
             const filterDate = document.getElementById('filterShipDate').value;
             const filterShipper = document.getElementById('filterShipperName').value;
             const list = document.getElementById('shippingStatsList');
+            list.innerHTML = '';
 
             let shipOrders = ordersDB.filter(o => !o.isDeleted && o.deliveryType === 'Ship');
 
@@ -1941,12 +1964,11 @@
             }
 
             let totalFee = 0;
-            let html = '';
-            
             if(shipOrders.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-6 text-sm">Không có đơn giao hàng nào</p>'; document.getElementById('totalShippingFee').innerText = '0đ'; return; }
 
             const activeShippers = shippersDB.filter(s => !s.isDeleted);
 
+            let html = '';
             shipOrders.forEach(o => {
                 totalFee += (o.shippingFee || 0);
                 
@@ -1978,7 +2000,6 @@
                     </div>
                 `;
             });
-
             list.innerHTML = html;
             document.getElementById('totalShippingFee').innerText = formatCurrency(totalFee);
         };
@@ -2031,7 +2052,7 @@
         };
 
         window.renderUsers = function() {
-            const list = document.getElementById('usersList'); 
+            const list = document.getElementById('usersList'); list.innerHTML = '';
             let html = '';
             usersDB.forEach(u => {
                 const isAdminMaster = u.username === 'Admin';
@@ -2050,7 +2071,7 @@
             productsDB.push({ id: Date.now(), code: c, name: n, price: Math.round(parseFloat(p)) }); saveData(); document.getElementById('newProdCode').value = ''; document.getElementById('newProdName').value = ''; document.getElementById('newProdPrice').value = ''; renderProductsList(); showToast("Đã thêm SP"); logAction('SẢN PHẨM', `Thêm sản phẩm mới [${c}] ${n}`);
         };
         window.renderProductsList = function() {
-            const l = document.getElementById('dbProductList'); 
+            const l = document.getElementById('dbProductList'); l.innerHTML = '';
             let html = '';
             productsDB.forEach(p => { html += `<div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm"><div><p class="font-bold text-sm">${p.code ? `<span class="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mr-1">${p.code}</span>` : ''}${p.name || 'Sản phẩm'}</p><p class="text-xs text-gray-500 mt-1">${formatCurrency(p.price)}</p></div><button onclick="productsDB = productsDB.filter(x=>x.id!==${p.id}); saveData(); renderProductsList(); logAction('SẢN PHẨM', 'Xóa sản phẩm [${p.code}]');" class="text-red-400 font-bold p-2">&times;</button></div>`; });
             l.innerHTML = html;
@@ -2064,29 +2085,33 @@
             status.innerText = "Đang đồng bộ..."; if(detailStatus) detailStatus.innerText = "Đang xử lý dữ liệu...";
             
             try {
-                // Thêm tuỳ chọn method và redirect follow
-                const pullRes = await fetch(appSettings.gasUrl, { method: 'GET', redirect: 'follow' });
+                // Đã loại bỏ các header tùy chỉnh (như Content-Type) và option redirect không cần thiết
+                // Việc này ngăn trình duyệt gửi yêu cầu CORS Preflight (OPTIONS) vốn thường gây lỗi "Failed to fetch" với Google Apps Script.
+                const pullRes = await fetch(appSettings.gasUrl, { method: 'GET' });
                 if (!pullRes.ok) throw new Error("HTTP " + pullRes.status);
                 const cloudData = await pullRes.json();
                 
                 if(cloudData.status === 'success') {
                     if (cloudData.orders) ordersDB = mergeDataLists(ordersDB, cloudData.orders);
-                    if (cloudData.customers) customersDB = mergeDataLists(customersDB, cloudData.customers.map(c => ({...c, phone: window.normalizePhone(c.phone)})));
+                    
+                    if (cloudData.customers) {
+                        let combinedCustomers = [...customersDB, ...cloudData.customers];
+                        customersDB = deduplicateCustomers(combinedCustomers);
+                    }
+
                     if (cloudData.products) productsDB = mergeDataLists(productsDB, cloudData.products);
-                    if (cloudData.shippers) shippersDB = mergeDataLists(shippersDB, cloudData.shippers); // Merge danh sách Shipper
+                    if (cloudData.shippers) shippersDB = mergeDataLists(shippersDB, cloudData.shippers);
                     
                     localStorage.setItem('myOrders', JSON.stringify(ordersDB));
                     localStorage.setItem('myCustomers', JSON.stringify(customersDB));
                     localStorage.setItem('myProds', JSON.stringify(productsDB));
                     localStorage.setItem('myShippers', JSON.stringify(shippersDB));
 
-                    // Delay an toàn giúp tránh bị chặn Rate Limit hoặc CORS Preflight do call liên tục
                     await new Promise(resolve => setTimeout(resolve, 800));
 
+                    // POST data dưới dạng string thuần túy không kèm custom headers để tránh lỗi chặn CORS
                     const pushRes = await fetch(appSettings.gasUrl, { 
                         method: 'POST', 
-                        redirect: 'follow', 
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
                         body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, customers: customersDB, shippers: shippersDB, logs: logsDB, settings: appSettings }) 
                     });
                     
@@ -2111,9 +2136,9 @@
             } catch (error) {
                 status.innerText = "Lỗi đồng bộ"; 
                 status.className = "text-red-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-red-600 transition-colors"; 
-                if(detailStatus) detailStatus.innerText = `Lỗi: ${error.message}`; 
+                if(detailStatus) detailStatus.innerText = `Lỗi: Kiểm tra lại quyền "Anyone" trên Apps Script hoặc URL.`; 
                 console.error("Sync error:", error);
-                if(manual) showToast("Lỗi đồng bộ. Vui lòng thử lại!");
+                if(manual) showToast("Lỗi đồng bộ (Failed to fetch). Vui lòng kiểm tra quyền Apps Script!");
             }
         };
 
@@ -2122,7 +2147,9 @@
             if(!appSettings.gasUrl) return;
             status.innerText = "Đang tải về..."; if(detailStatus) detailStatus.innerText = "Đang kéo dữ liệu từ đám mây...";
             if (manual) showToast("Đang tải dữ liệu từ Sheets...");
-            fetch(appSettings.gasUrl, { method: 'GET', redirect: 'follow' })
+            
+            // Xóa redirect:'follow' để sử dụng mặc định của trình duyệt an toàn hơn
+            fetch(appSettings.gasUrl, { method: 'GET' })
             .then(response => {
                 if (!response.ok) throw new Error("HTTP " + response.status);
                 return response.json();
@@ -2136,7 +2163,7 @@
                         if (!document.getElementById('tab-shipping').classList.contains('hidden-section')) { renderShipperManagementList(); renderShippingStats(); } 
                     }
                     if (data.customers) { 
-                        customersDB = data.customers.map(c => ({...c, phone: window.normalizePhone(c.phone)})); 
+                        customersDB = deduplicateCustomers(data.customers); 
                         localStorage.setItem('myCustomers', JSON.stringify(customersDB)); 
                         if (!document.getElementById('tab-crm').classList.contains('hidden-section')) { renderCrmList(); } 
                     }
@@ -2151,7 +2178,13 @@
                     if(detailStatus) detailStatus.innerText = `Tải về gần nhất: ${new Date().toLocaleTimeString()}`; if(manual) showToast("Đã cập nhật dữ liệu mới nhất!");
                     if (document.querySelectorAll('#productList > div').length === 0) addProductRow();
                 } else { status.innerText = "Lỗi dữ liệu"; status.className = "text-red-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-red-600 transition-colors"; if(manual) showToast("Lỗi: " + (data.message || "Không thể tải dữ liệu")); }
-            }).catch(e => { status.innerText = "Lỗi kết nối"; status.className = "text-red-500 text-[11px] font-semibold mt-1"; console.error("Pull error:", e); });
+            }).catch(e => { 
+                status.innerText = "Lỗi kết nối"; 
+                status.className = "text-red-500 text-[11px] font-semibold mt-1"; 
+                if(detailStatus) detailStatus.innerText = "Lỗi: Failed to fetch. Xem lại quyền Apps Script.";
+                console.error("Pull error:", e); 
+                if(manual) showToast("Lỗi kết nối, không thể tải dữ liệu.");
+            });
         };
     </script>
 </body>
