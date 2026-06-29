@@ -126,11 +126,11 @@
         <!-- Thanh điều hướng Tab -->
         <div class="segmented-control" id="tabsContainer">
             <div id="btn-tab-order" class="segment-btn active" onclick="switchTab('order')">Lên đơn</div>
+            <div id="btn-tab-revenue" class="segment-btn" onclick="switchTab('revenue')">Doanh thu</div>
+            <div id="btn-tab-stats" class="segment-btn" onclick="switchTab('stats')">Thống kê</div>
+            <div id="btn-tab-shipping" class="segment-btn" onclick="switchTab('shipping')">Giao hàng</div>
             <div id="btn-tab-products" class="segment-btn" onclick="switchTab('products')">Kho SP</div>
             <div id="btn-tab-crm" class="segment-btn" onclick="switchTab('crm')">Khách hàng</div>
-            <div id="btn-tab-stats" class="segment-btn" onclick="switchTab('stats')">Thống kê</div>
-            <div id="btn-tab-revenue" class="segment-btn" onclick="switchTab('revenue')">Doanh thu</div>
-            <div id="btn-tab-shipping" class="segment-btn" onclick="switchTab('shipping')">Giao hàng</div>
             <div id="btn-tab-settings" class="segment-btn" onclick="switchTab('settings')">Cài đặt</div>
             <div id="segment-glider" class="segment-bg"></div>
         </div>
@@ -1405,7 +1405,7 @@
                                 
                                 <div class="flex gap-2 items-center justify-between mt-3 text-xs">
                                     <span class="px-3 py-1 rounded-full font-bold ${o.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${o.paymentStatus === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}</span>
-                                    ${o.paymentStatus !== 'paid' ? `<button onclick="markSinglePaid('${o.id}')" class="text-blue-500 font-semibold underline">Xác nhận thanh toán</button>` : ''}
+                                    <button onclick="togglePaymentStatus('${o.id}')" class="${o.paymentStatus === 'paid' ? 'text-orange-500' : 'text-blue-500'} font-semibold underline">${o.paymentStatus === 'paid' ? 'Hủy thanh toán' : 'Xác nhận thanh toán'}</button>
                                 </div>
                                 
                                 <div class="flex gap-2 mt-4 border-t pt-3">
@@ -1473,7 +1473,7 @@
         };
 
         window.switchTab = function(tabId) {
-            const tabs = ['order', 'products', 'crm', 'stats', 'revenue', 'shipping', 'settings'];
+            const tabs = ['order', 'revenue', 'stats', 'shipping', 'products', 'crm', 'settings'];
             tabs.forEach((t) => {
                 const btn = document.getElementById(`btn-tab-${t}`); const content = document.getElementById(`tab-${t}`);
                 if(t === tabId) { btn.classList.add('active'); content.classList.remove('hidden-section'); } 
@@ -1693,7 +1693,16 @@
         };
         
         window.bulkMarkPaid = function() { logAction('THANH TOÁN', `Đánh dấu thanh toán cho ${selectedOrders.size} đơn hàng`); ordersDB.forEach(o => { if (selectedOrders.has(o.id)) { o.paymentStatus = 'paid'; o._updatedAt = Date.now(); } }); selectedOrders.clear(); saveData(); document.getElementById('selectAllBtn').checked = false; renderStats(); showToast("Đã đổi trạng thái thanh toán"); };
-        window.markSinglePaid = function(id) { const order = ordersDB.find(o => o.id === id); if(order) { order.paymentStatus = 'paid'; order._updatedAt = Date.now(); logAction('THANH TOÁN', `Xác nhận thanh toán đơn hàng [${id}]`); saveData(); renderStats(); showToast("Đã cập nhật"); } };
+        
+        window.togglePaymentStatus = function(id) { 
+            const order = ordersDB.find(o => o.id === id); 
+            if(order) { 
+                order.paymentStatus = order.paymentStatus === 'paid' ? 'unpaid' : 'paid'; 
+                order._updatedAt = Date.now(); 
+                logAction('THANH TOÁN', `Đổi TT thanh toán đơn [${id}] -> ${order.paymentStatus === 'paid' ? 'Đã TT' : 'Chưa TT'}`); 
+                saveData(); renderStats(); showToast("Đã cập nhật trạng thái"); 
+            } 
+        };
 
         // XỬ LÝ THÙNG RÁC
         window.openTrash = function() {
