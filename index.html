@@ -25,7 +25,6 @@
             padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right);
         }
         
-        /* Bỏ backdrop-filter để chống văng app trên Safari iPhone (Lỗi tràn VRAM) */
         .apple-card { background: #FFFFFF; border-radius: 24px; border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); }
         .input-field { background: #FFFFFF; border: 1.5px solid #E5E5E7; border-radius: 14px; padding: 14px 16px; width: 100%; outline: none; font-size: 16px; transition: border-color 0.2s; }
         .input-field:focus { border-color: #000; }
@@ -152,7 +151,7 @@
                     </div>
                     <div>
                         <label class="text-xs font-semibold text-gray-500 mb-1 block">Ngày giao bánh</label>
-                        <input type="text" id="orderDate" readonly class="input-field cursor-pointer bg-gray-50" placeholder="Chọn ngày" onclick="openDatePicker()">
+                        <input type="text" id="orderDate" readonly class="input-field cursor-pointer bg-gray-50" placeholder="Chọn ngày" onclick="openDatePicker('orderDate')">
                     </div>
                 </div>
             </div>
@@ -411,12 +410,41 @@
 
             <!-- Thống kê Shipping -->
             <div class="apple-card p-6">
-                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Thống kê Giao hàng</h2>
-                <div class="grid grid-cols-2 gap-2 mb-4">
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Ngày giao</label>
-                        <input type="date" id="filterShipDate" class="input-field py-2 px-3 text-sm" onchange="renderShippingStats()">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xs font-bold uppercase text-gray-400">Thống kê Giao hàng</h2>
+                </div>
+                
+                <div class="mb-4 space-y-3">
+                    <!-- Toggle Bộ lọc -->
+                    <div class="flex gap-4 border-b border-gray-100 pb-2">
+                        <label class="radio-item !p-0"><input type="radio" name="shipDateMode" value="single" checked onchange="toggleShipDateMode()"> <span class="text-xs font-bold">Ngày cụ thể</span></label>
+                        <label class="radio-item !p-0"><input type="radio" name="shipDateMode" value="range" onchange="toggleShipDateMode()"> <span class="text-xs font-bold">Khoảng thời gian</span></label>
                     </div>
+                    
+                    <!-- Lọc theo 1 Ngày -->
+                    <div id="shipModeSingle" class="relative">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Chọn ngày giao</label>
+                        <div class="relative">
+                            <input type="text" id="filterShipDateSingle" readonly class="input-field py-2 px-3 text-sm bg-gray-50 cursor-pointer pr-8" placeholder="Chọn ngày..." onclick="openDatePicker('filterShipDateSingle')">
+                            <button type="button" onclick="document.getElementById('filterShipDateSingle').value=''; renderShippingStats();" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                        </div>
+                    </div>
+
+                    <!-- Lọc theo Khoảng thời gian -->
+                    <div id="shipModeRange" class="grid grid-cols-2 gap-2 hidden-section">
+                        <div class="relative">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Từ ngày</label>
+                            <input type="text" id="filterShipDateFrom" readonly class="input-field py-2 px-3 text-sm bg-gray-50 cursor-pointer" placeholder="Từ..." onclick="openDatePicker('filterShipDateFrom')">
+                        </div>
+                        <div class="relative">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Đến ngày</label>
+                            <div class="relative">
+                                <input type="text" id="filterShipDateTo" readonly class="input-field py-2 px-3 text-sm bg-gray-50 cursor-pointer pr-8" placeholder="Đến..." onclick="openDatePicker('filterShipDateTo')">
+                                <button type="button" onclick="document.getElementById('filterShipDateFrom').value=''; document.getElementById('filterShipDateTo').value=''; renderShippingStats();" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="relative flex flex-col justify-end">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Shipper</label>
                         <select id="filterShipperName" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderShippingStats()">
@@ -425,6 +453,7 @@
                         </select>
                     </div>
                 </div>
+
                 <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl flex flex-col justify-center mb-4">
                     <p class="text-[10px] uppercase text-blue-500 font-bold mb-1">Tổng tiền Ship (theo bộ lọc)</p>
                     <p class="text-lg font-black text-blue-700" id="totalShippingFee">0đ</p>
@@ -683,12 +712,11 @@
         let productsDB = JSON.parse(localStorage.getItem('myProds') || '[]') || [];
         let customersDB = JSON.parse(localStorage.getItem('myCustomers') || '[]') || []; 
 
-        // --- HÀM TỰ ĐỘNG LÀM SẠCH VÀ CHỐNG TRÙNG LẶP KHÁCH HÀNG CRM ---
         function deduplicateCustomers(customerArray) {
             const map = new Map();
             (customerArray || []).forEach(c => {
                 if (!c || !c.phone) return;
-                const phone = window.normalizePhone(c.phone); // Chuẩn hóa SĐT làm mốc duy nhất
+                const phone = window.normalizePhone(c.phone);
                 c.phone = phone;
                 if (!map.has(phone)) {
                     map.set(phone, c);
@@ -696,7 +724,6 @@
                     const existing = map.get(phone);
                     const existingTime = existing._updatedAt || 0;
                     const cTime = c._updatedAt || 0;
-                    // Giữ lại bản ghi được cập nhật mới nhất, hoặc bản ghi có tên đầy đủ hơn
                     if (cTime > existingTime || (cTime === existingTime && (c.name || '').length > (existing.name || '').length)) {
                         map.set(phone, c);
                     }
@@ -704,10 +731,8 @@
             });
             return Array.from(map.values());
         }
-        // Chạy khử trùng lặp ngay khi khởi động app
         customersDB = deduplicateCustomers(customersDB);
         localStorage.setItem('myCustomers', JSON.stringify(customersDB));
-        // -------------------------------------------------------------
 
         let logsDB = JSON.parse(localStorage.getItem('myLogs') || '[]') || [];
         let shippersDB = JSON.parse(localStorage.getItem('myShippers') || '[]') || [];
@@ -726,15 +751,15 @@
         let calDate = new Date();
         let selectedDate = new Date();
         let isCloudSyncReady = false;
-        let selectedFilterProducts = []; // Array để chứa các tag loại bánh
+        let selectedFilterProducts = []; 
+        let currentDatePickerTarget = 'orderDate'; // Biến xác định lịch đang được gọi từ đâu
         
         let chartDailyInstance = null;
         let chartProductInstance = null;
         let currentCrmPhone = null;
 
         window.onload = function() {
-            window.checkBiometricSupport(); // Kiểm tra nút sinh trắc học
-            // Tự động đăng nhập nếu có remember
+            window.checkBiometricSupport(); 
             const savedLogin = localStorage.getItem('rememberedUser');
             if (savedLogin) {
                 const loginData = JSON.parse(savedLogin);
@@ -743,7 +768,7 @@
                     if (user) {
                         currentUser = user;
                         applyRoleRestrictions(); initApp();
-                        return; // Bỏ qua màn hình đăng nhập
+                        return; 
                     }
                 } else {
                     localStorage.removeItem('rememberedUser');
@@ -775,7 +800,7 @@
             if (user) {
                 currentUser = user; 
                 if (remember) {
-                    const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+                    const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000;
                     localStorage.setItem('rememberedUser', JSON.stringify({ username: u, expiry: expiry }));
                 }
                 document.getElementById('loginScreen').classList.add('hidden-section'); document.getElementById('mainApp').classList.remove('hidden-section');
@@ -791,14 +816,12 @@
             window.checkBiometricSupport();
         };
 
-        // --- SINH TRẮC HỌC (WEBAUTHN) ---
         function bufferToBase64url(buffer) { const bytes = new Uint8Array(buffer); let str = ''; for (const charCode of bytes) { str += String.fromCharCode(charCode); } return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); }
         function base64urlToBuffer(base64url) { const padding = '='.repeat((4 - base64url.length % 4) % 4); const base64 = (base64url + padding).replace(/\-/g, '+').replace(/_/g, '/'); const rawData = atob(base64); const buffer = new Uint8Array(rawData.length); for (let i = 0; i < rawData.length; ++i) { buffer[i] = rawData.charCodeAt(i); } return buffer.buffer; }
 
         window.checkBiometricSupport = function() {
             const btn = document.getElementById('btnBiometric');
             if (!btn) return;
-            // Chỉ hiện nút Đăng nhập sinh trắc học nếu thiết bị hỗ trợ và CÓ ÍT NHẤT 1 user đã đăng ký sinh trắc
             if (window.PublicKeyCredential && usersDB.some(u => u.biometricId)) {
                 btn.classList.remove('hidden-section');
             } else {
@@ -883,7 +906,7 @@
                 deleteBtn.style.display = ''; 
                 revBtn.style.display = '';
                 shippingBtn.style.display = '';
-                btnOpenTrash.style.display = ''; // Hiển thị nút Thùng rác cho admin
+                btnOpenTrash.style.display = '';
             }
             switchTab('order'); 
         }
@@ -930,12 +953,9 @@
             if (appSettings.gasUrl) syncToGoogle();
         }
 
-        /* Đồng bộ 2 Chiều - Khắc phục mất dữ liệu */
         function mergeDataLists(localList, cloudList) {
             const map = new Map();
-            // Nạp dữ liệu từ Cloud vào Map trước
             (cloudList || []).forEach(item => { if(item && item.id) map.set(String(item.id), item); });
-            // Trộn dữ liệu Local vào, giải quyết xung đột bằng timestamp
             (localList || []).forEach(item => {
                 if(item && item.id) {
                     const id = String(item.id);
@@ -943,10 +963,8 @@
                         const cloudItem = map.get(id);
                         const localTime = item._updatedAt || 0;
                         const cloudTime = cloudItem._updatedAt || 0;
-                        // Ưu tiên bản ghi có thời gian cập nhật gần nhất
                         if (localTime > cloudTime) { map.set(id, item); } else { map.set(id, cloudItem); }
                     } else {
-                        // Nếu Cloud không có nhưng Local có (đơn mới tạo) -> Giữ nguyên map.set
                         map.set(id, item);
                     }
                 }
@@ -1005,7 +1023,6 @@
             });
         };
 
-        // Custom Dropdown cho Thống kê (Khách hàng & Sản phẩm)
         window.suggestStatsCus = function(query, forceAll = false) {
             const box = document.getElementById('statsCusDropdown');
             if(!box) return;
@@ -1038,7 +1055,7 @@
             box.classList.remove('hidden');
             
             matches.forEach(p => {
-                if(selectedFilterProducts.includes(p.name)) return; // Bỏ qua nếu đã được chọn dưới dạng tag
+                if(selectedFilterProducts.includes(p.name)) return;
                 const d = document.createElement('div'); d.className = "p-3 border-b border-gray-100 text-sm cursor-pointer hover:bg-gray-50";
                 d.innerHTML = `<p class="font-bold">${p.name}</p>`;
                 d.onmousedown = () => { 
@@ -1051,7 +1068,7 @@
                 };
                 box.appendChild(d);
             });
-            if(box.innerHTML === '') box.classList.add('hidden'); // Nếu tất cả đã được chọn thì ẩn
+            if(box.innerHTML === '') box.classList.add('hidden'); 
         };
         window.toggleStatsProdDropdown = function(e) { e.stopPropagation(); const box = document.getElementById('statsProdDropdown'); if(box.classList.contains('hidden')) window.suggestStatsProd(document.getElementById('filterProductInput').value, true); else box.classList.add('hidden'); };
 
@@ -1124,18 +1141,16 @@
             const activeRows = Array.from(rows).filter(r => r.querySelector('.prod-name').value.trim() !== '');
             if(activeRows.length === 0) return showToast("Chưa chọn sản phẩm nào");
 
-            // 1. Cảnh báo trùng đơn (Cùng SĐT + Cùng Ngày Giao)
             const isDuplicate = ordersDB.some(o => o.customerPhone === phone && o.receiveDate === receiveDate && o.id !== editOrderId && !o.isDeleted);
             if (isDuplicate) {
                 const ok = await window.showConfirmModal(`Khách hàng này đã có đơn vào ngày ${receiveDate}. Bạn có chắc muốn lên thêm đơn nữa không?`);
-                if (!ok) return; // Hủy lên đơn nếu chọn Quay lại
+                if (!ok) return; 
             }
 
-            // 2. Cảnh báo thiếu ghi chú
             const notesChecked = document.querySelectorAll('input[name="orderNote"]:checked');
             if(notesChecked.length === 0) {
                 const ok = await window.showConfirmModal("Bạn có chắc khách hàng không yêu cầu gì đặc biệt?");
-                if(!ok) return; // Hủy lên đơn nếu chọn Quay lại
+                if(!ok) return; 
             }
 
             const existingCustomer = customersDB.find(c => c.phone === phone);
@@ -1143,7 +1158,6 @@
                 customersDB.push({ id: `KH${Date.now()}`, name: name, phone: phone, address: document.getElementById('shippingAddress').value.trim() || '', _updatedAt: Date.now() });
                 logAction('CRM', `Thêm mới khách hàng [${phone}]`); renderCrmList();
             } else {
-                // Cập nhật lại thông tin mới nhất vào CRM
                 existingCustomer.name = name;
                 existingCustomer.address = document.getElementById('shippingAddress').value.trim() || existingCustomer.address;
                 existingCustomer._updatedAt = Date.now();
@@ -1172,7 +1186,7 @@
                 discountType: discountType, discountValue: discountValue,
                 total: finalTotal, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
                 notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value),
-                _updatedAt: Date.now() // Timestamp cho 2-way sync
+                _updatedAt: Date.now() 
             };
 
             if(editOrderId) { 
@@ -1285,7 +1299,6 @@
             c.address = newAddress;
             c._updatedAt = Date.now(); 
 
-            // Cập nhật SĐT và Tên trên các đơn hàng cũ để không bị đứt liên kết
             ordersDB.forEach(o => {
                 if (o.customerPhone === origPhone) {
                     o.customerPhone = newPhone;
@@ -1300,7 +1313,7 @@
             logAction('CRM', `Sửa thông tin KH: ${origPhone} -> ${newPhone}`);
 
             renderCrmList();
-            renderStats(); // Cập nhật cả lịch sử đơn nếu có sửa tên
+            renderStats(); 
             openCrmDetail(newPhone);
         };
 
@@ -1311,7 +1324,6 @@
             const filterPayment = document.getElementById('filterPayment').value;
             const filterDelivery = document.getElementById('filterDelivery').value;
             
-            // ẨN CÁC ĐƠN BỊ XÓA MỀM (isDeleted)
             let filtered = ordersDB.filter(o => !o.isDeleted && ((o.customerName || '').toLowerCase().includes(kw) || (o.id || '').toLowerCase().includes(kw) || String(o.customerPhone || '').includes(kw)));
             
             if (filterCus) {
@@ -1326,12 +1338,10 @@
                 filtered = filtered.filter(o => o.deliveryType === filterDelivery);
             }
 
-            // LỌC THEO THẺ BÁNH (AND / OR)
             if (selectedFilterProducts.length > 0) {
                 if (logic === 'OR') {
                     filtered = filtered.filter(o => o.products && o.products.some(p => selectedFilterProducts.includes(p.name)));
                 } else {
-                    // AND logic: Đơn phải chứa TẤT CẢ các bánh đã chọn
                     filtered = filtered.filter(o => {
                         if (!o.products) return false;
                         const orderProductNames = o.products.map(p => p.name);
@@ -1360,19 +1370,15 @@
                 const list = document.getElementById('statsOrdersList'); list.innerHTML = '';
                 const sort = document.getElementById('sortType').value; let filtered = window.getFilteredOrders();
                 
-                // TỐI ƯU 1: Dùng so sánh chuỗi (localeCompare) thay vì new Date() - Tốc độ nhanh gấp 100 lần, không làm kẹt CPU
                 if(sort === 'dateDesc') filtered.sort((a,b) => (b.date || '').localeCompare(a.date || ''));
                 if(sort === 'dateAsc') filtered.sort((a,b) => (a.date || '').localeCompare(b.date || ''));
 
-                // Gọi render luôn tổng hợp bánh
                 window.renderProductSumTable(filtered);
 
                 if(filtered.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-10">Không có đơn hàng</p>'; return; }
 
-                // TỐI ƯU MEMORY LEAK: Dùng DocumentFragment và giới hạn tối đa đơn hàng (Lazy load/Pagination)
-                // Khắc phục lỗi crash Safari trên iPhone do append hàng loạt thẻ DOM
                 const fragment = document.createDocumentFragment();
-                const MAX_RENDER = 50; // Giảm xuống 50 để an toàn tuyệt đối cho RAM iPhone
+                const MAX_RENDER = 50; 
                 const displayOrders = filtered.slice(0, MAX_RENDER);
 
                 displayOrders.forEach(o => {
@@ -1419,7 +1425,6 @@
                 });
                 list.appendChild(fragment);
 
-                // Hiện thông báo nếu số lượng đơn vượt giới hạn
                 if (filtered.length > MAX_RENDER) {
                     const warningText = document.createElement('p');
                     warningText.className = "text-center text-gray-400 py-4 text-xs italic font-medium";
@@ -1428,7 +1433,7 @@
                 }
                 
                 updateBulkBar();
-            }, 100); // TỐI ƯU 2: Debounce 100ms
+            }, 100); 
         };
 
         window.renderProductSumTable = function(filteredOrders) {
@@ -1443,7 +1448,6 @@
             });
 
             let html = '';
-            // Sắp xếp theo thứ tự Kho SP, loại nào không có thì cho bằng 0
             productsDB.forEach(dbProd => {
                 const qty = counts[dbProd.name] || 0;
                 html += `
@@ -1452,10 +1456,9 @@
                         <span class="text-lg font-black ${qty > 0 ? 'text-blue-600' : 'text-gray-300'}">${qty}</span>
                     </div>
                 `;
-                delete counts[dbProd.name]; // Xóa khỏi danh sách để lát duyệt các món lạ
+                delete counts[dbProd.name]; 
             });
 
-            // Duyệt nốt các món lạ (không có trong kho nhưng khách cứ đặt)
             Object.entries(counts).forEach(([name, qty]) => {
                 html += `
                     <div class="flex flex-col border border-gray-200 rounded-xl p-2 bg-gray-50 flex-1 min-w-[30%] text-center">
@@ -1503,31 +1506,25 @@
             let fromDate = fromStr ? new Date(fromStr) : new Date('2000-01-01'); fromDate.setHours(0,0,0,0);
             let toDate = toStr ? new Date(toStr) : new Date('2100-01-01'); toDate.setHours(23,59,59,999);
 
-            // Chỉ lọc những đơn Đã thanh toán & Không bị xóa
             let filteredOrders = ordersDB.filter(o => {
                 let rDate = parseDateStr(o.receiveDate) || new Date(o.date);
                 return rDate >= fromDate && rDate <= toDate && o.paymentStatus === 'paid' && !o.isDeleted;
             });
 
-            // 1. Tóm tắt
             const totalRev = filteredOrders.reduce((sum, o) => sum + o.total, 0);
             document.getElementById('revTotalAmount').innerText = formatCurrency(totalRev);
             document.getElementById('revTotalOrders').innerText = filteredOrders.length;
 
-            // 2. Tính toán Data cho Chart
             let dailyRev = {}; let productQty = {}; let customerSpends = {};
             filteredOrders.forEach(o => {
-                // Theo ngày
                 let dateKey = parseDateStr(o.receiveDate);
                 dateKey = dateKey ? `${String(dateKey.getDate()).padStart(2,'0')}/${String(dateKey.getMonth()+1).padStart(2,'0')}` : 'Khác';
                 dailyRev[dateKey] = (dailyRev[dateKey] || 0) + o.total;
 
-                // Theo sản phẩm
                 (o.products || []).forEach(p => {
                     if (p.name) productQty[p.name] = (productQty[p.name] || 0) + p.qty;
                 });
 
-                // Theo Khách hàng
                 if(o.customerPhone) {
                     if(!customerSpends[o.customerPhone]) customerSpends[o.customerPhone] = { name: o.customerName || 'Khách lạ', spend: 0, count: 0 };
                     customerSpends[o.customerPhone].spend += o.total;
@@ -1535,7 +1532,6 @@
                 }
             });
 
-            // 3. Vẽ biểu đồ Đường (Doanh thu theo ngày)
             const dailyLabels = Object.keys(dailyRev).sort((a,b) => {
                 if(a==='Khác') return 1; if(b==='Khác') return -1;
                 let [da,ma] = a.split('/'); let [db,mb] = b.split('/');
@@ -1551,7 +1547,6 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function(val) { return val/1000 + 'k'; } } } } }
             });
 
-            // 4. Vẽ biểu đồ Tròn (Top 5 Bánh)
             const sortedProds = Object.entries(productQty).sort((a,b) => b[1] - a[1]).slice(0, 5);
             const ctxProd = document.getElementById('chartProducts').getContext('2d');
             if(chartProductInstance) chartProductInstance.destroy();
@@ -1564,7 +1559,6 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }
             });
 
-            // 5. Danh sách Top 10 khách hàng
             const topCus = Object.entries(customerSpends).sort((a,b) => b[1].spend - a[1].spend).slice(0, 10);
             const cusDiv = document.getElementById('revTopCustomers'); cusDiv.innerHTML = '';
             if(topCus.length === 0) cusDiv.innerHTML = '<p class="text-xs text-gray-400 italic py-2">Chưa có dữ liệu thanh toán</p>';
@@ -1583,7 +1577,21 @@
             cusDiv.innerHTML = cusHtml;
         };
 
-        window.openDatePicker = function() { calDate = new Date(selectedDate); renderCalendar(); document.getElementById('dateModal').classList.remove('opacity-0', 'pointer-events-none'); };
+        // --- HỆ THỐNG LỊCH CUSTOM MỚI ---
+        window.openDatePicker = function(targetId = 'orderDate') { 
+            currentDatePickerTarget = targetId;
+            const existingVal = document.getElementById(targetId).value;
+            if(existingVal) {
+                const parsed = parseDateStr(existingVal);
+                if(parsed) calDate = new Date(parsed);
+                else calDate = new Date(selectedDate);
+            } else {
+                calDate = new Date(selectedDate); 
+            }
+            renderCalendar(); 
+            document.getElementById('dateModal').classList.remove('opacity-0', 'pointer-events-none'); 
+        };
+
         window.closeModal = function(id) { document.getElementById(id).classList.add('opacity-0', 'pointer-events-none'); };
         window.changeMonth = function(delta) { calDate.setMonth(calDate.getMonth() + delta); renderCalendar(); };
         
@@ -1593,17 +1601,67 @@
             let firstDay = new Date(y, m, 1).getDay() - 1; if(firstDay < 0) firstDay = 6;
             const daysInMonth = new Date(y, m+1, 0).getDate(); const today = new Date(); today.setHours(0,0,0,0);
 
+            // Xác định ngày đang được select dựa vào input mục tiêu
+            let targetDateObj = null;
+            const targetVal = document.getElementById(currentDatePickerTarget).value;
+            if(targetVal) targetDateObj = parseDateStr(targetVal);
+
+            // Lọc các ngày có đơn (Highlight thông minh)
+            const orderDates = new Set();
+            ordersDB.forEach(o => {
+                if(!o.isDeleted && o.receiveDate) {
+                    if (currentDatePickerTarget.startsWith('filterShip')) {
+                        // Nếu mở lịch từ tab Shipping, chỉ highlight các ngày CÓ ĐƠN SHIP
+                        if (o.deliveryType === 'Ship') {
+                            let rDate = parseDateStr(o.receiveDate);
+                            if(rDate) orderDates.add(rDate.toDateString());
+                        }
+                    } else {
+                        // Nếu mở từ tab Lên đơn, highlight tất cả các ngày có đơn
+                        let rDate = parseDateStr(o.receiveDate);
+                        if(rDate) orderDates.add(rDate.toDateString());
+                    }
+                }
+            });
+
             let html = '';
             for(let i=0; i<firstDay; i++) html += `<div></div>`;
             for(let d=1; d<=daysInMonth; d++) {
-                const dObj = new Date(y, m, d); const isPast = dObj < today; const isTueThuSat = [2,4,6].includes(dObj.getDay()); const isSel = dObj.toDateString() === selectedDate.toDateString();
-                let classes = "w-9 h-9 flex items-center justify-center rounded-full text-sm font-medium mx-auto cursor-pointer transition-colors";
-                if(isPast) classes += " text-gray-300 pointer-events-none"; else if(isSel) classes += " bg-black text-white"; else if(isTueThuSat) classes += " bg-indigo-50 text-indigo-600"; else classes += " text-gray-700 hover:bg-gray-100";
-                html += `<div class="${classes}" onclick="selectDate(${y},${m},${d})">${d}</div>`;
+                const dObj = new Date(y, m, d); 
+                const isPast = dObj < today; 
+                const isTueThuSat = [2,4,6].includes(dObj.getDay()); 
+                
+                // Cập nhật logic highlight ngày đang chọn
+                const isSel = targetDateObj ? (dObj.toDateString() === targetDateObj.toDateString()) : (currentDatePickerTarget === 'orderDate' && dObj.toDateString() === selectedDate.toDateString());
+                
+                const hasOrder = orderDates.has(dObj.toDateString());
+
+                let classes = "w-9 h-9 flex flex-col items-center justify-center rounded-full text-sm font-medium mx-auto cursor-pointer transition-colors relative";
+                if(isPast) classes += " text-gray-300 pointer-events-none"; 
+                else if(isSel) classes += " bg-black text-white"; 
+                else if(isTueThuSat) classes += " bg-indigo-50 text-indigo-600"; 
+                else classes += " text-gray-700 hover:bg-gray-100";
+                
+                let dotHtml = hasOrder ? `<span class="absolute bottom-[4px] w-1 h-1 rounded-full ${isSel ? 'bg-white' : 'bg-orange-500'}"></span>` : '';
+                html += `<div class="${classes}" onclick="selectDate(${y},${m},${d})"><span style="transform: translateY(${hasOrder ? '-2px' : '0'});">${d}</span>${dotHtml}</div>`;
             }
             grid.innerHTML = html;
         };
-        window.selectDate = function(y, m, d) { selectedDate = new Date(y, m, d); document.getElementById('orderDate').value = formatFullDate(selectedDate); closeModal('dateModal'); };
+
+        window.selectDate = function(y, m, d) { 
+            const chosenDate = new Date(y, m, d);
+            if(currentDatePickerTarget === 'orderDate') {
+                selectedDate = chosenDate; 
+            }
+            document.getElementById(currentDatePickerTarget).value = formatFullDate(chosenDate); 
+            closeModal('dateModal'); 
+            
+            if(currentDatePickerTarget.startsWith('filterShip')) {
+                renderShippingStats();
+            }
+        };
+        // ------------------------------
+
         window.toggleShipping = function() {
             const val = document.querySelector('input[name="deliveryType"]:checked')?.value; const wrap = document.getElementById('shippingInputs'); const shipFeeField = document.getElementById('shippingFee');
             if(val === 'Ship') { wrap.classList.remove('hidden-section'); shipFeeField.removeAttribute('disabled'); } 
@@ -1679,14 +1737,13 @@
         window.toggleSelectAll = function(checkbox) { const isChecked = checkbox.checked; const filtered = window.getFilteredOrders(); if (isChecked) { filtered.forEach(o => selectedOrders.add(o.id)); } else { filtered.forEach(o => selectedOrders.delete(o.id)); } renderStats(); };
         window.updateBulkBar = function() { const bar = document.getElementById('bulkActionBar'); document.getElementById('bulkCount').innerText = `${selectedOrders.size} đơn`; selectedOrders.size > 0 ? bar.classList.add('active') : bar.classList.remove('active'); };
         
-        // SOFT DELETE AN TOÀN
         window.bulkDelete = function() { 
             logAction('XÓA ĐƠN', `Chuyển vào thùng rác ${selectedOrders.size} đơn hàng`); 
             ordersDB.forEach(o => {
                 if (selectedOrders.has(o.id)) {
-                    o.isDeleted = true; // Cờ xóa mềm
-                    o.customerName = o.customerName.replace(' (ĐÃ XÓA)', '') + ' (ĐÃ XÓA)'; // Thêm dấu hiệu nhận biết cho Google Sheets
-                    o._updatedAt = Date.now(); // Kích hoạt Sync
+                    o.isDeleted = true; 
+                    o.customerName = o.customerName.replace(' (ĐÃ XÓA)', '') + ' (ĐÃ XÓA)'; 
+                    o._updatedAt = Date.now(); 
                 }
             });
             selectedOrders.clear(); saveData(); document.getElementById('selectAllBtn').checked = false; renderStats(); showToast("Đã chuyển vào thùng rác"); 
@@ -1704,7 +1761,6 @@
             } 
         };
 
-        // XỬ LÝ THÙNG RÁC
         window.openTrash = function() {
             const list = document.getElementById('trashList'); list.innerHTML = '';
             const deletedOrders = ordersDB.filter(o => o.isDeleted);
@@ -1894,6 +1950,21 @@
         window.removeAdvancedImage = function(type) { appSettings.invoiceConfig[type] = null; const previewId = type === 'logo' ? 'invLogoPreview' : 'invBgPreview'; document.getElementById(previewId).src = ''; document.getElementById(previewId).classList.add('hidden-section'); saveData(); showToast("Đã xóa ảnh"); if(window.renderInvoicePreview) renderInvoicePreview(); };
 
         // === CÁC HÀM XỬ LÝ SHIPPING ===
+        window.toggleShipDateMode = function() {
+            const mode = document.querySelector('input[name="shipDateMode"]:checked').value;
+            if (mode === 'single') {
+                document.getElementById('shipModeSingle').classList.remove('hidden-section');
+                document.getElementById('shipModeRange').classList.add('hidden-section');
+                document.getElementById('filterShipDateFrom').value = '';
+                document.getElementById('filterShipDateTo').value = '';
+            } else {
+                document.getElementById('shipModeSingle').classList.add('hidden-section');
+                document.getElementById('shipModeRange').classList.remove('hidden-section');
+                document.getElementById('filterShipDateSingle').value = '';
+            }
+            renderShippingStats();
+        };
+
         window.addShipper = function() {
             const name = document.getElementById('newShipperName').value.trim();
             if(!name) return showToast("Vui lòng nhập tên Shipper");
@@ -1906,7 +1977,7 @@
         window.deleteShipper = function(id) {
             const shipper = shippersDB.find(s => s.id === id);
             if(shipper) {
-                shipper.isDeleted = true; // Xóa mềm để an toàn khi đồng bộ
+                shipper.isDeleted = true; 
                 shipper._updatedAt = Date.now();
                 saveData(); renderShipperManagementList(); populateShipperDropdowns(); showToast("Đã xóa Shipper");
             }
@@ -1953,18 +2024,38 @@
         };
 
         window.renderShippingStats = function() {
-            const filterDate = document.getElementById('filterShipDate').value;
+            const mode = document.querySelector('input[name="shipDateMode"]:checked').value;
+            const singleStr = document.getElementById('filterShipDateSingle').value;
+            const fromStr = document.getElementById('filterShipDateFrom').value;
+            const toStr = document.getElementById('filterShipDateTo').value;
             const filterShipper = document.getElementById('filterShipperName').value;
             const list = document.getElementById('shippingStatsList');
             list.innerHTML = '';
 
             let shipOrders = ordersDB.filter(o => !o.isDeleted && o.deliveryType === 'Ship');
 
-            if(filterDate) {
-                shipOrders = shipOrders.filter(o => {
-                    if (!o.receiveDate) return false;
-                    try { let datePart = o.receiveDate.includes(' - ') ? o.receiveDate.split(' - ')[1] : o.receiveDate; const parts = datePart.split('/'); if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` === filterDate; return false; } catch(e) { return false; }
-                });
+            if (mode === 'single' && singleStr) {
+                const singleDateObj = parseDateStr(singleStr);
+                if (singleDateObj) {
+                    const targetDateStr = singleDateObj.toDateString();
+                    shipOrders = shipOrders.filter(o => {
+                        let rDate = parseDateStr(o.receiveDate);
+                        return rDate && rDate.toDateString() === targetDateStr;
+                    });
+                }
+            } else if (mode === 'range') {
+                let fromDate = fromStr ? parseDateStr(fromStr) : null; if(fromDate) fromDate.setHours(0,0,0,0);
+                let toDate = toStr ? parseDateStr(toStr) : null; if(toDate) toDate.setHours(23,59,59,999);
+                
+                if (fromDate || toDate) {
+                    shipOrders = shipOrders.filter(o => {
+                        let rDate = parseDateStr(o.receiveDate);
+                        if(!rDate) return false;
+                        if(fromDate && rDate < fromDate) return false;
+                        if(toDate && rDate > toDate) return false;
+                        return true;
+                    });
+                }
             }
 
             if(filterShipper !== 'all') {
@@ -1984,7 +2075,6 @@
                 let selectHTML = `<select onchange="quickAssignShipper('${o.id}', this.value)" class="text-[10px] ml-2 ${o.shipperName ? 'text-green-700 bg-green-50 border-green-200' : 'text-orange-600 bg-orange-50 border-orange-200'} px-1 py-0.5 rounded font-bold border outline-none cursor-pointer max-w-[120px] truncate">`;
                 selectHTML += `<option value="">Chưa gán Shipper</option>`;
                 
-                // Giữ lại hiển thị cho các Shipper đã bị xóa nhưng vẫn còn được gán vào đơn cũ
                 let isCurrentShipperDeleted = o.shipperName && !activeShippers.some(s => s.name === o.shipperName);
                 if (isCurrentShipperDeleted) {
                     selectHTML += `<option value="${o.shipperName}" selected>${o.shipperName} (Đã xóa)</option>`;
@@ -2094,8 +2184,6 @@
             status.innerText = "Đang đồng bộ..."; if(detailStatus) detailStatus.innerText = "Đang xử lý dữ liệu...";
             
             try {
-                // Đã loại bỏ các header tùy chỉnh (như Content-Type) và option redirect không cần thiết
-                // Việc này ngăn trình duyệt gửi yêu cầu CORS Preflight (OPTIONS) vốn thường gây lỗi "Failed to fetch" với Google Apps Script.
                 const pullRes = await fetch(appSettings.gasUrl, { method: 'GET' });
                 if (!pullRes.ok) throw new Error("HTTP " + pullRes.status);
                 const cloudData = await pullRes.json();
@@ -2118,7 +2206,6 @@
 
                     await new Promise(resolve => setTimeout(resolve, 800));
 
-                    // POST data dưới dạng string thuần túy không kèm custom headers để tránh lỗi chặn CORS
                     const pushRes = await fetch(appSettings.gasUrl, { 
                         method: 'POST', 
                         body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, customers: customersDB, shippers: shippersDB, logs: logsDB, settings: appSettings }) 
@@ -2157,7 +2244,6 @@
             status.innerText = "Đang tải về..."; if(detailStatus) detailStatus.innerText = "Đang kéo dữ liệu từ đám mây...";
             if (manual) showToast("Đang tải dữ liệu từ Sheets...");
             
-            // Xóa redirect:'follow' để sử dụng mặc định của trình duyệt an toàn hơn
             fetch(appSettings.gasUrl, { method: 'GET' })
             .then(response => {
                 if (!response.ok) throw new Error("HTTP " + response.status);
