@@ -258,7 +258,8 @@
                 <div class="flex justify-between items-center border-b border-gray-100 pb-2">
                     <h2 class="text-xs font-bold uppercase text-gray-400">Tổng hợp bánh theo ngày nhận</h2>
                 </div>
-                <div id="productSumGrid" class="flex flex-wrap gap-2 mt-2">
+                <!-- Vùng hiển thị lưới chia catalogue bánh -->
+                <div id="productSumGrid" class="flex flex-col w-full mt-2 gap-1">
                     <p class="text-xs text-gray-400 italic text-center w-full py-2">Chọn ngày giao bánh ở dưới để xem số lượng</p>
                 </div>
             </div>
@@ -1447,25 +1448,60 @@
                 });
             });
 
-            let html = '';
+            // Đưa toàn bộ sản phẩm trong kho (có số lượng = 0) vào danh sách để luôn hiển thị
+            let allProductsCount = { ...counts };
             productsDB.forEach(dbProd => {
-                const qty = counts[dbProd.name] || 0;
-                html += `
-                    <div class="flex flex-col border border-gray-200 rounded-xl p-2 bg-white flex-1 min-w-[30%] text-center">
-                        <span class="text-[9px] font-bold text-gray-500 mb-1 line-clamp-2">${dbProd.name}</span>
-                        <span class="text-lg font-black ${qty > 0 ? 'text-blue-600' : 'text-gray-300'}">${qty}</span>
-                    </div>
-                `;
-                delete counts[dbProd.name]; 
+                if (allProductsCount[dbProd.name] === undefined) {
+                    allProductsCount[dbProd.name] = 0;
+                }
             });
 
-            Object.entries(counts).forEach(([name, qty]) => {
-                html += `
-                    <div class="flex flex-col border border-gray-200 rounded-xl p-2 bg-gray-50 flex-1 min-w-[30%] text-center">
-                        <span class="text-[9px] font-bold text-gray-500 mb-1 line-clamp-2">${name}</span>
-                        <span class="text-lg font-black text-orange-500">${qty}</span>
-                    </div>
-                `;
+            const categories = {
+                'Sourdough': [],
+                'Brioche': [],
+                'Focaccia': [],
+                'Banana Cake': [],
+                'Confit': [],
+                'Khác': []
+            };
+
+            const getCategory = (name) => {
+                const lowerName = name.toLowerCase();
+                if (lowerName.includes('sourdough') || lowerName.includes('sd')) return 'Sourdough';
+                if (lowerName.includes('brioche')) return 'Brioche';
+                if (lowerName.includes('focaccia')) return 'Focaccia';
+                if (lowerName.includes('banana') || lowerName.includes('chuối')) return 'Banana Cake';
+                if (lowerName.includes('confit')) return 'Confit';
+                return 'Khác';
+            };
+
+            // Gom nhóm sản phẩm vào danh mục tương ứng (đã sắp xếp A-Z)
+            Object.keys(allProductsCount).sort().forEach(name => {
+                const cat = getCategory(name);
+                categories[cat].push({ name: name, qty: allProductsCount[name] });
+            });
+
+            let html = '';
+            Object.keys(categories).forEach(cat => {
+                if (categories[cat].length > 0) {
+                    html += `<div class="w-full mt-2 mb-1"><h3 class="text-[11px] font-bold text-gray-700 uppercase bg-gray-200 px-2 py-1 rounded inline-block">${cat}</h3></div>`;
+                    html += `<div class="flex flex-wrap gap-2 w-full mb-3">`;
+                    
+                    categories[cat].forEach(item => {
+                        const isCustom = !productsDB.some(p => p.name === item.name); // Bánh ngoài kho sẽ bôi màu cam
+                        const bgClass = isCustom ? 'bg-gray-50' : 'bg-white';
+                        const textClass = item.qty > 0 ? (isCustom ? 'text-orange-500' : 'text-blue-600') : 'text-gray-300';
+                        
+                        html += `
+                            <div class="flex flex-col border border-gray-200 rounded-xl p-2 ${bgClass} flex-1 min-w-[30%] max-w-[48%] text-center">
+                                <span class="text-[10px] font-bold text-gray-500 mb-1 line-clamp-2">${item.name}</span>
+                                <span class="text-lg font-black ${textClass}">${item.qty}</span>
+                            </div>
+                        `;
+                    });
+                    
+                    html += `</div>`;
+                }
             });
             grid.innerHTML = html;
         };
@@ -1628,7 +1664,8 @@
             for(let i=0; i<firstDay; i++) html += `<div></div>`;
             for(let d=1; d<=daysInMonth; d++) {
                 const dObj = new Date(y, m, d); 
-                const isPast = dObj < today; 
+                // Chỉ khóa ngày quá khứ khi đang chọn ở màn Lên Đơn, còn Bộ lọc thì chọn thoải mái
+                const isPast = (currentDatePickerTarget === 'orderDate' && dObj < today); 
                 const isTueThuSat = [2,4,6].includes(dObj.getDay()); 
                 
                 // Cập nhật logic highlight ngày đang chọn
@@ -1751,10 +1788,15 @@
         
         window.bulkMarkPaid = function() { logAction('THANH TOÁN', `Đánh dấu thanh toán cho ${selectedOrders.size} đơn hàng`); ordersDB.forEach(o => { if (selectedOrders.has(o.id)) { o.paymentStatus = 'paid'; o._updatedAt = Date.now(); } }); selectedOrders.clear(); saveData(); document.getElementById('selectAllBtn').checked = false; renderStats(); showToast("Đã đổi trạng thái thanh toán"); };
         
-        window.togglePaymentStatus = function(id) { 
+        window.togglePaymentStatus = async function(id) { 
             const order = ordersDB.find(o => o.id === id); 
-            if(order) { 
-                order.paymentStatus = order.paymentStatus === 'paid' ? 'unpaid' : 'paid'; 
+            if(order) {
+                const isPaid = order.paymentStatus === 'paid';
+                const actionText = isPaid ? "hủy thanh toán" : "xác nhận đã thanh toán";
+                const ok = await window.showConfirmModal(`Bạn có chắc muốn ${actionText} cho đơn hàng này không?`);
+                if(!ok) return;
+
+                order.paymentStatus = isPaid ? 'unpaid' : 'paid'; 
                 order._updatedAt = Date.now(); 
                 logAction('THANH TOÁN', `Đổi TT thanh toán đơn [${id}] -> ${order.paymentStatus === 'paid' ? 'Đã TT' : 'Chưa TT'}`); 
                 saveData(); renderStats(); showToast("Đã cập nhật trạng thái"); 
