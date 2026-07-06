@@ -413,6 +413,10 @@
             <div class="apple-card p-6">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xs font-bold uppercase text-gray-400">Thống kê Giao hàng</h2>
+                    <button onclick="exportShippingExcel()" class="btn-secondary text-xs px-3 py-1 flex items-center gap-1 bg-green-50 text-green-600 border border-green-200">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Xuất Excel
+                    </button>
                 </div>
                 
                 <div class="mb-4 space-y-3">
@@ -1495,7 +1499,17 @@
             let html = '';
             Object.keys(categories).forEach(cat => {
                 if (categories[cat].length > 0) {
-                    html += `<div class="w-full mt-2 mb-1"><h3 class="text-[11px] font-bold text-gray-700 uppercase bg-gray-200 px-2 py-1 rounded inline-block">${cat}</h3></div>`;
+                    // TÍNH TỔNG SỐ LƯỢNG CỦA NHÓM
+                    let catTotal = categories[cat].reduce((sum, item) => sum + item.qty, 0);
+                    
+                    // HIỂN THỊ TÊN NHÓM KÈM TỔNG SỐ LƯỢNG
+                    html += `<div class="w-full mt-3 mb-1">
+                                <div class="inline-flex items-center bg-gray-200 rounded-lg px-2 py-1">
+                                    <h3 class="text-[11px] font-bold text-gray-700 uppercase mr-2">${cat}</h3>
+                                    <span class="bg-white text-blue-600 text-[10px] font-black px-1.5 py-0.5 rounded-md shadow-sm leading-none">${catTotal}</span>
+                                </div>
+                             </div>`;
+                             
                     html += `<div class="flex flex-wrap gap-2 w-full mb-3">`;
                     
                     categories[cat].forEach(item => {
@@ -2166,6 +2180,91 @@
                 showToast("Đã cập nhật Shipper");
                 renderShippingStats(); 
             }
+        };
+
+        // HÀM XUẤT EXCEL SHIPPER
+        window.exportShippingExcel = function() {
+            const mode = document.querySelector('input[name="shipDateMode"]:checked').value;
+            const singleStr = document.getElementById('filterShipDateSingle').value;
+            const fromStr = document.getElementById('filterShipDateFrom').value;
+            const toStr = document.getElementById('filterShipDateTo').value;
+
+            // Lấy tất cả các đơn hàng thuộc loại Ship (không quan tâm bộ lọc dropdown Shipper)
+            let shipOrders = ordersDB.filter(o => !o.isDeleted && o.deliveryType === 'Ship');
+
+            // 1. Áp dụng chuẩn xác bộ lọc Ngày mà người dùng đang chọn
+            if (mode === 'single' && singleStr) {
+                const singleDateObj = parseDateStr(singleStr);
+                if (singleDateObj) {
+                    const targetDateStr = singleDateObj.toDateString();
+                    shipOrders = shipOrders.filter(o => {
+                        let rDate = parseDateStr(o.receiveDate);
+                        return rDate && rDate.toDateString() === targetDateStr;
+                    });
+                }
+            } else if (mode === 'range') {
+                let fromDate = fromStr ? parseDateStr(fromStr) : null; if(fromDate) fromDate.setHours(0,0,0,0);
+                let toDate = toStr ? parseDateStr(toStr) : null; if(toDate) toDate.setHours(23,59,59,999);
+                
+                if (fromDate || toDate) {
+                    shipOrders = shipOrders.filter(o => {
+                        let rDate = parseDateStr(o.receiveDate);
+                        if(!rDate) return false;
+                        if(fromDate && rDate < fromDate) return false;
+                        if(toDate && rDate > toDate) return false;
+                        return true;
+                    });
+                }
+            }
+
+            if(shipOrders.length === 0) {
+                return showToast("Không có dữ liệu giao hàng trong thời gian này");
+            }
+
+            // 2. Sắp xếp danh sách theo Tên Shipper để file Excel nhìn gọn gàng
+            shipOrders.sort((a, b) => {
+                let sA = a.shipperName || 'Chưa gán';
+                let sB = b.shipperName || 'Chưa gán';
+                if (sA < sB) return -1;
+                if (sA > sB) return 1;
+                return (a.receiveDate || '').localeCompare(b.receiveDate || '');
+            });
+
+            // 3. Xây dựng nội dung file CSV
+            const escapeCSV = (str) => '"' + String(str || '').replace(/"/g, '""') + '"';
+            let csvContent = "\uFEFF"; // Thêm BOM để Excel đọc được tiếng Việt UTF-8
+            csvContent += "Tên Shipper,Mã đơn,Ngày ship,Địa chỉ,Sản phẩm,Phí ship\n";
+
+            let totalOverallFee = 0;
+
+            shipOrders.forEach(o => {
+                const sName = o.shipperName || 'Chưa gán';
+                const prods = (o.products || []).map(p => `${p.qty}x ${p.name}`).join('; ');
+                const fee = o.shippingFee || 0;
+                totalOverallFee += fee;
+
+                csvContent += `${escapeCSV(sName)},${escapeCSV(o.id)},${escapeCSV(o.receiveDate)},${escapeCSV(o.shippingAddress)},${escapeCSV(prods)},${fee}\n`;
+            });
+
+            // Dòng tổng cộng dưới cùng
+            csvContent += `,,,,Tổng cộng,${totalOverallFee}\n`;
+
+            // 4. Tạo và tải file về thiết bị
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            let fileName = `Danh_Sach_Ship_${new Date().getTime()}.csv`;
+            if (mode === 'single' && singleStr) {
+                fileName = `Ship_${singleStr.replace(/\//g, '-')}.csv`;
+            }
+            link.setAttribute("download", fileName);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            logAction('XUẤT EXCEL', `Xuất file excel danh sách shipper`);
+            showToast("Đã tải xuống file Excel");
         };
 
         window.renderInvoicePreview = function() {
