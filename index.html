@@ -256,11 +256,11 @@
             <!-- TỔNG HỢP BÁNH THEO NGÀY (Nằm trên bộ lọc) -->
             <div class="apple-card p-4 space-y-3">
                 <div class="flex justify-between items-center border-b border-gray-100 pb-2">
-                    <h2 class="text-xs font-bold uppercase text-gray-400">Tổng hợp bánh theo ngày nhận</h2>
+                    <h2 class="text-xs font-bold uppercase text-gray-400">Tổng hợp bánh theo bộ lọc</h2>
                 </div>
                 <!-- Vùng hiển thị lưới chia catalogue bánh -->
                 <div id="productSumGrid" class="flex flex-col w-full mt-2 gap-1">
-                    <p class="text-xs text-gray-400 italic text-center w-full py-2">Chọn ngày giao bánh ở dưới để xem số lượng</p>
+                    <p class="text-xs text-gray-400 italic text-center w-full py-2">Chọn bộ lọc để xem số lượng</p>
                 </div>
             </div>
 
@@ -269,60 +269,92 @@
                     <h2 class="text-xs font-bold uppercase text-gray-400">Bộ lọc thống kê</h2>
                     <button onclick="resetStatsFilters()" class="text-[10px] text-blue-500 font-semibold bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition active:scale-95">Reset bộ lọc</button>
                 </div>
-                <div class="grid grid-cols-2 gap-2 items-end">
-                    <div class="relative">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Ngày giao bánh</label>
-                        <input type="date" id="filterCreateDate" class="input-field py-2 px-3 text-sm pr-8" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
-                        <button type="button" onclick="document.getElementById('filterCreateDate').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="absolute right-2 bottom-[8px] text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                
+                <div class="flex flex-col gap-3">
+                    <!-- Toggle Bộ lọc Ngày Thống kê -->
+                    <div class="flex gap-4 border-b border-gray-100 pb-2">
+                        <label class="radio-item !p-0"><input type="radio" name="statsDateMode" value="single" checked onchange="toggleStatsDateMode()"> <span class="text-xs font-bold">Ngày cụ thể</span></label>
+                        <label class="radio-item !p-0"><input type="radio" name="statsDateMode" value="range" onchange="toggleStatsDateMode()"> <span class="text-xs font-bold">Khoảng thời gian</span></label>
                     </div>
-                    <div class="relative">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Mã đơn/SĐT</label>
-                        <input type="text" id="searchKeyword" class="input-field py-2 px-3 text-sm pr-8" placeholder="Tìm..." oninput="renderStats(); document.getElementById('selectAllBtn').checked = false;">
-                        <button type="button" onclick="document.getElementById('searchKeyword').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="absolute right-2 bottom-[8px] text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
-                    </div>
-                    <div class="relative z-50">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Khách hàng</label>
-                        <div class="relative">
-                            <input type="text" id="filterCustomerInput" placeholder="Gõ tên..." class="input-field py-2 px-3 text-sm bg-gray-50 pr-14" oninput="suggestStatsCus(this.value); renderStats(); document.getElementById('selectAllBtn').checked = false;" onfocus="suggestStatsCus(this.value, true)" autocomplete="off">
-                            <div class="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
-                                <button type="button" onclick="document.getElementById('filterCustomerInput').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
-                                <button type="button" onclick="toggleStatsCusDropdown(event)" class="text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+
+                    <div class="grid grid-cols-2 gap-2 items-end">
+                        <!-- Chọn Ngày (Mode Single) -->
+                        <div id="statsModeSingle" class="relative">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Chọn ngày giao</label>
+                            <div class="relative">
+                                <input type="text" id="filterStatsDateSingle" readonly class="input-field py-2 px-3 text-sm bg-gray-50 cursor-pointer pr-8" placeholder="Chọn ngày..." onclick="openDatePicker('filterStatsDateSingle')">
+                                <button type="button" onclick="document.getElementById('filterStatsDateSingle').value=''; document.getElementById('selectAllBtn').checked = false; renderStats();" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
                             </div>
                         </div>
-                        <div id="statsCusDropdown" class="absolute bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-1"></div>
+
+                        <!-- Chọn Ngày (Mode Range) -->
+                        <div id="statsModeRange" class="col-span-2 grid grid-cols-2 gap-2 hidden-section">
+                            <div class="relative">
+                                <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Từ ngày</label>
+                                <input type="text" id="filterStatsDateFrom" readonly class="input-field py-2 px-3 text-sm bg-gray-50 cursor-pointer" placeholder="Từ..." onclick="openDatePicker('filterStatsDateFrom')">
+                            </div>
+                            <div class="relative">
+                                <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Đến ngày</label>
+                                <div class="relative">
+                                    <input type="text" id="filterStatsDateTo" readonly class="input-field py-2 px-3 text-sm bg-gray-50 cursor-pointer pr-8" placeholder="Đến..." onclick="openDatePicker('filterStatsDateTo')">
+                                    <button type="button" onclick="document.getElementById('filterStatsDateFrom').value=''; document.getElementById('filterStatsDateTo').value=''; document.getElementById('selectAllBtn').checked = false; renderStats();" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tìm kiếm chung -->
+                        <div class="relative" id="statsSearchWrap">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Mã đơn/SĐT</label>
+                            <input type="text" id="searchKeyword" class="input-field py-2 px-3 text-sm pr-8" placeholder="Tìm..." oninput="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                            <button type="button" onclick="document.getElementById('searchKeyword').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="absolute right-2 bottom-[8px] text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                        </div>
                     </div>
-                    <div class="relative z-40 flex flex-col justify-end">
-                        <div class="flex justify-between items-center mb-1 ml-1">
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Loại bánh</label>
-                            <select id="filterProductLogic" class="text-[9px] bg-gray-200 rounded px-1 font-bold text-gray-600 outline-none" onchange="renderStats()">
-                                <option value="OR">HOẶC (OR)</option>
-                                <option value="AND">VÀ (AND)</option>
+
+                    <div class="grid grid-cols-2 gap-2 items-end">
+                        <div class="relative z-50">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Khách hàng</label>
+                            <div class="relative">
+                                <input type="text" id="filterCustomerInput" placeholder="Gõ tên..." class="input-field py-2 px-3 text-sm bg-gray-50 pr-14" oninput="suggestStatsCus(this.value); renderStats(); document.getElementById('selectAllBtn').checked = false;" onfocus="suggestStatsCus(this.value, true)" autocomplete="off">
+                                <div class="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
+                                    <button type="button" onclick="document.getElementById('filterCustomerInput').value=''; renderStats(); document.getElementById('selectAllBtn').checked = false;" class="text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                                    <button type="button" onclick="toggleStatsCusDropdown(event)" class="text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                                </div>
+                            </div>
+                            <div id="statsCusDropdown" class="absolute bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-1"></div>
+                        </div>
+                        <div class="relative z-40 flex flex-col justify-end">
+                            <div class="flex justify-between items-center mb-1 ml-1">
+                                <label class="text-[10px] font-bold text-gray-400 uppercase">Loại bánh</label>
+                                <select id="filterProductLogic" class="text-[9px] bg-gray-200 rounded px-1 font-bold text-gray-600 outline-none" onchange="renderStats()">
+                                    <option value="OR">HOẶC (OR)</option>
+                                    <option value="AND">VÀ (AND)</option>
+                                </select>
+                            </div>
+                            <div id="selectedFilterProductsTags" class="flex flex-wrap gap-1 mb-1 empty:hidden"></div>
+                            <div class="relative">
+                                <input type="text" id="filterProductInput" placeholder="Chọn bánh..." class="input-field py-2 px-3 text-sm bg-gray-50 pr-8" oninput="suggestStatsProd(this.value); document.getElementById('selectAllBtn').checked = false;" onfocus="suggestStatsProd(this.value, true)" autocomplete="off">
+                                <button type="button" onclick="toggleStatsProdDropdown(event)" class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                            </div>
+                            <div id="statsProdDropdown" class="absolute bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-1"></div>
+                        </div>
+                        
+                        <div class="relative flex flex-col justify-end">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Thanh toán</label>
+                            <select id="filterPayment" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                                <option value="all">Tất cả</option>
+                                <option value="paid">Đã thanh toán</option>
+                                <option value="unpaid">Chưa thanh toán</option>
                             </select>
                         </div>
-                        <div id="selectedFilterProductsTags" class="flex flex-wrap gap-1 mb-1 empty:hidden"></div>
-                        <div class="relative">
-                            <input type="text" id="filterProductInput" placeholder="Chọn bánh..." class="input-field py-2 px-3 text-sm bg-gray-50 pr-8" oninput="suggestStatsProd(this.value); document.getElementById('selectAllBtn').checked = false;" onfocus="suggestStatsProd(this.value, true)" autocomplete="off">
-                            <button type="button" onclick="toggleStatsProdDropdown(event)" class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                        <div class="relative flex flex-col justify-end">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Nhận hàng</label>
+                            <select id="filterDelivery" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                                <option value="all">Tất cả</option>
+                                <option value="Thụy Khuê">Pickup Thuỵ Khuê</option>
+                                <option value="Hòa Mã">Pickup Hoà Mã</option>
+                                <option value="Ship">Ship</option>
+                            </select>
                         </div>
-                        <div id="statsProdDropdown" class="absolute bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-1"></div>
-                    </div>
-                    
-                    <div class="relative flex flex-col justify-end">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Thanh toán</label>
-                        <select id="filterPayment" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
-                            <option value="all">Tất cả</option>
-                            <option value="paid">Đã thanh toán</option>
-                            <option value="unpaid">Chưa thanh toán</option>
-                        </select>
-                    </div>
-                    <div class="relative flex flex-col justify-end">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Nhận hàng</label>
-                        <select id="filterDelivery" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
-                            <option value="all">Tất cả</option>
-                            <option value="Thụy Khuê">Pickup Thuỵ Khuê</option>
-                            <option value="Hòa Mã">Pickup Hoà Mã</option>
-                            <option value="Ship">Ship</option>
-                        </select>
                     </div>
                 </div>
                 
@@ -1094,8 +1126,33 @@
             renderStats();
         };
 
+        // --- CẬP NHẬT TOGGLE MODE LỌC THỜI GIAN STATS ---
+        window.toggleStatsDateMode = function() {
+            const mode = document.querySelector('input[name="statsDateMode"]:checked').value;
+            const wrap = document.getElementById('statsSearchWrap');
+            if (mode === 'single') {
+                document.getElementById('statsModeSingle').classList.remove('hidden-section');
+                document.getElementById('statsModeRange').classList.add('hidden-section');
+                wrap.classList.remove('col-span-2');
+                document.getElementById('filterStatsDateFrom').value = '';
+                document.getElementById('filterStatsDateTo').value = '';
+            } else {
+                document.getElementById('statsModeSingle').classList.add('hidden-section');
+                document.getElementById('statsModeRange').classList.remove('hidden-section');
+                wrap.classList.add('col-span-2');
+                document.getElementById('filterStatsDateSingle').value = '';
+            }
+            document.getElementById('selectAllBtn').checked = false;
+            renderStats();
+        };
+
         window.resetStatsFilters = function() {
-            document.getElementById('filterCreateDate').value = '';
+            document.querySelector('input[name="statsDateMode"][value="single"]').checked = true;
+            toggleStatsDateMode();
+            document.getElementById('filterStatsDateSingle').value = '';
+            document.getElementById('filterStatsDateFrom').value = '';
+            document.getElementById('filterStatsDateTo').value = '';
+            
             document.getElementById('searchKeyword').value = '';
             document.getElementById('filterCustomerInput').value = '';
             document.getElementById('filterProductInput').value = '';
@@ -1322,12 +1379,19 @@
             openCrmDetail(newPhone);
         };
 
+        // --- HÀM TÌM KIẾM CẬP NHẬT THEO RANGE ---
         window.getFilteredOrders = function() {
-            const kw = document.getElementById('searchKeyword').value.toLowerCase(); const createDate = document.getElementById('filterCreateDate').value; 
+            const kw = document.getElementById('searchKeyword').value.toLowerCase(); 
             const filterCus = document.getElementById('filterCustomerInput').value.toLowerCase();
             const logic = document.getElementById('filterProductLogic').value;
             const filterPayment = document.getElementById('filterPayment').value;
             const filterDelivery = document.getElementById('filterDelivery').value;
+
+            // Lấy Mode Thời Gian
+            const dateMode = document.querySelector('input[name="statsDateMode"]:checked')?.value || 'single';
+            const singleStr = document.getElementById('filterStatsDateSingle').value;
+            const fromStr = document.getElementById('filterStatsDateFrom').value;
+            const toStr = document.getElementById('filterStatsDateTo').value;
             
             let filtered = ordersDB.filter(o => !o.isDeleted && ((o.customerName || '').toLowerCase().includes(kw) || (o.id || '').toLowerCase().includes(kw) || String(o.customerPhone || '').includes(kw)));
             
@@ -1355,16 +1419,31 @@
                 }
             }
 
-            if (createDate) {
-                filtered = filtered.filter(o => {
-                    if (!o.receiveDate) return false;
-                    try {
-                        let datePart = o.receiveDate.includes(' - ') ? o.receiveDate.split(' - ')[1] : o.receiveDate;
-                        const parts = datePart.split('/'); if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` === createDate;
-                        return false;
-                    } catch(e) { return false; }
-                });
+            // Lọc Ngày theo Mode
+            if (dateMode === 'single' && singleStr) {
+                const singleDateObj = parseDateStr(singleStr);
+                if (singleDateObj) {
+                    const targetDateStr = singleDateObj.toDateString();
+                    filtered = filtered.filter(o => {
+                        let rDate = parseDateStr(o.receiveDate);
+                        return rDate && rDate.toDateString() === targetDateStr;
+                    });
+                }
+            } else if (dateMode === 'range') {
+                let fromDate = fromStr ? parseDateStr(fromStr) : null; if(fromDate) fromDate.setHours(0,0,0,0);
+                let toDate = toStr ? parseDateStr(toStr) : null; if(toDate) toDate.setHours(23,59,59,999);
+                
+                if (fromDate || toDate) {
+                    filtered = filtered.filter(o => {
+                        let rDate = parseDateStr(o.receiveDate);
+                        if(!rDate) return false;
+                        if(fromDate && rDate < fromDate) return false;
+                        if(toDate && rDate > toDate) return false;
+                        return true;
+                    });
+                }
             }
+
             return filtered;
         };
 
@@ -1638,7 +1717,7 @@
             cusDiv.innerHTML = cusHtml;
         };
 
-        // --- HỆ THỐNG LỊCH CUSTOM MỚI ---
+        // --- CẬP NHẬT LỊCH ---
         window.openDatePicker = function(targetId = 'orderDate') { 
             currentDatePickerTarget = targetId;
             const existingVal = document.getElementById(targetId).value;
@@ -1662,23 +1741,19 @@
             let firstDay = new Date(y, m, 1).getDay() - 1; if(firstDay < 0) firstDay = 6;
             const daysInMonth = new Date(y, m+1, 0).getDate(); const today = new Date(); today.setHours(0,0,0,0);
 
-            // Xác định ngày đang được select dựa vào input mục tiêu
             let targetDateObj = null;
             const targetVal = document.getElementById(currentDatePickerTarget).value;
             if(targetVal) targetDateObj = parseDateStr(targetVal);
 
-            // Lọc các ngày có đơn (Highlight thông minh)
             const orderDates = new Set();
             ordersDB.forEach(o => {
                 if(!o.isDeleted && o.receiveDate) {
                     if (currentDatePickerTarget.startsWith('filterShip')) {
-                        // Nếu mở lịch từ tab Shipping, chỉ highlight các ngày CÓ ĐƠN SHIP
                         if (o.deliveryType === 'Ship') {
                             let rDate = parseDateStr(o.receiveDate);
                             if(rDate) orderDates.add(rDate.toDateString());
                         }
                     } else {
-                        // Nếu mở từ tab Lên đơn, highlight tất cả các ngày có đơn
                         let rDate = parseDateStr(o.receiveDate);
                         if(rDate) orderDates.add(rDate.toDateString());
                     }
@@ -1689,11 +1764,9 @@
             for(let i=0; i<firstDay; i++) html += `<div></div>`;
             for(let d=1; d<=daysInMonth; d++) {
                 const dObj = new Date(y, m, d); 
-                // Chỉ khóa ngày quá khứ khi đang chọn ở màn Lên Đơn, còn Bộ lọc thì chọn thoải mái
                 const isPast = (currentDatePickerTarget === 'orderDate' && dObj < today); 
                 const isTueThuSat = [2,4,6].includes(dObj.getDay()); 
                 
-                // Cập nhật logic highlight ngày đang chọn
                 const isSel = targetDateObj ? (dObj.toDateString() === targetDateObj.toDateString()) : (currentDatePickerTarget === 'orderDate' && dObj.toDateString() === selectedDate.toDateString());
                 
                 const hasOrder = orderDates.has(dObj.toDateString());
@@ -1720,6 +1793,9 @@
             
             if(currentDatePickerTarget.startsWith('filterShip')) {
                 renderShippingStats();
+            } else if (currentDatePickerTarget.startsWith('filterStats')) {
+                document.getElementById('selectAllBtn').checked = false;
+                renderStats();
             }
         };
         // ------------------------------
