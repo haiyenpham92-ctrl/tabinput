@@ -241,10 +241,13 @@
                 <div id="pw-qty"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Số lượng tối thiểu (N)</label><input type="number" id="pf-qty" class="input-field py-2 text-sm" placeholder="VD: 2"></div>
                 <div id="pw-buyN"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Mua (N cái)</label><input type="number" id="pf-buyN" class="input-field py-2 text-sm" placeholder="VD: 2"></div>
                 <div id="pw-getM"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Tặng (M cái)</label><input type="number" id="pf-getM" class="input-field py-2 text-sm" placeholder="VD: 1"></div>
+                <div id="pw-gifts"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Sản phẩm tặng (chọn nhiều, nhập số lượng)</label><div id="pf-gifts" class="space-y-2"></div></div>
+                <div id="pw-pool"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Nhóm sản phẩm áp dụng (chọn nhiều)</label><div id="pf-pool" class="max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-2"></div></div>
                 <div class="flex gap-2">
                     <div id="pw-unit" class="w-1/3"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Đơn vị</label><select id="pf-unit" class="input-field py-2 text-sm px-1"><option value="percent">%</option><option value="amount">VNĐ</option></select></div>
                     <div id="pw-value" class="flex-1"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1" id="pl-value">Mức giảm</label><input type="number" id="pf-value" class="input-field py-2 text-sm" placeholder="0"></div>
                 </div>
+                <div id="pw-tiers"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Các mốc giảm giá (mua từ N SP → giảm)</label><div id="pf-tiers" class="space-y-2"></div></div>
                 <div id="pw-minTotal"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Đơn tối thiểu (VNĐ, tùy chọn)</label><input type="number" id="pf-min" class="input-field py-2 text-sm" placeholder="0"></div>
                 <div class="flex gap-2 pt-1">
                     <button onclick="closePromoForm()" class="btn-secondary flex-1">Hủy</button>
@@ -968,12 +971,14 @@
             prod_pct: { label: 'Mua N sản phẩm → giảm % trên chính SP đó', f: ['prodA','qty','value'], vl: 'Giảm (%)' },
             combo: { label: 'Mua combo SP A + SP B → giảm giá mỗi combo', f: ['prodA','prodB','value','unit'], vl: 'Mức giảm mỗi combo' },
             qty_tier: { label: 'Mua từ N sản phẩm → giảm giá (mốc 2, 4, ...)', f: ['prodA','qty','value','unit','minTotal'], vl: 'Mức giảm' },
-            bogo: { label: 'Mua N tặng M (cùng sản phẩm)', f: ['prodA','buyN','getM'] }
+            bogo: { label: 'Mua N sản phẩm A → tặng nhiều sản phẩm (chọn số lượng)', f: ['prodA','buyN','gifts'] },
+            gift_total: { label: 'Đơn từ X đồng → tặng sản phẩm (chọn nhiều, có số lượng)', f: ['minTotal','gifts'] },
+            pool_tier: { label: 'Mua N SP bất kỳ trong nhóm → giảm giá (nhiều mốc, VD 2 và 4)', f: ['pool','unit','tiers'] }
         };
-        const ALL_PF = ['prodA','prodB','qty','buyN','getM','unit','value','minTotal'];
+        const ALL_PF = ['prodA','prodB','qty','buyN','getM','gifts','pool','unit','value','tiers','minTotal'];
 
         window.calcPromo = function(p, items, productTotal, fee) {
-            const R = { prod: 0, ship: 0 };
+            const R = { prod: 0, ship: 0, gifts: [] };
             if (!p || (p.minTotal && productTotal < p.minTotal)) return R;
             const of = n => items.filter(i => i.name === n);
             const qtyOf = n => of(n).reduce((a, i) => a + i.qty, 0);
@@ -993,8 +998,20 @@
                 const base = A ? lineOf(A) : productTotal;
                 if (q >= (p.qty || 1)) R.prod = p.unit === 'percent' ? base * Math.min(v, 100) / 100 : v;
             } else if (p.type === 'bogo') {
-                const n = p.buyN || 1, m = p.getM || 1;
-                if (A) R.prod = Math.floor(qtyOf(A) / (n + m)) * m * priceOf(A);
+                if (p.gifts && p.gifts.length) {
+                    const sets = A ? Math.floor(qtyOf(A) / (p.buyN || 1)) : 0;
+                    if (sets >= 1) R.gifts = p.gifts.map(g => ({ name: g.name, qty: g.qty * sets }));
+                } else {
+                    const n = p.buyN || 1, m = p.getM || 1;
+                    if (A) R.prod = Math.floor(qtyOf(A) / (n + m)) * m * priceOf(A);
+                }
+            } else if (p.type === 'gift_total') {
+                R.gifts = (p.gifts || []).map(g => ({ name: g.name, qty: g.qty }));
+            } else if (p.type === 'pool_tier') {
+                const pool = p.pool || [], inPool = items.filter(i => pool.includes(i.name));
+                const q = inPool.reduce((a, i) => a + i.qty, 0), base = inPool.reduce((a, i) => a + i.qty * i.price, 0);
+                let best = null; (p.tiers || []).forEach(t => { if (q >= t.qty && (!best || t.qty > best.qty)) best = t; });
+                if (best) R.prod = p.unit === 'percent' ? base * Math.min(best.value, 100) / 100 : best.value;
             }
             return R;
         };
@@ -1005,7 +1022,7 @@
             const r = calcPromo(promo, items, productTotal, fee);
             const promoProd = Math.round(Math.min(r.prod, Math.max(0, productTotal - manual)));
             const promoShip = Math.round(Math.min(r.ship, fee));
-            return { productTotal, manual, promo, promoProd, promoShip, total: Math.max(0, Math.round(productTotal - manual - promoProd) + fee - promoShip) };
+            return { productTotal, manual, promo, promoProd, promoShip, gifts: r.gifts || [], total: Math.max(0, Math.round(productTotal - manual - promoProd) + fee - promoShip) };
         };
         window.getCartItems = function() {
             return Array.from(document.querySelectorAll('#productList > div')).map(row => {
@@ -1014,16 +1031,18 @@
             });
         };
         window.promoLineHTML = function(o, mode) {
-            const d = (o.promoDiscount || 0) + (o.promoShipDiscount || 0);
-            if (!o.promoName || d <= 0) return '';
-            if (mode === 'stats') return `<div class="flex justify-between text-sm text-pink-500 mt-1 font-medium"><span>KM: ${pe(o.promoName)}</span><span>-${formatCurrency(d)}</span></div>`;
-            return `<p style="margin: 4px 0; color: #555;">KM ${pe(o.promoName)}: -${formatCurrency(d)}</p>`;
+            const d = (o.promoDiscount || 0) + (o.promoShipDiscount || 0), gifts = o.promoGifts || [];
+            if (!o.promoName || (d <= 0 && !gifts.length)) return '';
+            const gt = gifts.length ? 'Tặng: ' + gifts.map(g => `${g.qty}x ${pe(g.name)}`).join(', ') : '';
+            if (mode === 'stats') return (d > 0 ? `<div class="flex justify-between text-sm text-pink-500 mt-1 font-medium"><span>KM: ${pe(o.promoName)}</span><span>-${formatCurrency(d)}</span></div>` : `<div class="text-sm text-pink-500 mt-1 font-medium">KM: ${pe(o.promoName)}</div>`) + (gt ? `<div class="text-xs text-pink-500">${gt}</div>` : '');
+            return (d > 0 ? `<p style="margin: 4px 0; color: #555;">KM ${pe(o.promoName)}: -${formatCurrency(d)}</p>` : `<p style="margin: 4px 0; color: #555;">KM ${pe(o.promoName)}</p>`) + (gt ? `<p style="margin: 4px 0; color: #555;">${gt}</p>` : '');
         };
 
         window.describePromo = function(p) {
             const u = p.unit === 'percent' ? '%' : 'đ', val = p.unit === 'percent' || ['pct_total','prod_pct'].includes(p.type) ? (p.value + '%') : formatCurrency(p.value);
             const min = p.minTotal ? ` (đơn từ ${formatCurrency(p.minTotal)})` : '';
             const A = p.prodA ? pe(p.prodA) : 'tất cả SP';
+            const gt = (p.gifts || []).map(g => `${g.qty}x ${pe(g.name)}`).join(', ');
             switch (p.type) {
                 case 'pct_total': return `Giảm ${p.value}% tổng đơn${min}`;
                 case 'amt_total': return `Giảm ${formatCurrency(p.value)} tổng đơn${min}`;
@@ -1032,7 +1051,9 @@
                 case 'prod_pct': return `Mua từ ${p.qty} ${A} → giảm ${p.value}% tiền SP đó`;
                 case 'combo': return `Mua ${A} + ${pe(p.prodB)} → giảm ${val} mỗi combo`;
                 case 'qty_tier': return `Mua từ ${p.qty} ${A} → giảm ${val}${min}`;
-                case 'bogo': return `Mua ${p.buyN} tặng ${p.getM} ${A}`;
+                case 'bogo': return (p.gifts && p.gifts.length) ? `Mua ${p.buyN} ${A} → tặng ${gt}` : `Mua ${p.buyN} tặng ${p.getM} ${A}`;
+                case 'gift_total': return `Đơn từ ${formatCurrency(p.minTotal)} → tặng ${gt}`;
+                case 'pool_tier': return `Mua SP bất kỳ trong nhóm (${(p.pool || []).length} SP): ` + (p.tiers || []).map(t => `từ ${t.qty} giảm ${p.unit === 'percent' ? t.value + '%' : formatCurrency(t.value)}`).join('; ');
             }
             return '';
         };
@@ -1056,6 +1077,19 @@
             document.getElementById('pl-prodA').innerText = tier ? 'Sản phẩm áp dụng (để trống = tất cả SP)' : 'Sản phẩm A';
             document.getElementById('pf-unit').disabled = false;
         };
+        let pfGifts = [], pfTiers = [], pfPool = [];
+        const prodOpts = sel => '<option value="">-- Chọn sản phẩm --</option>' + productsDB.map(p => `<option value="${pe(p.name)}" ${p.name === sel ? 'selected' : ''}>${p.code ? '[' + pe(p.code) + '] ' : ''}${pe(p.name)}</option>`).join('');
+        window.renderGiftEditor = function() {
+            document.getElementById('pf-gifts').innerHTML = pfGifts.map((g, i) => `<div class="flex gap-2 items-center"><select class="input-field py-2 text-sm flex-1" onchange="pfGifts[${i}].name=this.value">${prodOpts(g.name)}</select><input type="number" min="1" class="input-field py-2 text-sm w-20" value="${g.qty || 1}" oninput="pfGifts[${i}].qty=parseInt(this.value)||0"><button type="button" onclick="pfGifts.splice(${i},1);renderGiftEditor()" class="text-red-500 px-2"><i class="fas fa-times"></i></button></div>`).join('') + `<button type="button" onclick="pfGifts.push({name:'',qty:1});renderGiftEditor()" class="text-blue-500 text-xs font-semibold">+ Thêm sản phẩm tặng</button>`;
+        };
+        window.renderTierEditor = function() {
+            document.getElementById('pf-tiers').innerHTML = pfTiers.map((t, i) => `<div class="flex gap-2 items-center text-sm"><span class="text-gray-500">Từ</span><input type="number" min="1" class="input-field py-2 text-sm w-20" value="${t.qty || ''}" placeholder="N" oninput="pfTiers[${i}].qty=parseInt(this.value)||0"><span class="text-gray-500">SP → giảm</span><input type="number" class="input-field py-2 text-sm flex-1" value="${t.value || ''}" placeholder="Mức giảm" oninput="pfTiers[${i}].value=parseFloat(this.value)||0"><button type="button" onclick="pfTiers.splice(${i},1);renderTierEditor()" class="text-red-500 px-2"><i class="fas fa-times"></i></button></div>`).join('') + `<button type="button" onclick="pfTiers.push({qty:0,value:0});renderTierEditor()" class="text-blue-500 text-xs font-semibold">+ Thêm mốc</button>`;
+        };
+        window.renderPoolEditor = function() {
+            const arr = productsDB.filter(p => (parseFloat(p.price) || 0) > 0);
+            document.getElementById('pf-pool').innerHTML = arr.length ? arr.map(p => `<label class="flex items-center gap-2 text-sm py-1"><input type="checkbox" data-n="${pe(p.name)}" ${pfPool.includes(p.name) ? 'checked' : ''} onchange="togglePool(this.dataset.n,this.checked)"><span>${p.code ? '[' + pe(p.code) + '] ' : ''}${pe(p.name)}</span></label>`).join('') : '<p class="text-xs text-gray-400">Chưa có sản phẩm</p>';
+        };
+        window.togglePool = function(n, on) { pfPool = pfPool.filter(x => x !== n); if (on) pfPool.push(n); };
         window.openPromoForm = function(id) {
             const opts = '<option value="">-- Chọn sản phẩm --</option>' + productsDB.map(p => `<option value="${pe(p.name)}">${p.code ? '[' + pe(p.code) + '] ' : ''}${pe(p.name)}</option>`).join('');
             document.getElementById('pf-prodA').innerHTML = opts; document.getElementById('pf-prodB').innerHTML = opts;
@@ -1067,6 +1101,10 @@
             document.getElementById('pf-prodA').value = p ? (p.prodA || '') : ''; document.getElementById('pf-prodB').value = p ? (p.prodB || '') : '';
             document.getElementById('pf-qty').value = p && p.qty ? p.qty : ''; document.getElementById('pf-buyN').value = p && p.buyN ? p.buyN : ''; document.getElementById('pf-getM').value = p && p.getM ? p.getM : '';
             document.getElementById('pf-unit').value = p && p.unit ? p.unit : 'percent'; document.getElementById('pf-value').value = p && p.value ? p.value : ''; document.getElementById('pf-min').value = p && p.minTotal ? p.minTotal : '';
+            pfGifts = p && p.gifts && p.gifts.length ? JSON.parse(JSON.stringify(p.gifts)) : (p && p.type === 'bogo' && p.prodA && p.getM ? [{ name: p.prodA, qty: p.getM }] : [{ name: '', qty: 1 }]);
+            pfTiers = p && p.tiers && p.tiers.length ? JSON.parse(JSON.stringify(p.tiers)) : [{ qty: 2, value: 0 }];
+            pfPool = p && p.pool ? p.pool.slice() : [];
+            renderGiftEditor(); renderTierEditor(); renderPoolEditor();
             onPromoTypeChange();
             document.getElementById('promoForm').classList.remove('hidden-section');
             document.getElementById('promoForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1077,11 +1115,18 @@
             const type = g('pf-type'), t = PROMO_TYPES[type], name = g('pf-name').trim();
             if (!name) return showToast('Nhập tên chương trình!');
             const p = { id: g('pf-id') || `KM${Date.now().toString().slice(-8)}`, name, type, active: true, prodA: g('pf-prodA'), prodB: g('pf-prodB'), qty: n('pf-qty'), buyN: n('pf-buyN'), getM: n('pf-getM'), unit: t.f.includes('unit') ? g('pf-unit') : (type === 'pct_total' || type === 'prod_pct' ? 'percent' : 'amount'), value: n('pf-value'), minTotal: n('pf-min'), _updatedAt: Date.now() };
+            p.gifts = t.f.includes('gifts') ? pfGifts.filter(g => g.name && g.qty > 0) : [];
+            p.pool = t.f.includes('pool') ? pfPool.slice() : [];
+            p.tiers = t.f.includes('tiers') ? pfTiers.filter(x => x.qty > 0 && x.value > 0) : [];
+            if (t.f.includes('gifts') && !p.gifts.length) return showToast('Chọn ít nhất 1 sản phẩm tặng!');
+            if (type === 'gift_total' && p.minTotal <= 0) return showToast('Nhập tổng đơn tối thiểu!');
+            if (type === 'pool_tier' && !p.pool.length) return showToast('Chọn sản phẩm trong nhóm!');
+            if (type === 'pool_tier' && !p.tiers.length) return showToast('Thêm ít nhất 1 mốc giảm hợp lệ!');
             if (t.f.includes('value') && p.value <= 0) return showToast('Nhập mức giảm hợp lệ!');
             if (t.f.includes('prodA') && type !== 'qty_tier' && !p.prodA) return showToast('Chọn sản phẩm!');
             if (type === 'combo' && (!p.prodA || !p.prodB || p.prodA === p.prodB)) return showToast('Chọn 2 sản phẩm khác nhau!');
             if ((type === 'prod_pct' || type === 'qty_tier') && p.qty < 1) return showToast('Nhập số lượng tối thiểu!');
-            if (type === 'bogo' && (p.buyN < 1 || p.getM < 1)) return showToast('Nhập số lượng mua và tặng!');
+            if (type === 'bogo' && p.buyN < 1) return showToast('Nhập số lượng mua!');
             const old = promosDB.find(x => x.id === p.id);
             if (old) { p.active = old.active; promosDB[promosDB.indexOf(old)] = p; } else promosDB.push(p);
             logAction('KHUYẾN MÃI', `${old ? 'Sửa' : 'Tạo'} CTKM [${name}]`);
@@ -1334,6 +1379,7 @@
             let discountAmount = discountType === 'percent' ? productTotal * (Math.min(discountValue, 100) / 100) : discountValue;
             const money = computeMoney(prods, discountType, discountValue, shipFee, orderPromoId);
             let finalTotal = money.total;
+            (money.gifts || []).forEach(g => { const pd = productsDB.find(x => x.name === g.name); prods.push({ code: pd ? (pd.code || '') : '', name: g.name, qty: g.qty, price: 0, isPromoGift: true }); });
 
             const order = {
                 id: currentId, date: existingOrder ? existingOrder.date : new Date().toISOString(), receiveDate: receiveDate,
@@ -1341,7 +1387,7 @@
                 shippingFee: shipFee, shipperName: delivery === 'Ship' ? shipperName : '', 
                 products: prods, 
                 discountType: discountType, discountValue: discountValue,
-                promoId: money.promo ? money.promo.id : '', promoName: money.promo ? money.promo.name : '', promoDiscount: money.promoProd, promoShipDiscount: money.promoShip,
+                promoId: money.promo ? money.promo.id : '', promoName: money.promo ? money.promo.name : '', promoDiscount: money.promoProd, promoShipDiscount: money.promoShip, promoGifts: money.gifts || [],
                 total: finalTotal, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
                 notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value),
                 _updatedAt: Date.now() // Timestamp cho 2-way sync
@@ -1841,14 +1887,17 @@
             const productTotal = items.reduce((a, i) => a + i.qty * i.price, 0);
             const sel = document.getElementById('orderPromo');
             if (sel) {
-                const list = promosDB.filter(p => p.active && !p.deleted).map(p => { const r = calcPromo(p, items, productTotal, fee); return { p, save: Math.round(r.prod + r.ship) }; }).sort((a, b) => b.save - a.save);
-                const html = '<option value="">Không áp dụng</option>' + list.map(o => `<option value="${o.p.id}">${pe(o.p.name)}${o.save > 0 ? ` (-${formatCurrency(o.save)})` : ' (chưa đủ điều kiện)'}</option>`).join('');
+                const list = promosDB.filter(p => p.active && !p.deleted).map(p => { const r = calcPromo(p, items, productTotal, fee); return { p, save: Math.round(r.prod + r.ship), gifts: (r.gifts || []).length }; }).sort((a, b) => (b.save + (b.gifts ? 1 : 0)) - (a.save + (a.gifts ? 1 : 0)));
+                const html = '<option value="">Không áp dụng</option>' + list.map(o => `<option value="${o.p.id}">${pe(o.p.name)}${o.save > 0 ? ` (-${formatCurrency(o.save)})` : (o.gifts ? ' (tặng quà)' : ' (chưa đủ điều kiện)')}</option>`).join('');
                 if (sel.innerHTML !== html) sel.innerHTML = html;
                 sel.value = orderPromoId; orderPromoId = sel.value;
             }
             const m = computeMoney(items, dType, dVal, fee, orderPromoId);
             const info = document.getElementById('promoInfo');
-            if (info) info.innerText = m.promo ? ((m.promoProd + m.promoShip) > 0 ? `Đã giảm ${formatCurrency(m.promoProd + m.promoShip)} từ "${m.promo.name}"` : 'Chưa đủ điều kiện áp dụng CTKM này') : '';
+            if (info) {
+                const gt = m.gifts.length ? 'Tặng: ' + m.gifts.map(g => `${g.qty}x ${g.name}`).join(', ') : '', d = m.promoProd + m.promoShip;
+                info.innerText = m.promo ? ((d > 0 || gt) ? `Đã áp dụng "${m.promo.name}"` + (d > 0 ? ` - giảm ${formatCurrency(d)}` : '') + (gt ? ` - ${gt}` : '') : 'Chưa đủ điều kiện áp dụng CTKM này') : '';
+            }
             document.getElementById('totalPrice').innerText = formatCurrency(m.total);
         };
         window.resolveConfirm = function(val) { if(confirmResolver) { confirmResolver(val); confirmResolver = null; } };
@@ -1929,7 +1978,7 @@
             orderPromoId = o.promoId || ''; document.getElementById('discountType').value = o.discountType || 'amount';
             document.getElementById('discountValue').value = o.discountValue || '';
 
-            document.getElementById('productList').innerHTML = ''; o.products.forEach(p => addProductRow(p)); addProductRow();
+            document.getElementById('productList').innerHTML = ''; o.products.filter(p => !p.isPromoGift).forEach(p => addProductRow(p)); addProductRow();
             document.querySelectorAll('input[name="orderNote"]').forEach(c => c.checked = false);
             o.notes.forEach(n => { const cb = document.querySelector(`input[name="orderNote"][value="${n}"]`); if(cb) cb.checked = true; else { document.getElementById('noteOther').checked = true; document.getElementById('otherNoteText').value = n; } });
             toggleShipping(); toggleOtherNote(); calcTotal();
@@ -2345,6 +2394,7 @@
             .then(data => {
                 if(data.status === 'success') {
                     if (data.products) { productsDB = data.products; localStorage.setItem('myProds', JSON.stringify(productsDB)); renderProductsList(); }
+                    if (Array.isArray(data.promotions)) { promosDB = mergeDataLists(promosDB, data.promotions); localStorage.setItem('myPromos', JSON.stringify(promosDB)); renderPromos(); calcTotal(); }
                     if (data.shippers) { 
                         shippersDB = data.shippers; localStorage.setItem('myShippers', JSON.stringify(shippersDB)); 
                         populateShipperDropdowns();
