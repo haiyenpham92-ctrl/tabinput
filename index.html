@@ -130,6 +130,7 @@
             <div id="btn-tab-stats" class="segment-btn" onclick="switchTab('stats')">Thống kê</div>
             <div id="btn-tab-shipping" class="segment-btn" onclick="switchTab('shipping')">Giao hàng</div>
             <div id="btn-tab-products" class="segment-btn" onclick="switchTab('products')">Kho SP</div>
+            <div id="btn-tab-promos" class="segment-btn" onclick="switchTab('promos')">Khuyến mãi</div>
             <div id="btn-tab-crm" class="segment-btn" onclick="switchTab('crm')">Khách hàng</div>
             <div id="btn-tab-settings" class="segment-btn" onclick="switchTab('settings')">Cài đặt</div>
             <div id="segment-glider" class="segment-bg"></div>
@@ -193,6 +194,11 @@
             </div>
 
             <div class="apple-card p-6">
+                <div class="mb-4 border-b border-gray-100 pb-4">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1"><i class="fas fa-gift text-pink-500 mr-1"></i>Chương trình khuyến mãi</label>
+                    <select id="orderPromo" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="orderPromoId=this.value; calcTotal()"><option value="">Không áp dụng</option></select>
+                    <p id="promoInfo" class="text-xs text-pink-600 font-semibold mt-1"></p>
+                </div>
                 <div class="flex gap-3 mb-4 border-b border-gray-100 pb-4">
                     <div class="w-1/3">
                         <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Loại giảm</label>
@@ -221,6 +227,33 @@
         </div>
 
         <!-- ================= TAB: KHO SP ================= -->
+        <div id="tab-promos" class="hidden-section space-y-4 fade-in">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xs font-bold uppercase text-gray-400">Chương trình khuyến mãi</h2>
+                <button onclick="openPromoForm()" class="btn-primary text-sm px-4 py-2"><i class="fas fa-plus mr-1"></i>Thêm CTKM</button>
+            </div>
+            <div id="promoForm" class="apple-card p-4 space-y-3 hidden-section">
+                <input type="hidden" id="pf-id">
+                <div><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Tên chương trình *</label><input type="text" id="pf-name" class="input-field py-2 text-sm" placeholder="VD: Mua 2 bánh giảm 10%"></div>
+                <div><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Loại chương trình</label><select id="pf-type" class="input-field py-2 text-sm" onchange="onPromoTypeChange()"></select></div>
+                <div id="pw-prodA"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1" id="pl-prodA">Sản phẩm A</label><select id="pf-prodA" class="input-field py-2 text-sm"></select></div>
+                <div id="pw-prodB"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Sản phẩm B (đi kèm)</label><select id="pf-prodB" class="input-field py-2 text-sm"></select></div>
+                <div id="pw-qty"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Số lượng tối thiểu (N)</label><input type="number" id="pf-qty" class="input-field py-2 text-sm" placeholder="VD: 2"></div>
+                <div id="pw-buyN"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Mua (N cái)</label><input type="number" id="pf-buyN" class="input-field py-2 text-sm" placeholder="VD: 2"></div>
+                <div id="pw-getM"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Tặng (M cái)</label><input type="number" id="pf-getM" class="input-field py-2 text-sm" placeholder="VD: 1"></div>
+                <div class="flex gap-2">
+                    <div id="pw-unit" class="w-1/3"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Đơn vị</label><select id="pf-unit" class="input-field py-2 text-sm px-1"><option value="percent">%</option><option value="amount">VNĐ</option></select></div>
+                    <div id="pw-value" class="flex-1"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1" id="pl-value">Mức giảm</label><input type="number" id="pf-value" class="input-field py-2 text-sm" placeholder="0"></div>
+                </div>
+                <div id="pw-minTotal"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Đơn tối thiểu (VNĐ, tùy chọn)</label><input type="number" id="pf-min" class="input-field py-2 text-sm" placeholder="0"></div>
+                <div class="flex gap-2 pt-1">
+                    <button onclick="closePromoForm()" class="btn-secondary flex-1">Hủy</button>
+                    <button onclick="savePromo()" class="btn-primary flex-1">Lưu CTKM</button>
+                </div>
+            </div>
+            <div id="promoList" class="space-y-3"></div>
+        </div>
+
         <div id="tab-products" class="hidden-section space-y-6 fade-in">
             <div class="apple-card p-6">
                 <div class="flex justify-between items-center mb-4">
@@ -876,7 +909,7 @@
                 productsBtn.style.display = 'none'; 
                 deleteBtn.style.display = 'none'; 
                 revBtn.style.display = 'none';
-                shippingBtn.style.display = 'none';
+                shippingBtn.style.display = 'none'; document.getElementById('btn-tab-promos').style.display = 'none';
                 btnOpenTrash.style.display = 'none';
             } else { 
                 settingsBtn.style.display = ''; 
@@ -924,10 +957,146 @@
         function formatFullDate(d) { const days = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"]; return `${days[d.getDay()]} - ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
         function showToast(msg) { const t = document.getElementById('toast'); t.innerText = msg; t.classList.remove('opacity-0'); setTimeout(() => t.classList.add('opacity-0'), 2500); }
         
+        let promosDB = JSON.parse(localStorage.getItem('myPromos') || '[]') || [];
+        let orderPromoId = '';
+        const pe = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+        const PROMO_TYPES = {
+            pct_total: { label: 'Giảm % tổng đơn', f: ['value','minTotal'], vl: 'Mức giảm (%)' },
+            amt_total: { label: 'Giảm tiền tổng đơn (VNĐ)', f: ['value','minTotal'], vl: 'Số tiền giảm (VNĐ)' },
+            ship_free: { label: 'Miễn phí vận chuyển', f: ['minTotal'] },
+            ship_amt: { label: 'Giảm phí vận chuyển (VNĐ)', f: ['value','minTotal'], vl: 'Số tiền giảm ship (VNĐ)' },
+            prod_pct: { label: 'Mua N sản phẩm → giảm % trên chính SP đó', f: ['prodA','qty','value'], vl: 'Giảm (%)' },
+            combo: { label: 'Mua combo SP A + SP B → giảm giá mỗi combo', f: ['prodA','prodB','value','unit'], vl: 'Mức giảm mỗi combo' },
+            qty_tier: { label: 'Mua từ N sản phẩm → giảm giá (mốc 2, 4, ...)', f: ['prodA','qty','value','unit','minTotal'], vl: 'Mức giảm' },
+            bogo: { label: 'Mua N tặng M (cùng sản phẩm)', f: ['prodA','buyN','getM'] }
+        };
+        const ALL_PF = ['prodA','prodB','qty','buyN','getM','unit','value','minTotal'];
+
+        window.calcPromo = function(p, items, productTotal, fee) {
+            const R = { prod: 0, ship: 0 };
+            if (!p || (p.minTotal && productTotal < p.minTotal)) return R;
+            const of = n => items.filter(i => i.name === n);
+            const qtyOf = n => of(n).reduce((a, i) => a + i.qty, 0);
+            const lineOf = n => of(n).reduce((a, i) => a + i.qty * i.price, 0);
+            const priceOf = n => (of(n)[0] || {}).price || 0;
+            const v = p.value || 0, A = p.prodA, B = p.prodB;
+            if (p.type === 'pct_total') R.prod = productTotal * Math.min(v, 100) / 100;
+            else if (p.type === 'amt_total') R.prod = v;
+            else if (p.type === 'ship_free') R.ship = fee;
+            else if (p.type === 'ship_amt') R.ship = v;
+            else if (p.type === 'prod_pct') { if (A && qtyOf(A) >= (p.qty || 1)) R.prod = lineOf(A) * Math.min(v, 100) / 100; }
+            else if (p.type === 'combo') {
+                const sets = (A && B) ? Math.min(qtyOf(A), qtyOf(B)) : 0;
+                if (sets >= 1) R.prod = p.unit === 'percent' ? sets * (priceOf(A) + priceOf(B)) * Math.min(v, 100) / 100 : sets * v;
+            } else if (p.type === 'qty_tier') {
+                const q = A ? qtyOf(A) : items.reduce((a, i) => a + i.qty, 0);
+                const base = A ? lineOf(A) : productTotal;
+                if (q >= (p.qty || 1)) R.prod = p.unit === 'percent' ? base * Math.min(v, 100) / 100 : v;
+            } else if (p.type === 'bogo') {
+                const n = p.buyN || 1, m = p.getM || 1;
+                if (A) R.prod = Math.floor(qtyOf(A) / (n + m)) * m * priceOf(A);
+            }
+            return R;
+        };
+        window.computeMoney = function(items, dType, dVal, fee, promoId) {
+            const productTotal = items.reduce((a, i) => a + i.qty * i.price, 0);
+            const manual = dType === 'percent' ? productTotal * (Math.min(dVal, 100) / 100) : dVal;
+            const promo = promoId ? promosDB.find(x => x.id === promoId && !x.deleted) : null;
+            const r = calcPromo(promo, items, productTotal, fee);
+            const promoProd = Math.round(Math.min(r.prod, Math.max(0, productTotal - manual)));
+            const promoShip = Math.round(Math.min(r.ship, fee));
+            return { productTotal, manual, promo, promoProd, promoShip, total: Math.max(0, Math.round(productTotal - manual - promoProd) + fee - promoShip) };
+        };
+        window.getCartItems = function() {
+            return Array.from(document.querySelectorAll('#productList > div')).map(row => {
+                const n = row.querySelector('.prod-name');
+                return { name: n ? n.value : '', code: n ? (n.dataset.code || '') : '', qty: Math.round(parseFloat(row.querySelector('.prod-qty').value)) || 0, price: Math.round(parseFloat(row.querySelector('.prod-price').value)) || 0 };
+            });
+        };
+        window.promoLineHTML = function(o, mode) {
+            const d = (o.promoDiscount || 0) + (o.promoShipDiscount || 0);
+            if (!o.promoName || d <= 0) return '';
+            if (mode === 'stats') return `<div class="flex justify-between text-sm text-pink-500 mt-1 font-medium"><span>KM: ${pe(o.promoName)}</span><span>-${formatCurrency(d)}</span></div>`;
+            return `<p style="margin: 4px 0; color: #555;">KM ${pe(o.promoName)}: -${formatCurrency(d)}</p>`;
+        };
+
+        window.describePromo = function(p) {
+            const u = p.unit === 'percent' ? '%' : 'đ', val = p.unit === 'percent' || ['pct_total','prod_pct'].includes(p.type) ? (p.value + '%') : formatCurrency(p.value);
+            const min = p.minTotal ? ` (đơn từ ${formatCurrency(p.minTotal)})` : '';
+            const A = p.prodA ? pe(p.prodA) : 'tất cả SP';
+            switch (p.type) {
+                case 'pct_total': return `Giảm ${p.value}% tổng đơn${min}`;
+                case 'amt_total': return `Giảm ${formatCurrency(p.value)} tổng đơn${min}`;
+                case 'ship_free': return `Miễn phí ship${min}`;
+                case 'ship_amt': return `Giảm ${formatCurrency(p.value)} phí ship${min}`;
+                case 'prod_pct': return `Mua từ ${p.qty} ${A} → giảm ${p.value}% tiền SP đó`;
+                case 'combo': return `Mua ${A} + ${pe(p.prodB)} → giảm ${val} mỗi combo`;
+                case 'qty_tier': return `Mua từ ${p.qty} ${A} → giảm ${val}${min}`;
+                case 'bogo': return `Mua ${p.buyN} tặng ${p.getM} ${A}`;
+            }
+            return '';
+        };
+        window.renderPromos = function() {
+            const list = document.getElementById('promoList'); if (!list) return;
+            const arr = promosDB.filter(p => !p.deleted);
+            if (!arr.length) { list.innerHTML = '<p class="text-center text-gray-400 py-10 text-sm">Chưa có chương trình khuyến mãi nào</p>'; return; }
+            list.innerHTML = arr.map(p => `<div class="apple-card p-4 ${p.active ? '' : 'opacity-60'}">
+                <div class="flex justify-between items-start gap-2">
+                    <div class="flex-1"><p class="font-bold text-sm">${pe(p.name)}</p><p class="text-xs text-pink-600 mt-1">${describePromo(p)}</p><p class="text-[10px] text-gray-400 mt-1">${PROMO_TYPES[p.type] ? PROMO_TYPES[p.type].label : ''}</p></div>
+                    <label class="inline-flex items-center cursor-pointer relative"><input type="checkbox" class="sr-only peer" ${p.active ? 'checked' : ''} onchange="togglePromo('${p.id}')"><div class="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div></label>
+                </div>
+                <div class="flex gap-4 mt-3 text-xs font-semibold"><button onclick="openPromoForm('${p.id}')" class="text-blue-500">Sửa</button><button onclick="deletePromo('${p.id}')" class="text-red-500">Xóa</button></div>
+            </div>`).join('');
+        };
+        window.onPromoTypeChange = function() {
+            const t = PROMO_TYPES[document.getElementById('pf-type').value]; if (!t) return;
+            ALL_PF.forEach(f => document.getElementById('pw-' + f).classList.toggle('hidden-section', !t.f.includes(f)));
+            document.getElementById('pl-value').innerText = t.vl || 'Mức giảm';
+            const tier = document.getElementById('pf-type').value === 'qty_tier';
+            document.getElementById('pl-prodA').innerText = tier ? 'Sản phẩm áp dụng (để trống = tất cả SP)' : 'Sản phẩm A';
+            document.getElementById('pf-unit').disabled = false;
+        };
+        window.openPromoForm = function(id) {
+            const opts = '<option value="">-- Chọn sản phẩm --</option>' + productsDB.map(p => `<option value="${pe(p.name)}">${p.code ? '[' + pe(p.code) + '] ' : ''}${pe(p.name)}</option>`).join('');
+            document.getElementById('pf-prodA').innerHTML = opts; document.getElementById('pf-prodB').innerHTML = opts;
+            document.getElementById('pf-type').innerHTML = Object.entries(PROMO_TYPES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
+            const p = id ? promosDB.find(x => x.id === id) : null;
+            document.getElementById('pf-id').value = p ? p.id : '';
+            document.getElementById('pf-name').value = p ? p.name : '';
+            document.getElementById('pf-type').value = p ? p.type : 'pct_total';
+            document.getElementById('pf-prodA').value = p ? (p.prodA || '') : ''; document.getElementById('pf-prodB').value = p ? (p.prodB || '') : '';
+            document.getElementById('pf-qty').value = p && p.qty ? p.qty : ''; document.getElementById('pf-buyN').value = p && p.buyN ? p.buyN : ''; document.getElementById('pf-getM').value = p && p.getM ? p.getM : '';
+            document.getElementById('pf-unit').value = p && p.unit ? p.unit : 'percent'; document.getElementById('pf-value').value = p && p.value ? p.value : ''; document.getElementById('pf-min').value = p && p.minTotal ? p.minTotal : '';
+            onPromoTypeChange();
+            document.getElementById('promoForm').classList.remove('hidden-section');
+            document.getElementById('promoForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+        window.closePromoForm = function() { document.getElementById('promoForm').classList.add('hidden-section'); };
+        window.savePromo = function() {
+            const g = i => document.getElementById(i).value, n = i => parseFloat(g(i)) || 0;
+            const type = g('pf-type'), t = PROMO_TYPES[type], name = g('pf-name').trim();
+            if (!name) return showToast('Nhập tên chương trình!');
+            const p = { id: g('pf-id') || `KM${Date.now().toString().slice(-8)}`, name, type, active: true, prodA: g('pf-prodA'), prodB: g('pf-prodB'), qty: n('pf-qty'), buyN: n('pf-buyN'), getM: n('pf-getM'), unit: t.f.includes('unit') ? g('pf-unit') : (type === 'pct_total' || type === 'prod_pct' ? 'percent' : 'amount'), value: n('pf-value'), minTotal: n('pf-min'), _updatedAt: Date.now() };
+            if (t.f.includes('value') && p.value <= 0) return showToast('Nhập mức giảm hợp lệ!');
+            if (t.f.includes('prodA') && type !== 'qty_tier' && !p.prodA) return showToast('Chọn sản phẩm!');
+            if (type === 'combo' && (!p.prodA || !p.prodB || p.prodA === p.prodB)) return showToast('Chọn 2 sản phẩm khác nhau!');
+            if ((type === 'prod_pct' || type === 'qty_tier') && p.qty < 1) return showToast('Nhập số lượng tối thiểu!');
+            if (type === 'bogo' && (p.buyN < 1 || p.getM < 1)) return showToast('Nhập số lượng mua và tặng!');
+            const old = promosDB.find(x => x.id === p.id);
+            if (old) { p.active = old.active; promosDB[promosDB.indexOf(old)] = p; } else promosDB.push(p);
+            logAction('KHUYẾN MÃI', `${old ? 'Sửa' : 'Tạo'} CTKM [${name}]`);
+            saveData(); closePromoForm(); renderPromos(); calcTotal(); showToast('Đã lưu CTKM');
+        };
+        window.togglePromo = function(id) { const p = promosDB.find(x => x.id === id); if (p) { p.active = !p.active; p._updatedAt = Date.now(); saveData(); renderPromos(); calcTotal(); } };
+        window.deletePromo = function(id) {
+            if (!confirm('Xóa chương trình khuyến mãi này?')) return;
+            const p = promosDB.find(x => x.id === id); if (p) { p.deleted = true; p.active = false; p._updatedAt = Date.now(); logAction('KHUYẾN MÃI', `Xóa CTKM [${p.name}]`); saveData(); renderPromos(); calcTotal(); }
+        };
+
         window.saveData = function() {
             localStorage.setItem('myOrders', JSON.stringify(ordersDB)); localStorage.setItem('myProds', JSON.stringify(productsDB));
             localStorage.setItem('myCustomers', JSON.stringify(customersDB)); localStorage.setItem('mySettings', JSON.stringify(appSettings)); 
-            localStorage.setItem('myShippers', JSON.stringify(shippersDB));
+            localStorage.setItem('myShippers', JSON.stringify(shippersDB)); localStorage.setItem('myPromos', JSON.stringify(promosDB));
             if (appSettings.gasUrl) syncToGoogle();
         }
 
@@ -1163,7 +1332,8 @@
             
             let productTotal = prods.reduce((s,p) => s + (p.qty*p.price), 0);
             let discountAmount = discountType === 'percent' ? productTotal * (Math.min(discountValue, 100) / 100) : discountValue;
-            let finalTotal = Math.max(0, productTotal - discountAmount) + shipFee;
+            const money = computeMoney(prods, discountType, discountValue, shipFee, orderPromoId);
+            let finalTotal = money.total;
 
             const order = {
                 id: currentId, date: existingOrder ? existingOrder.date : new Date().toISOString(), receiveDate: receiveDate,
@@ -1171,6 +1341,7 @@
                 shippingFee: shipFee, shipperName: delivery === 'Ship' ? shipperName : '', 
                 products: prods, 
                 discountType: discountType, discountValue: discountValue,
+                promoId: money.promo ? money.promo.id : '', promoName: money.promo ? money.promo.name : '', promoDiscount: money.promoProd, promoShipDiscount: money.promoShip,
                 total: finalTotal, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
                 notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value),
                 _updatedAt: Date.now() // Timestamp cho 2-way sync
@@ -1189,7 +1360,7 @@
             saveData(); showToast("Đã lưu đơn hàng");
             
             document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = ''; document.getElementById('shippingShipper').value = '';
-            document.getElementById('discountType').value = 'amount'; document.getElementById('discountValue').value = '';
+            orderPromoId = ''; document.getElementById('discountType').value = 'amount'; document.getElementById('discountValue').value = '';
             document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
             toggleShipping(); toggleOtherNote(); calcTotal(); if (!document.getElementById('tab-crm').classList.contains('hidden-section')) renderCrmList();
         };
@@ -1399,7 +1570,7 @@
                                 
                                 <div class="mt-3 bg-white p-3 rounded-xl border border-gray-100">
                                     ${prodsHTML}
-                                    ${discountHTML}
+                                    ${discountHTML}${promoLineHTML(o,'stats')}
                                     ${o.shippingFee ? `<div class="flex justify-between text-sm text-gray-400 mt-1"><span>Phí ship</span><span>${formatCurrency(o.shippingFee)}</span></div>` : ''}
                                     <div class="border-t mt-2 pt-2 flex justify-between font-bold"><span>Tổng cộng</span><span class="text-black text-lg">${formatCurrency(o.total)}</span></div>
                                 </div>
@@ -1486,7 +1657,7 @@
         };
 
         window.switchTab = function(tabId) {
-            const tabs = ['order', 'revenue', 'stats', 'shipping', 'products', 'crm', 'settings'];
+            const tabs = ['order', 'revenue', 'stats', 'shipping', 'products', 'promos', 'crm', 'settings'];
             tabs.forEach((t) => {
                 const btn = document.getElementById(`btn-tab-${t}`); const content = document.getElementById(`tab-${t}`);
                 if(t === tabId) { btn.classList.add('active'); content.classList.remove('hidden-section'); } 
@@ -1495,6 +1666,7 @@
             setTimeout(window.updateSliderPosition, 50);
             if(tabId === 'stats') { document.getElementById('selectAllBtn').checked = false; renderStats(); }
             if(tabId === 'crm') { renderCrmList(); }
+            if(tabId === 'promos') { renderPromos(); }
             if(tabId === 'revenue') { renderRevenueCharts(); }
             if(tabId === 'shipping') { renderShipperManagementList(); populateShipperDropdowns(); renderShippingStats(); }
             selectedOrders.clear(); updateBulkBar();
@@ -1663,29 +1835,21 @@
             });
         };
         window.calcTotal = function() {
-            let productTotal = 0; 
-            document.querySelectorAll('#productList > div').forEach(row => { 
-                const q = Math.round(parseFloat(row.querySelector('.prod-qty').value)) || 0; 
-                const p = Math.round(parseFloat(row.querySelector('.prod-price').value)) || 0; 
-                productTotal += q * p; 
-            });
-
-            const discountType = document.getElementById('discountType').value;
-            const discountInputVal = parseFloat(document.getElementById('discountValue').value) || 0;
-            let discountAmount = 0;
-            if (discountType === 'percent') {
-                discountAmount = productTotal * (Math.min(discountInputVal, 100) / 100);
-            } else {
-                discountAmount = discountInputVal;
+            const items = getCartItems();
+            const fee = (() => { const t = document.getElementById('shippingFee').value.replace(/[^0-9]/g, ''); return t ? parseInt(t, 10) : 0; })();
+            const dType = document.getElementById('discountType').value, dVal = parseFloat(document.getElementById('discountValue').value) || 0;
+            const productTotal = items.reduce((a, i) => a + i.qty * i.price, 0);
+            const sel = document.getElementById('orderPromo');
+            if (sel) {
+                const list = promosDB.filter(p => p.active && !p.deleted).map(p => { const r = calcPromo(p, items, productTotal, fee); return { p, save: Math.round(r.prod + r.ship) }; }).sort((a, b) => b.save - a.save);
+                const html = '<option value="">Không áp dụng</option>' + list.map(o => `<option value="${o.p.id}">${pe(o.p.name)}${o.save > 0 ? ` (-${formatCurrency(o.save)})` : ' (chưa đủ điều kiện)'}</option>`).join('');
+                if (sel.innerHTML !== html) sel.innerHTML = html;
+                sel.value = orderPromoId; orderPromoId = sel.value;
             }
-            
-            let subTotal = Math.max(0, productTotal - discountAmount);
-
-            const shipInputText = document.getElementById('shippingFee').value.replace(/[^0-9]/g, ''); 
-            const fee = shipInputText ? parseInt(shipInputText, 10) : 0; 
-            
-            let total = subTotal + fee; 
-            document.getElementById('totalPrice').innerText = formatCurrency(total);
+            const m = computeMoney(items, dType, dVal, fee, orderPromoId);
+            const info = document.getElementById('promoInfo');
+            if (info) info.innerText = m.promo ? ((m.promoProd + m.promoShip) > 0 ? `Đã giảm ${formatCurrency(m.promoProd + m.promoShip)} từ "${m.promo.name}"` : 'Chưa đủ điều kiện áp dụng CTKM này') : '';
+            document.getElementById('totalPrice').innerText = formatCurrency(m.total);
         };
         window.resolveConfirm = function(val) { if(confirmResolver) { confirmResolver(val); confirmResolver = null; } };
 
@@ -1762,7 +1926,7 @@
             document.getElementById('shippingAddress').value = o.shippingAddress || ''; document.getElementById('shippingFee').value = o.shippingFee || '';
             document.getElementById('shippingShipper').value = o.shipperName || '';
             
-            document.getElementById('discountType').value = o.discountType || 'amount';
+            orderPromoId = o.promoId || ''; document.getElementById('discountType').value = o.discountType || 'amount';
             document.getElementById('discountValue').value = o.discountValue || '';
 
             document.getElementById('productList').innerHTML = ''; o.products.forEach(p => addProductRow(p)); addProductRow();
@@ -1778,7 +1942,7 @@
             document.getElementById('btnSubmitOrder').innerText = 'Hoàn tất đơn hàng';
             
             document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = ''; document.getElementById('shippingShipper').value = '';
-            document.getElementById('discountType').value = 'amount'; document.getElementById('discountValue').value = '';
+            orderPromoId = ''; document.getElementById('discountType').value = 'amount'; document.getElementById('discountValue').value = '';
 
             document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
             toggleShipping(); toggleOtherNote(); calcTotal();
@@ -1823,7 +1987,7 @@
                             <div style="display: flex; justify-content: space-between; align-items: flex-end;">
                                 <div style="text-align: left;">${(appSettings.qrCode && cfg.showQR !== false && cfg.qrPosition === 'right') ? `<img src="${appSettings.qrCode}" style="width: 80px; height: 80px; border-radius: 6px; border: 1px solid #ddd; padding: 4px; background: white;">` : ''}</div>
                                 <div style="text-align: right; font-size: 14px; line-height: 1.6;">
-                                    ${discountHTMLPrint}
+                                    ${discountHTMLPrint}${promoLineHTML(o,'print')}
                                     ${o.shippingFee ? `<p style="margin: 4px 0;">Phí ship: ${formatCurrency(o.shippingFee)}</p>` : ''}
                                     <div style="margin-top: 10px; border-top: 1px solid #000; padding-top: 10px;"><span style="font-size: 13px; font-weight: bold; display: block;">TỔNG THANH TOÁN</span><span style="font-size: 24px; font-weight: 900;">${formatCurrency(o.total)}</span></div>
                                 </div>
@@ -1870,7 +2034,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: flex-end;">
                         <div style="text-align: left;">${(appSettings.qrCode && cfg.showQR !== false && cfg.qrPosition === 'right') ? `<img src="${appSettings.qrCode}" style="width: 60px; height: 60px; border-radius: 6px; border: 1px solid #E5E5E7; padding: 4px; background: white;">` : ''}</div>
                         <div style="text-align: right; font-size: 13px; line-height: 1.6;">
-                            ${discountHTMLExport}
+                            ${discountHTMLExport}${promoLineHTML(o,'print')}
                             ${o.shippingFee ? `<p style="margin: 3px 0; color: #8E8E93;">Phí ship: ${formatCurrency(o.shippingFee)}</p>` : ''}
                             <div style="margin-top: 8px; border-top: 1px solid #1D1D1F; padding-top: 8px;"><span style="font-size: 11px; color: #8E8E93; font-weight: 500; display: block; margin-bottom: 2px;">TỔNG THANH TOÁN</span><span style="font-size: 20px; font-weight: 700; color: #1D1D1F; letter-spacing: -0.5px;">${formatCurrency(o.total)}</span></div>
                         </div>
@@ -2124,18 +2288,19 @@
 
                     if (cloudData.products) productsDB = mergeDataLists(productsDB, cloudData.products);
                     if (cloudData.shippers) shippersDB = mergeDataLists(shippersDB, cloudData.shippers);
+                    if (Array.isArray(cloudData.promotions)) promosDB = mergeDataLists(promosDB, cloudData.promotions);
                     
                     localStorage.setItem('myOrders', JSON.stringify(ordersDB));
                     localStorage.setItem('myCustomers', JSON.stringify(customersDB));
                     localStorage.setItem('myProds', JSON.stringify(productsDB));
-                    localStorage.setItem('myShippers', JSON.stringify(shippersDB));
+                    localStorage.setItem('myShippers', JSON.stringify(shippersDB)); localStorage.setItem('myPromos', JSON.stringify(promosDB));
 
                     await new Promise(resolve => setTimeout(resolve, 800));
 
                     // POST data dưới dạng string thuần túy không kèm custom headers để tránh lỗi chặn CORS
                     const pushRes = await fetch(appSettings.gasUrl, { 
                         method: 'POST', 
-                        body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, customers: customersDB, shippers: shippersDB, logs: logsDB, settings: appSettings }) 
+                        body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, customers: customersDB, shippers: shippersDB, promotions: promosDB, logs: logsDB, settings: appSettings }) 
                     });
                     
                     if (!pushRes.ok) throw new Error("HTTP " + pushRes.status);
