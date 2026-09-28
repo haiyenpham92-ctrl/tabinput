@@ -2360,6 +2360,8 @@
                         if(detailStatus) detailStatus.innerText = `Đồng bộ 2 chiều thành công: ${new Date().toLocaleTimeString()}`; 
                         if(manual) showToast("Đã đồng bộ dữ liệu mới lên Sheets");
                         isCloudSyncReady = true;
+                        if (data.promoSaved === undefined) { status.innerText = "Đã đồng bộ (server CHƯA nhận CTKM)"; if(detailStatus) detailStatus.innerText = "⚠ Apps Script đang chạy bản cũ: chưa triển khai phiên bản mới nên CTKM không lên Sheet."; showToast("⚠ Apps Script chưa cập nhật bản mới: CTKM chưa lưu được lên Sheet"); }
+                        else if(detailStatus) detailStatus.innerText += ` • CTKM trên Sheet: ${data.promoSaved}`;
                         
                         if (!document.getElementById('tab-stats').classList.contains('hidden-section')) renderStats();
                         if (!document.getElementById('tab-crm').classList.contains('hidden-section')) renderCrmList();
