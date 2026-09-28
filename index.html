@@ -36,6 +36,8 @@
         
         .segmented-control { background: #E5E5E7; padding: 3px; border-radius: 16px; display: flex; position: relative; overflow-x: auto; scrollbar-width: none; }
         .segmented-control::-webkit-scrollbar { display: none; }
+        .segmented-control { cursor: grab; user-select: none; -webkit-user-select: none; overscroll-behavior-x: contain; }
+        .segmented-control.dragging { cursor: grabbing; }
         .segment-btn { flex: 1; text-align: center; padding: 10px 4px; font-size: 10px; font-weight: 600; cursor: pointer; z-index: 10; color: #8E8E93; transition: color 0.3s; white-space: nowrap; min-width: 65px; }
         .segment-btn.active { color: #1D1D1F; }
         .segment-bg { position: absolute; top: 3px; bottom: 3px; left: 0; background: #FFFFFF; border-radius: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1), width 0.3s cubic-bezier(0.25, 0.1, 0.25, 1); z-index: 1; }
@@ -195,8 +197,8 @@
 
             <div class="apple-card p-6">
                 <div class="mb-4 border-b border-gray-100 pb-4">
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1"><i class="fas fa-gift text-pink-500 mr-1"></i>Chương trình khuyến mãi</label>
-                    <select id="orderPromo" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="orderPromoId=this.value; calcTotal()"><option value="">Không áp dụng</option></select>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1"><i class="fas fa-gift text-pink-500 mr-1"></i>Chương trình khuyến mãi (chọn được nhiều)</label>
+                    <div id="orderPromoList" class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1 max-h-48 overflow-y-auto"></div>
                     <p id="promoInfo" class="text-xs text-pink-600 font-semibold mt-1"></p>
                 </div>
                 <div class="flex gap-3 mb-4 border-b border-gray-100 pb-4">
@@ -249,6 +251,12 @@
                 </div>
                 <div id="pw-tiers"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Các mốc giảm giá (mua từ N SP → giảm)</label><div id="pf-tiers" class="space-y-2"></div></div>
                 <div id="pw-minTotal"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Đơn tối thiểu (VNĐ, tùy chọn)</label><input type="number" id="pf-min" class="input-field py-2 text-sm" placeholder="0"></div>
+                <div class="flex gap-2">
+                    <div class="flex-1"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Chạy từ ngày (tùy chọn)</label><input type="date" id="pf-start" class="input-field py-2 text-sm"></div>
+                    <div class="flex-1"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Đến ngày (tùy chọn)</label><input type="date" id="pf-end" class="input-field py-2 text-sm"></div>
+                </div>
+                <div><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Tính thời gian theo</label><select id="pf-basis" class="input-field py-2 text-sm"><option value="created">Ngày tạo đơn</option><option value="receive">Ngày trả bánh</option></select></div>
+                <label class="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" id="pf-excl"> Không dùng chung với CTKM khác</label>
                 <div class="flex gap-2 pt-1">
                     <button onclick="closePromoForm()" class="btn-secondary flex-1">Hủy</button>
                     <button onclick="savePromo()" class="btn-primary flex-1">Lưu CTKM</button>
@@ -769,6 +777,24 @@
         let chartProductInstance = null;
         let currentCrmPhone = null;
 
+        (function initTabDragScroll() {
+            const el = document.getElementById('tabsContainer'); if (!el) return;
+            let down = false, moved = false, startX = 0, startLeft = 0;
+            el.addEventListener('mousedown', e => { if (e.button !== 0) return; down = true; moved = false; startX = e.pageX; startLeft = el.scrollLeft; });
+            window.addEventListener('mousemove', e => {
+                if (!down) return;
+                const dx = e.pageX - startX;
+                if (Math.abs(dx) > 5) { moved = true; el.classList.add('dragging'); }
+                if (moved) { el.scrollLeft = startLeft - dx; e.preventDefault(); }
+            });
+            window.addEventListener('mouseup', () => { down = false; el.classList.remove('dragging'); });
+            el.addEventListener('click', e => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+            el.addEventListener('wheel', e => {
+                if (el.scrollWidth <= el.clientWidth) return;
+                e.preventDefault(); el.scrollLeft += (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY);
+            }, { passive: false });
+        })();
+
         window.onload = function() {
             window.checkBiometricSupport(); // Kiểm tra nút sinh trắc học
             // Tự động đăng nhập nếu có remember
@@ -961,7 +987,7 @@
         function showToast(msg) { const t = document.getElementById('toast'); t.innerText = msg; t.classList.remove('opacity-0'); setTimeout(() => t.classList.add('opacity-0'), 2500); }
         
         let promosDB = JSON.parse(localStorage.getItem('myPromos') || '[]') || [];
-        let orderPromoId = '';
+        let orderPromoIds = [];
         const pe = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
         const PROMO_TYPES = {
             pct_total: { label: 'Giảm % tổng đơn', f: ['value','minTotal'], vl: 'Mức giảm (%)' },
@@ -977,9 +1003,37 @@
         };
         const ALL_PF = ['prodA','prodB','qty','buyN','getM','gifts','pool','unit','value','tiers','minTotal'];
 
-        window.calcPromo = function(p, items, productTotal, fee) {
+        window.getPromoCtx = function() {
+            const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const ex = editOrderId ? ordersDB.find(o => o.id === editOrderId) : null;
+            const m = ((document.getElementById('orderDate') || {}).value || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+            return { created: ymd(ex && ex.date ? new Date(ex.date) : new Date()), receive: m ? `${m[3]}-${m[2]}-${m[1]}` : '' };
+        };
+        window.promoWindowState = function(p, ctx) {
+            if (!p.startDate && !p.endDate) return 'ok';
+            const d = p.dateBasis === 'receive' ? ctx.receive : ctx.created;
+            if (!d) return 'nodate';
+            if (p.startDate && d < p.startDate) return 'early';
+            if (p.endDate && d > p.endDate) return 'late';
+            return 'ok';
+        };
+        window.promoTimeHTML = function(p) {
+            const f = x => x ? x.split('-').reverse().join('/') : '';
+            let html = '';
+            if (p.startDate || p.endDate) {
+                let badge = '';
+                if (p.dateBasis !== 'receive') { const t = getPromoCtx().created; if (p.endDate && t > p.endDate) badge = ' <span class="text-red-500 font-semibold">• Đã hết hạn</span>'; else if (p.startDate && t < p.startDate) badge = ' <span class="text-orange-500 font-semibold">• Chưa bắt đầu</span>'; }
+                html += `<p class="text-[11px] text-gray-500 mt-1"><i class="far fa-clock mr-1"></i>${p.startDate ? f(p.startDate) : '...'} → ${p.endDate ? f(p.endDate) : 'không giới hạn'} (theo ${p.dateBasis === 'receive' ? 'ngày trả bánh' : 'ngày tạo đơn'})${badge}</p>`;
+            }
+            if (p.exclusive) html += '<p class="text-[11px] text-orange-500 mt-1">Không dùng chung với CTKM khác</p>';
+            return html;
+        };
+        window.calcPromo = function(p, items, productTotal, fee, ctx) {
             const R = { prod: 0, ship: 0, gifts: [] };
-            if (!p || (p.minTotal && productTotal < p.minTotal)) return R;
+            if (!p) return R;
+            const ws = promoWindowState(p, ctx || getPromoCtx());
+            if (ws !== 'ok') { R.window = ws; return R; }
+            if (p.minTotal && productTotal < p.minTotal) return R;
             const of = n => items.filter(i => i.name === n);
             const qtyOf = n => of(n).reduce((a, i) => a + i.qty, 0);
             const lineOf = n => of(n).reduce((a, i) => a + i.qty * i.price, 0);
@@ -1015,14 +1069,21 @@
             }
             return R;
         };
-        window.computeMoney = function(items, dType, dVal, fee, promoId) {
+        window.computeMoney = function(items, dType, dVal, fee, promoIds) {
+            const ids = Array.isArray(promoIds) ? promoIds : (promoIds ? [promoIds] : []);
+            const ctx = getPromoCtx();
             const productTotal = items.reduce((a, i) => a + i.qty * i.price, 0);
             const manual = dType === 'percent' ? productTotal * (Math.min(dVal, 100) / 100) : dVal;
-            const promo = promoId ? promosDB.find(x => x.id === promoId && !x.deleted) : null;
-            const r = calcPromo(promo, items, productTotal, fee);
-            const promoProd = Math.round(Math.min(r.prod, Math.max(0, productTotal - manual)));
-            const promoShip = Math.round(Math.min(r.ship, fee));
-            return { productTotal, manual, promo, promoProd, promoShip, gifts: r.gifts || [], total: Math.max(0, Math.round(productTotal - manual - promoProd) + fee - promoShip) };
+            let prod = 0, ship = 0; const gifts = [], applied = [];
+            ids.map(id => promosDB.find(x => x.id === id && !x.deleted)).filter(Boolean).forEach(p => {
+                const r = calcPromo(p, items, productTotal, fee, ctx);
+                prod += r.prod; ship += r.ship;
+                (r.gifts || []).forEach(g => { const e = gifts.find(x => x.name === g.name); if (e) e.qty += g.qty; else gifts.push({ name: g.name, qty: g.qty }); });
+                if (r.prod > 0 || r.ship > 0 || (r.gifts || []).length) applied.push(p);
+            });
+            const promoProd = Math.round(Math.min(prod, Math.max(0, productTotal - manual)));
+            const promoShip = Math.round(Math.min(ship, fee));
+            return { productTotal, manual, applied, promoProd, promoShip, gifts, total: Math.max(0, Math.round(productTotal - manual - promoProd) + fee - promoShip) };
         };
         window.getCartItems = function() {
             return Array.from(document.querySelectorAll('#productList > div')).map(row => {
@@ -1063,7 +1124,7 @@
             if (!arr.length) { list.innerHTML = '<p class="text-center text-gray-400 py-10 text-sm">Chưa có chương trình khuyến mãi nào</p>'; return; }
             list.innerHTML = arr.map(p => `<div class="apple-card p-4 ${p.active ? '' : 'opacity-60'}">
                 <div class="flex justify-between items-start gap-2">
-                    <div class="flex-1"><p class="font-bold text-sm">${pe(p.name)}</p><p class="text-xs text-pink-600 mt-1">${describePromo(p)}</p><p class="text-[10px] text-gray-400 mt-1">${PROMO_TYPES[p.type] ? PROMO_TYPES[p.type].label : ''}</p></div>
+                    <div class="flex-1"><p class="font-bold text-sm">${pe(p.name)}</p><p class="text-xs text-pink-600 mt-1">${describePromo(p)}</p>${promoTimeHTML(p)}<p class="text-[10px] text-gray-400 mt-1">${PROMO_TYPES[p.type] ? PROMO_TYPES[p.type].label : ''}</p></div>
                     <label class="inline-flex items-center cursor-pointer relative"><input type="checkbox" class="sr-only peer" ${p.active ? 'checked' : ''} onchange="togglePromo('${p.id}')"><div class="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div></label>
                 </div>
                 <div class="flex gap-4 mt-3 text-xs font-semibold"><button onclick="openPromoForm('${p.id}')" class="text-blue-500">Sửa</button><button onclick="deletePromo('${p.id}')" class="text-red-500">Xóa</button></div>
@@ -1101,6 +1162,7 @@
             document.getElementById('pf-prodA').value = p ? (p.prodA || '') : ''; document.getElementById('pf-prodB').value = p ? (p.prodB || '') : '';
             document.getElementById('pf-qty').value = p && p.qty ? p.qty : ''; document.getElementById('pf-buyN').value = p && p.buyN ? p.buyN : ''; document.getElementById('pf-getM').value = p && p.getM ? p.getM : '';
             document.getElementById('pf-unit').value = p && p.unit ? p.unit : 'percent'; document.getElementById('pf-value').value = p && p.value ? p.value : ''; document.getElementById('pf-min').value = p && p.minTotal ? p.minTotal : '';
+            document.getElementById('pf-start').value = p && p.startDate ? p.startDate : ''; document.getElementById('pf-end').value = p && p.endDate ? p.endDate : ''; document.getElementById('pf-basis').value = p && p.dateBasis ? p.dateBasis : 'created'; document.getElementById('pf-excl').checked = !!(p && p.exclusive);
             pfGifts = p && p.gifts && p.gifts.length ? JSON.parse(JSON.stringify(p.gifts)) : (p && p.type === 'bogo' && p.prodA && p.getM ? [{ name: p.prodA, qty: p.getM }] : [{ name: '', qty: 1 }]);
             pfTiers = p && p.tiers && p.tiers.length ? JSON.parse(JSON.stringify(p.tiers)) : [{ qty: 2, value: 0 }];
             pfPool = p && p.pool ? p.pool.slice() : [];
@@ -1114,7 +1176,8 @@
             const g = i => document.getElementById(i).value, n = i => parseFloat(g(i)) || 0;
             const type = g('pf-type'), t = PROMO_TYPES[type], name = g('pf-name').trim();
             if (!name) return showToast('Nhập tên chương trình!');
-            const p = { id: g('pf-id') || `KM${Date.now().toString().slice(-8)}`, name, type, active: true, prodA: g('pf-prodA'), prodB: g('pf-prodB'), qty: n('pf-qty'), buyN: n('pf-buyN'), getM: n('pf-getM'), unit: t.f.includes('unit') ? g('pf-unit') : (type === 'pct_total' || type === 'prod_pct' ? 'percent' : 'amount'), value: n('pf-value'), minTotal: n('pf-min'), _updatedAt: Date.now() };
+            const p = { id: g('pf-id') || `KM${Date.now().toString().slice(-8)}`, name, type, active: true, prodA: g('pf-prodA'), prodB: g('pf-prodB'), qty: n('pf-qty'), buyN: n('pf-buyN'), getM: n('pf-getM'), unit: t.f.includes('unit') ? g('pf-unit') : (type === 'pct_total' || type === 'prod_pct' ? 'percent' : 'amount'), value: n('pf-value'), minTotal: n('pf-min'), startDate: g('pf-start'), endDate: g('pf-end'), dateBasis: g('pf-basis'), exclusive: document.getElementById('pf-excl').checked, _updatedAt: Date.now() };
+            if (p.startDate && p.endDate && p.startDate > p.endDate) return showToast('Ngày bắt đầu phải trước ngày kết thúc!');
             p.gifts = t.f.includes('gifts') ? pfGifts.filter(g => g.name && g.qty > 0) : [];
             p.pool = t.f.includes('pool') ? pfPool.slice() : [];
             p.tiers = t.f.includes('tiers') ? pfTiers.filter(x => x.qty > 0 && x.value > 0) : [];
@@ -1377,7 +1440,7 @@
             
             let productTotal = prods.reduce((s,p) => s + (p.qty*p.price), 0);
             let discountAmount = discountType === 'percent' ? productTotal * (Math.min(discountValue, 100) / 100) : discountValue;
-            const money = computeMoney(prods, discountType, discountValue, shipFee, orderPromoId);
+            const money = computeMoney(prods, discountType, discountValue, shipFee, orderPromoIds);
             let finalTotal = money.total;
             (money.gifts || []).forEach(g => { const pd = productsDB.find(x => x.name === g.name); prods.push({ code: pd ? (pd.code || '') : '', name: g.name, qty: g.qty, price: 0, isPromoGift: true }); });
 
@@ -1387,7 +1450,7 @@
                 shippingFee: shipFee, shipperName: delivery === 'Ship' ? shipperName : '', 
                 products: prods, 
                 discountType: discountType, discountValue: discountValue,
-                promoId: money.promo ? money.promo.id : '', promoName: money.promo ? money.promo.name : '', promoDiscount: money.promoProd, promoShipDiscount: money.promoShip, promoGifts: money.gifts || [],
+                promoIds: money.applied.map(p => p.id), promoId: money.applied.length ? money.applied[0].id : '', promoName: money.applied.map(p => p.name).join(' + '), promoDiscount: money.promoProd, promoShipDiscount: money.promoShip, promoGifts: money.gifts || [],
                 total: finalTotal, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
                 notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value),
                 _updatedAt: Date.now() // Timestamp cho 2-way sync
@@ -1406,7 +1469,7 @@
             saveData(); showToast("Đã lưu đơn hàng");
             
             document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = ''; document.getElementById('shippingShipper').value = '';
-            orderPromoId = ''; document.getElementById('discountType').value = 'amount'; document.getElementById('discountValue').value = '';
+            orderPromoIds = []; document.getElementById('discountType').value = 'amount'; document.getElementById('discountValue').value = '';
             document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
             toggleShipping(); toggleOtherNote(); calcTotal(); if (!document.getElementById('tab-crm').classList.contains('hidden-section')) renderCrmList();
         };
@@ -1710,6 +1773,7 @@
                 else { btn.classList.remove('active'); content.classList.add('hidden-section'); }
             });
             setTimeout(window.updateSliderPosition, 50);
+            setTimeout(() => { const a = document.querySelector('.segment-btn.active'); if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); }, 60);
             if(tabId === 'stats') { document.getElementById('selectAllBtn').checked = false; renderStats(); }
             if(tabId === 'crm') { renderCrmList(); }
             if(tabId === 'promos') { renderPromos(); }
@@ -1834,7 +1898,7 @@
             }
             grid.innerHTML = html;
         };
-        window.selectDate = function(y, m, d) { selectedDate = new Date(y, m, d); document.getElementById('orderDate').value = formatFullDate(selectedDate); closeModal('dateModal'); };
+        window.selectDate = function(y, m, d) { selectedDate = new Date(y, m, d); document.getElementById('orderDate').value = formatFullDate(selectedDate); closeModal('dateModal'); if (typeof calcTotal === 'function') calcTotal(); };
         window.toggleShipping = function() {
             const val = document.querySelector('input[name="deliveryType"]:checked')?.value; const wrap = document.getElementById('shippingInputs'); const shipFeeField = document.getElementById('shippingFee');
             if(val === 'Ship') { wrap.classList.remove('hidden-section'); shipFeeField.removeAttribute('disabled'); } 
@@ -1880,23 +1944,38 @@
                 d.onmousedown = () => { input.value = p.name; input.dataset.code = p.code || ''; document.getElementById(`row-${rowId}`).querySelector('.prod-price').value = p.price; box.classList.add('hidden'); calcTotal(); window.checkAndAutoAppend(rowId); }; box.appendChild(d);
             });
         };
+        window.togglePromoPick = function(id, on) {
+            const p = promosDB.find(x => x.id === id);
+            orderPromoIds = orderPromoIds.filter(x => x !== id);
+            if (on) { if (p && p.exclusive) orderPromoIds = [id]; else orderPromoIds = orderPromoIds.filter(x => { const q = promosDB.find(y => y.id === x); return !(q && q.exclusive); }).concat(id); }
+            calcTotal();
+        };
         window.calcTotal = function() {
-            const items = getCartItems();
+            const items = getCartItems(), ctx = getPromoCtx();
             const fee = (() => { const t = document.getElementById('shippingFee').value.replace(/[^0-9]/g, ''); return t ? parseInt(t, 10) : 0; })();
             const dType = document.getElementById('discountType').value, dVal = parseFloat(document.getElementById('discountValue').value) || 0;
             const productTotal = items.reduce((a, i) => a + i.qty * i.price, 0);
-            const sel = document.getElementById('orderPromo');
-            if (sel) {
-                const list = promosDB.filter(p => p.active && !p.deleted).map(p => { const r = calcPromo(p, items, productTotal, fee); return { p, save: Math.round(r.prod + r.ship), gifts: (r.gifts || []).length }; }).sort((a, b) => (b.save + (b.gifts ? 1 : 0)) - (a.save + (a.gifts ? 1 : 0)));
-                const html = '<option value="">Không áp dụng</option>' + list.map(o => `<option value="${o.p.id}">${pe(o.p.name)}${o.save > 0 ? ` (-${formatCurrency(o.save)})` : (o.gifts ? ' (tặng quà)' : ' (chưa đủ điều kiện)')}</option>`).join('');
-                if (sel.innerHTML !== html) sel.innerHTML = html;
-                sel.value = orderPromoId; orderPromoId = sel.value;
+            const box = document.getElementById('orderPromoList');
+            if (box) {
+                const list = promosDB.filter(p => !p.deleted && (p.active || orderPromoIds.includes(p.id))).map(p => {
+                    const r = calcPromo(p, items, productTotal, fee, ctx), save = Math.round(r.prod + r.ship), g = (r.gifts || []).length;
+                    return { p, r, save, g, ok: !r.window && (save > 0 || g > 0) };
+                });
+                orderPromoIds = orderPromoIds.filter(id => list.some(o => o.p.id === id));
+                list.sort((a, b) => (b.ok - a.ok) || (b.save - a.save));
+                const WT = { early: 'chưa đến ngày áp dụng', late: 'đã hết hạn', nodate: 'chưa chọn ngày trả bánh' };
+                const html = list.length ? list.map(o => {
+                    const on = orderPromoIds.includes(o.p.id), dis = !on && !o.ok;
+                    const tag = o.r.window ? WT[o.r.window] : (o.save > 0 ? `-${formatCurrency(o.save)}` : (o.g ? 'tặng quà' : 'chưa đủ điều kiện'));
+                    return `<label class="flex items-center gap-2 py-1.5 text-sm ${dis ? 'opacity-50' : ''}"><input type="checkbox" ${on ? 'checked' : ''} ${dis ? 'disabled' : ''} onchange="togglePromoPick('${o.p.id}', this.checked)"><span class="flex-1">${pe(o.p.name)}${o.p.exclusive ? ' <span class="text-[10px] text-orange-500">(không dùng chung)</span>' : ''}</span><span class="text-xs ${o.ok ? 'text-pink-600 font-semibold' : 'text-gray-400'}">${tag}</span></label>`;
+                }).join('') : '<p class="text-xs text-gray-400 py-2">Chưa có CTKM đang bật</p>';
+                if (window._promoHtmlCache !== html) { box.innerHTML = html; window._promoHtmlCache = html; }
             }
-            const m = computeMoney(items, dType, dVal, fee, orderPromoId);
+            const m = computeMoney(items, dType, dVal, fee, orderPromoIds);
             const info = document.getElementById('promoInfo');
             if (info) {
                 const gt = m.gifts.length ? 'Tặng: ' + m.gifts.map(g => `${g.qty}x ${g.name}`).join(', ') : '', d = m.promoProd + m.promoShip;
-                info.innerText = m.promo ? ((d > 0 || gt) ? `Đã áp dụng "${m.promo.name}"` + (d > 0 ? ` - giảm ${formatCurrency(d)}` : '') + (gt ? ` - ${gt}` : '') : 'Chưa đủ điều kiện áp dụng CTKM này') : '';
+                info.innerText = orderPromoIds.length ? ((d > 0 || gt) ? `Đã áp dụng ${m.applied.length}/${orderPromoIds.length} CTKM` + (d > 0 ? ` - giảm ${formatCurrency(d)}` : '') + (gt ? ` - ${gt}` : '') : 'Chưa đủ điều kiện áp dụng CTKM đã chọn') : '';
             }
             document.getElementById('totalPrice').innerText = formatCurrency(m.total);
         };
@@ -1975,7 +2054,7 @@
             document.getElementById('shippingAddress').value = o.shippingAddress || ''; document.getElementById('shippingFee').value = o.shippingFee || '';
             document.getElementById('shippingShipper').value = o.shipperName || '';
             
-            orderPromoId = o.promoId || ''; document.getElementById('discountType').value = o.discountType || 'amount';
+            orderPromoIds = Array.isArray(o.promoIds) ? o.promoIds.slice() : (o.promoId ? [o.promoId] : []); document.getElementById('discountType').value = o.discountType || 'amount';
             document.getElementById('discountValue').value = o.discountValue || '';
 
             document.getElementById('productList').innerHTML = ''; o.products.filter(p => !p.isPromoGift).forEach(p => addProductRow(p)); addProductRow();
@@ -1991,7 +2070,7 @@
             document.getElementById('btnSubmitOrder').innerText = 'Hoàn tất đơn hàng';
             
             document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = ''; document.getElementById('shippingShipper').value = '';
-            orderPromoId = ''; document.getElementById('discountType').value = 'amount'; document.getElementById('discountValue').value = '';
+            orderPromoIds = []; document.getElementById('discountType').value = 'amount'; document.getElementById('discountValue').value = '';
 
             document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
             toggleShipping(); toggleOtherNote(); calcTotal();
