@@ -1108,12 +1108,52 @@
                 return { name: n ? n.value : '', code: n ? (n.dataset.code || '') : '', qty: Math.round(parseFloat(row.querySelector('.prod-qty').value)) || 0, price: Math.round(parseFloat(row.querySelector('.prod-price').value)) || 0 };
             });
         };
+        window.getOrderDiscountBreakdown = function(o) {
+            const items = (o.products || []).filter(pp => !pp.isPromoGift);
+            const productTotal = items.reduce((a, i) => a + i.qty * i.price, 0);
+            const fee = o.shippingFee || 0;
+            const promoIds = (o.promoIds && o.promoIds.length) ? o.promoIds : (o.promoId ? [o.promoId] : []);
+            const promos = promoIds.map(id => promosDB.find(x => x.id === id)).filter(Boolean);
+            const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const dm = (o.receiveDate || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+            const ctx = { created: ymd(o.date ? new Date(o.date) : new Date()), receive: dm ? `${dm[3]}-${dm[2]}-${dm[1]}` : '' };
+            const perProduct = {};
+            let orderLevel = 0, shipLevel = 0;
+            const addP = (name, amt) => { if (!name || amt <= 0) return; perProduct[name] = (perProduct[name] || 0) + amt; };
+            promos.forEach(p => {
+                const r = calcPromo(p, items, productTotal, fee, ctx);
+                shipLevel += (r.ship || 0);
+                if (!r.prod) return;
+                if (p.type === 'combo' && p.prodA && p.prodB) {
+                    const la = items.filter(i => i.name === p.prodA).reduce((a, i) => a + i.qty * i.price, 0);
+                    const lb = items.filter(i => i.name === p.prodB).reduce((a, i) => a + i.qty * i.price, 0);
+                    const tot = la + lb || 1;
+                    addP(p.prodA, r.prod * la / tot); addP(p.prodB, r.prod * lb / tot);
+                } else if (p.type === 'pool_tier' && p.target !== 'order') {
+                    const pool = p.pool || [], inPool = items.filter(i => pool.includes(i.name));
+                    const tot = inPool.reduce((a, i) => a + i.qty * i.price, 0) || 1;
+                    inPool.forEach(i => addP(i.name, r.prod * (i.qty * i.price) / tot));
+                } else if (p.prodA && p.target !== 'order') {
+                    addP(p.prodA, r.prod);
+                } else {
+                    orderLevel += r.prod;
+                }
+            });
+            Object.keys(perProduct).forEach(k => perProduct[k] = Math.round(perProduct[k]));
+            return { perProduct, orderLevel: Math.round(orderLevel), shipLevel: Math.round(shipLevel) };
+        };
         window.promoLineHTML = function(o, mode) {
-            const d = (o.promoDiscount || 0) + (o.promoShipDiscount || 0), gifts = o.promoGifts || [];
-            if (!o.promoName || (d <= 0 && !gifts.length)) return '';
+            const gifts = o.promoGifts || [];
             const gt = gifts.length ? 'Tặng: ' + gifts.map(g => `${g.qty}x ${pe(g.name)}`).join(', ') : '';
-            if (mode === 'stats') return (d > 0 ? `<div class="flex justify-between text-sm text-pink-500 mt-1 font-medium"><span>KM: ${pe(o.promoName)}</span><span>-${formatCurrency(d)}</span></div>` : `<div class="text-sm text-pink-500 mt-1 font-medium">KM: ${pe(o.promoName)}</div>`) + (gt ? `<div class="text-xs text-pink-500">${gt}</div>` : '');
-            return (d > 0 ? `<p style="margin: 4px 0; color: #555;">KM ${pe(o.promoName)}: -${formatCurrency(d)}</p>` : `<p style="margin: 4px 0; color: #555;">KM ${pe(o.promoName)}</p>`) + (gt ? `<p style="margin: 4px 0; color: #555;">${gt}</p>` : '');
+            if (mode === 'print') {
+                if (!o.promoName) return '';
+                const bd = getOrderDiscountBreakdown(o), leftover = bd.orderLevel + bd.shipLevel;
+                if (leftover <= 0 && !gt) return '';
+                return (leftover > 0 ? `<p style="margin: 4px 0; color: #555;">Khuyến mãi: -${formatCurrency(leftover)}</p>` : '') + (gt ? `<p style="margin: 4px 0; color: #555;">${gt}</p>` : '');
+            }
+            const d = (o.promoDiscount || 0) + (o.promoShipDiscount || 0);
+            if (!o.promoName || (d <= 0 && !gifts.length)) return '';
+            return (d > 0 ? `<div class="flex justify-between text-sm text-pink-500 mt-1 font-medium"><span>KM: ${pe(o.promoName)}</span><span>-${formatCurrency(d)}</span></div>` : `<div class="text-sm text-pink-500 mt-1 font-medium">KM: ${pe(o.promoName)}</div>`) + (gt ? `<div class="text-xs text-pink-500">${gt}</div>` : '');
         };
 
         window.describePromo = function(p) {
@@ -2118,7 +2158,8 @@
             const notePos = cfg.notePosition || 'middle';
 
             ordersToPrint.forEach((o, index) => {
-                let prodsHTML = (o.products || []).map(p => `<tr style="border-bottom: 1px dotted #ccc; font-size: 13px;"><td style="padding: 6px 0;">${p.name}</td><td style="padding: 6px 0; text-align: center;">${p.qty}</td><td style="padding: 6px 0; text-align: right;">${formatCurrency(p.qty * p.price)}</td></tr>`).join('');
+                const discMapPrint = getOrderDiscountBreakdown(o).perProduct;
+                let prodsHTML = (o.products || []).map(p => { const da = !p.isPromoGift ? (discMapPrint[p.name] || 0) : 0; const dLine = da > 0 ? `<div style="font-size: 11px; color: #16a34a; margin-top: 2px;">-${formatCurrency(da)}</div>` : ''; return `<tr style="border-bottom: 1px dotted #ccc; font-size: 13px;"><td style="padding: 6px 0;">${p.name}${dLine}</td><td style="padding: 6px 0; text-align: center;">${p.qty}</td><td style="padding: 6px 0; text-align: right;">${formatCurrency(p.qty * p.price)}</td></tr>`; }).join('');
                 let noteHTML = (cfg.showNote !== false && o.notes && o.notes.length > 0) ? `<div style="margin-top: 15px; margin-bottom: 15px; background: #f9f9f9; padding: 10px 15px; border-radius: 8px; font-size: 13px;"><strong>Ghi chú:</strong> ${o.notes.join(', ')}</div>` : '';
                 
                 let productTotal = (o.products || []).reduce((sum, p) => sum + (p.qty * p.price), 0);
@@ -2169,6 +2210,7 @@
             let noteHTML = (cfg.showNote !== false && o.notes && o.notes.length > 0) ? `<div style="margin-top: 15px; margin-bottom: 15px; background: #F2F2F7; padding: 10px 12px; border-radius: 12px; font-size: 12px; color: #555;"><strong style="display: block; margin-bottom: 4px; color: #1D1D1F;">Ghi chú:</strong>${o.notes.join(', ')}</div>` : '';
 
             let productTotal = (o.products || []).reduce((sum, p) => sum + (p.qty * p.price), 0);
+            const discMapExport = getOrderDiscountBreakdown(o).perProduct;
             let discountHTMLExport = '';
             if (o.discountValue > 0) {
                 let discountAmt = o.discountType === 'percent' ? productTotal * (o.discountValue / 100) : o.discountValue;
@@ -2189,7 +2231,7 @@
                         ${cfg.showAddress !== false && o.shippingAddress ? `<p style="margin: 3px 0;"><strong style="color: #8E8E93; font-weight: 500;">Địa chỉ:</strong> ${o.shippingAddress}</p>` : ''}
                     </div>
                     ${notePos === 'top' ? noteHTML : ''}
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead><tr style="border-bottom: 1px solid #1D1D1F; text-align: left; font-size: 11px; font-weight: bold; color: #8E8E93;"><th style="padding: 6px 0; text-transform: uppercase;">Sản phẩm</th><th style="padding: 6px 0; text-align: center; width: 40px; text-transform: uppercase;">SL</th><th style="padding: 6px 0; text-align: right; width: 90px; text-transform: uppercase;">Thành tiền</th></tr></thead><tbody>${(o.products || []).map(p => `<tr style="border-bottom: 1px dotted #E5E5E7; font-size: 13px;"><td style="padding: 8px 0; color: #1D1D1F; font-weight: 500;">${p.name}</td><td style="padding: 8px 0; text-align: center; color: #8E8E93;">${p.qty}</td><td style="padding: 8px 0; text-align: right; color: #1D1D1F;">${formatCurrency(p.qty * p.price)}</td></tr>`).join('')}</tbody></table>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead><tr style="border-bottom: 1px solid #1D1D1F; text-align: left; font-size: 11px; font-weight: bold; color: #8E8E93;"><th style="padding: 6px 0; text-transform: uppercase;">Sản phẩm</th><th style="padding: 6px 0; text-align: center; width: 40px; text-transform: uppercase;">SL</th><th style="padding: 6px 0; text-align: right; width: 90px; text-transform: uppercase;">Thành tiền</th></tr></thead><tbody>${(o.products || []).map(p => { const da = !p.isPromoGift ? (discMapExport[p.name] || 0) : 0; const dLine = da > 0 ? `<div style="font-size: 10px; color: #16a34a; margin-top: 2px;">-${formatCurrency(da)}</div>` : ''; return `<tr style="border-bottom: 1px dotted #E5E5E7; font-size: 13px;"><td style="padding: 8px 0; color: #1D1D1F; font-weight: 500;">${p.name}${dLine}</td><td style="padding: 8px 0; text-align: center; color: #8E8E93;">${p.qty}</td><td style="padding: 8px 0; text-align: right; color: #1D1D1F;">${formatCurrency(p.qty * p.price)}</td></tr>`; }).join('')}</tbody></table>
                     <div style="display: flex; justify-content: space-between; align-items: flex-end;">
                         <div style="text-align: left;">${(appSettings.qrCode && cfg.showQR !== false && cfg.qrPosition === 'right') ? `<img src="${appSettings.qrCode}" style="width: 60px; height: 60px; border-radius: 6px; border: 1px solid #E5E5E7; padding: 4px; background: white;">` : ''}</div>
                         <div style="text-align: right; font-size: 13px; line-height: 1.6;">
