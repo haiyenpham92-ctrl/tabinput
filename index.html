@@ -2497,7 +2497,7 @@
         window.saveSettings = function() { appSettings.gasUrl = document.getElementById('gasUrl').value.trim(); saveData(); showToast("Đã lưu cấu hình"); logAction('CÀI ĐẶT', 'Cập nhật Web App URL'); window.pullDataFromGoogle(true); };
         window.clearAllData = function() { if(confirm("Khôi phục sẽ xóa dữ liệu và đưa app về cấu hình lúc đầu. Bạn có chắc không?")) { localStorage.clear(); location.reload(); } };
 
-        window.syncToGoogle = async function(manual = false) {
+        async function syncToGoogleCore(manual = false) {
             const status = document.getElementById('syncStatus'); const detailStatus = document.getElementById('syncDetailStatus');
             if(!appSettings.gasUrl) { if(manual) { showToast("Chưa cấu hình URL đồng bộ."); } status.innerText = "Chưa kết nối Cloud"; return; }
             status.innerText = "Đang đồng bộ..."; if(detailStatus) detailStatus.innerText = "Đang xử lý dữ liệu...";
@@ -2561,6 +2561,23 @@
                 console.error("Sync error:", error);
                 if(manual) showToast("Lỗi đồng bộ (Failed to fetch). Vui lòng kiểm tra quyền Apps Script!");
             }
+        }
+
+        // Hàng đợi đồng bộ: đảm bảo CHỈ MỘT lượt đồng bộ chạy tại một thời điểm.
+        // Khắc phục lỗi mất đơn hàng/khách hàng do nhiều nơi gọi syncToGoogle() gần như cùng lúc
+        // (VD: tạo KH mới + tạo đơn mới + saveData() đều tự kích hoạt đồng bộ riêng),
+        // khiến 2 lượt đồng bộ chạy chồng lên nhau và lượt "chụp" dữ liệu CŨ hơn (chưa có đơn mới)
+        // ghi đè lên Sheet SAU lượt đã có đơn mới, làm đơn biến mất dù Log vẫn còn ghi nhận.
+        let _syncRunning = false, _syncQueued = false, _syncQueuedManual = false;
+        window.syncToGoogle = async function(manual = false) {
+            if (_syncRunning) { _syncQueued = true; if (manual) _syncQueuedManual = true; return; } // Có lượt khác đang chạy -> xếp hàng, không chạy chồng (dù là auto-sync hay manual đều phải xếp hàng, không được bỏ qua)
+            _syncRunning = true;
+            try {
+                await syncToGoogleCore(manual);
+            } finally {
+                _syncRunning = false;
+                if (_syncQueued) { const wasManual = _syncQueuedManual; _syncQueued = false; _syncQueuedManual = false; window.syncToGoogle(wasManual); } // Chạy bù đúng 1 lượt duy nhất, luôn mang theo TRẠNG THÁI MỚI NHẤT hiện có
+            }
         };
 
         window.pullDataFromGoogle = function(manual = false) {
@@ -2577,20 +2594,23 @@
             })
             .then(data => {
                 if(data.status === 'success') {
-                    if (data.products) { productsDB = data.products; localStorage.setItem('myProds', JSON.stringify(productsDB)); renderProductsList(); }
+                    // GỘP dữ liệu thay vì ghi đè thẳng, để không làm mất đơn/khách hàng/sản phẩm vừa tạo trên máy
+                    // nhưng chưa kịp đồng bộ lên Sheet tại đúng thời điểm bấm "Tải dữ liệu".
+                    if (data.products) { productsDB = mergeDataLists(productsDB, data.products); localStorage.setItem('myProds', JSON.stringify(productsDB)); renderProductsList(); }
                     if (Array.isArray(data.promotions)) { promosDB = mergeDataLists(promosDB, data.promotions); localStorage.setItem('myPromos', JSON.stringify(promosDB)); renderPromos(); calcTotal(); }
                     if (data.shippers) { 
-                        shippersDB = data.shippers; localStorage.setItem('myShippers', JSON.stringify(shippersDB)); 
+                        shippersDB = mergeDataLists(shippersDB, data.shippers); localStorage.setItem('myShippers', JSON.stringify(shippersDB)); 
                         populateShipperDropdowns();
                         if (!document.getElementById('tab-shipping').classList.contains('hidden-section')) { renderShipperManagementList(); renderShippingStats(); } 
                     }
                     if (data.customers) { 
-                        customersDB = deduplicateCustomers(data.customers); 
+                        customersDB = deduplicateCustomers([...customersDB, ...data.customers]); 
                         localStorage.setItem('myCustomers', JSON.stringify(customersDB)); 
                         if (!document.getElementById('tab-crm').classList.contains('hidden-section')) { renderCrmList(); } 
                     }
                     if (data.orders) { 
-                        ordersDB = data.orders.map(o => ({...o, customerPhone: window.normalizePhone(o.customerPhone)})); 
+                        const cloudOrders = data.orders.map(o => ({...o, customerPhone: window.normalizePhone(o.customerPhone)}));
+                        ordersDB = mergeDataLists(ordersDB, cloudOrders); 
                         localStorage.setItem('myOrders', JSON.stringify(ordersDB)); 
                         if (!document.getElementById('tab-stats').classList.contains('hidden-section')) { renderStats(); } 
                     }
