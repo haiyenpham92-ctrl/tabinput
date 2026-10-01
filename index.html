@@ -797,10 +797,32 @@
             }, { passive: false });
         })();
 
+        window.setRememberedLogin = function(username, expiry) {
+            const val = JSON.stringify({ username: username, expiry: expiry });
+            try { localStorage.setItem('rememberedUser', val); } catch (e) {}
+            try { document.cookie = `rememberedUser=${encodeURIComponent(val)}; expires=${new Date(expiry).toUTCString()}; path=/; SameSite=Lax`; } catch (e) {}
+        };
+        window.getRememberedLogin = function() {
+            try {
+                const v = localStorage.getItem('rememberedUser');
+                if (v) return v;
+            } catch (e) {}
+            try {
+                const m = document.cookie.match(/(?:^|; )rememberedUser=([^;]*)/);
+                if (m) { const v = decodeURIComponent(m[1]); try { localStorage.setItem('rememberedUser', v); } catch (e2) {} return v; }
+            } catch (e) {}
+            return null;
+        };
+        window.clearRememberedLogin = function() {
+            try { localStorage.removeItem('rememberedUser'); } catch (e) {}
+            try { document.cookie = 'rememberedUser=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'; } catch (e) {}
+        };
+        if (navigator.storage && navigator.storage.persist) { try { navigator.storage.persist(); } catch (e) {} }
+
         window.onload = function() {
             window.checkBiometricSupport(); // Kiểm tra nút sinh trắc học
             // Tự động đăng nhập nếu có remember
-            const savedLogin = localStorage.getItem('rememberedUser');
+            const savedLogin = getRememberedLogin();
             if (savedLogin) {
                 const loginData = JSON.parse(savedLogin);
                 if (Date.now() < loginData.expiry) {
@@ -811,7 +833,7 @@
                         return; // Bỏ qua màn hình đăng nhập
                     }
                 } else {
-                    localStorage.removeItem('rememberedUser');
+                    clearRememberedLogin();
                 }
             }
             
@@ -841,7 +863,7 @@
                 currentUser = user; 
                 if (remember) {
                     const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-                    localStorage.setItem('rememberedUser', JSON.stringify({ username: u, expiry: expiry }));
+                    setRememberedLogin(u, expiry);
                 }
                 document.getElementById('loginScreen').classList.add('hidden-section'); document.getElementById('mainApp').classList.remove('hidden-section');
                 applyRoleRestrictions(); initApp(); logAction('ĐĂNG NHẬP', 'Đăng nhập thành công');
@@ -850,7 +872,7 @@
 
         window.handleLogout = function() {
             logAction('ĐĂNG XUẤT', 'Đã đăng xuất'); currentUser = null;
-            localStorage.removeItem('rememberedUser');
+            clearRememberedLogin();
             document.getElementById('loginUsername').value = ''; document.getElementById('loginPassword').value = '';
             document.getElementById('loginScreen').classList.remove('hidden-section'); document.getElementById('mainApp').classList.add('hidden-section'); document.getElementById('loginError').classList.add('hidden-section');
             window.checkBiometricSupport();
@@ -917,7 +939,7 @@
                 if (matchedUser) {
                     currentUser = matchedUser;
                     const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000;
-                    localStorage.setItem('rememberedUser', JSON.stringify({ username: currentUser.username, expiry: expiry }));
+                    setRememberedLogin(currentUser.username, expiry);
                     document.getElementById('loginScreen').classList.add('hidden-section'); document.getElementById('mainApp').classList.remove('hidden-section');
                     applyRoleRestrictions(); initApp(); logAction('ĐĂNG NHẬP', 'Đăng nhập bằng Sinh trắc học');
                 } else { showToast("Không khớp tài khoản nào!"); }
@@ -1706,9 +1728,11 @@
         };
 
         let renderStatsTimer;
-        window.renderStats = function() {
+        let statsDisplayLimit = 50;
+        window.renderStats = function(preserveLimit) {
             clearTimeout(renderStatsTimer);
             renderStatsTimer = setTimeout(() => {
+                if (!preserveLimit) statsDisplayLimit = 50;
                 const list = document.getElementById('statsOrdersList'); list.innerHTML = '';
                 const sort = document.getElementById('sortType').value; let filtered = window.getFilteredOrders();
                 
@@ -1724,7 +1748,7 @@
                 // TỐI ƯU MEMORY LEAK: Dùng DocumentFragment và giới hạn tối đa đơn hàng (Lazy load/Pagination)
                 // Khắc phục lỗi crash Safari trên iPhone do append hàng loạt thẻ DOM
                 const fragment = document.createDocumentFragment();
-                const MAX_RENDER = 50; // Giảm xuống 50 để an toàn tuyệt đối cho RAM iPhone
+                const MAX_RENDER = statsDisplayLimit; // Pagination: tăng dần 50 mỗi lần bấm "Xem thêm", an toàn RAM iPhone
                 const displayOrders = filtered.slice(0, MAX_RENDER);
 
                 displayOrders.forEach(o => {
@@ -1747,6 +1771,7 @@
                                 <h3 class="font-bold text-lg mt-1">${o.customerName || 'Khách chưa có tên'}</h3>
                                 <p class="text-xs text-blue-600 font-semibold">${o.customerPhone || 'Không có SĐT'} <span class="text-gray-500 font-normal">• ${o.deliveryType || ''}</span></p>
                                 ${o.shippingAddress ? `<p class="text-xs text-neutral-600 mt-1">Địa chỉ: ${o.shippingAddress}</p>` : ''}
+                                ${o.notes && o.notes.length > 0 ? `<p class="text-xs text-amber-600 mt-1 font-medium"><i class="fas fa-sticky-note mr-1"></i>${o.notes.map(n => pe(n)).join(', ')}</p>` : ''}
                                 
                                 <div class="mt-3 bg-white p-3 rounded-xl border border-gray-100">
                                     ${prodsHTML}
@@ -1771,12 +1796,17 @@
                 });
                 list.appendChild(fragment);
 
-                // Hiện thông báo nếu số lượng đơn vượt giới hạn
+                // Nút "Xem thêm" thay cho cảnh báo cứng, tải thêm 50 đơn mỗi lần bấm
                 if (filtered.length > MAX_RENDER) {
-                    const warningText = document.createElement('p');
-                    warningText.className = "text-center text-gray-400 py-4 text-xs italic font-medium";
-                    warningText.innerText = `Đang hiển thị ${MAX_RENDER}/${filtered.length} đơn hàng. Hãy sử dụng bộ lọc tìm kiếm để xem chính xác các đơn cũ hơn.`;
-                    list.appendChild(warningText);
+                    const moreWrap = document.createElement('div');
+                    moreWrap.className = "text-center py-4";
+                    const moreBtn = document.createElement('button');
+                    moreBtn.type = 'button';
+                    moreBtn.className = "btn-secondary px-5 py-2 text-sm font-semibold";
+                    moreBtn.innerText = `Xem thêm 50 đơn (còn ${filtered.length - MAX_RENDER})`;
+                    moreBtn.onclick = () => { statsDisplayLimit += 50; renderStats(true); };
+                    moreWrap.appendChild(moreBtn);
+                    list.appendChild(moreWrap);
                 }
                 
                 updateBulkBar();
