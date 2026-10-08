@@ -2497,6 +2497,9 @@
         window.saveSettings = function() { appSettings.gasUrl = document.getElementById('gasUrl').value.trim(); saveData(); showToast("Đã lưu cấu hình"); logAction('CÀI ĐẶT', 'Cập nhật Web App URL'); window.pullDataFromGoogle(true); };
         window.clearAllData = function() { if(confirm("Khôi phục sẽ xóa dữ liệu và đưa app về cấu hình lúc đầu. Bạn có chắc không?")) { localStorage.clear(); location.reload(); } };
 
+        // Link tải dữ liệu luôn kèm tham số thời gian để không bao giờ nhận bản lưu đệm cũ của trình duyệt
+        window.gasGetUrl = function() { const u = appSettings.gasUrl; return u + (u.indexOf('?') > -1 ? '&' : '?') + '_t=' + Date.now(); };
+
         async function syncToGoogleCore(manual = false) {
             const status = document.getElementById('syncStatus'); const detailStatus = document.getElementById('syncDetailStatus');
             if(!appSettings.gasUrl) { if(manual) { showToast("Chưa cấu hình URL đồng bộ."); } status.innerText = "Chưa kết nối Cloud"; return; }
@@ -2505,10 +2508,11 @@
             try {
                 // Đã loại bỏ các header tùy chỉnh (như Content-Type) và option redirect không cần thiết
                 // Việc này ngăn trình duyệt gửi yêu cầu CORS Preflight (OPTIONS) vốn thường gây lỗi "Failed to fetch" với Google Apps Script.
-                const pullRes = await fetch(appSettings.gasUrl, { method: 'GET' });
+                // Thêm tham số ngẫu nhiên + no-store: chặn iPhone/Safari trả về dữ liệu CŨ đã lưu đệm (nguyên nhân làm đẩy ngược dữ liệu cũ lên Sheet)
+                const pullRes = await fetch(window.gasGetUrl(), { method: 'GET', cache: 'no-store' });
                 if (!pullRes.ok) throw new Error("HTTP " + pullRes.status);
                 const cloudData = await pullRes.json();
-                
+
                 if(cloudData.status === 'success') {
                     if (cloudData.orders) ordersDB = mergeDataLists(ordersDB, cloudData.orders);
                     
@@ -2525,6 +2529,8 @@
                     localStorage.setItem('myCustomers', JSON.stringify(customersDB));
                     localStorage.setItem('myProds', JSON.stringify(productsDB));
                     localStorage.setItem('myShippers', JSON.stringify(shippersDB)); localStorage.setItem('myPromos', JSON.stringify(promosDB));
+                    // Làm mới danh sách CTKM (tab Khuyến mãi + danh sách chọn CTKM ở Lên đơn) khi vừa nhận CTKM từ thiết bị khác
+                    try { renderPromos(); calcTotal(); } catch (e) {}
 
                     await new Promise(resolve => setTimeout(resolve, 800));
 
@@ -2544,7 +2550,8 @@
                         isCloudSyncReady = true;
                         if (data.promoSaved === undefined) { status.innerText = "Đã đồng bộ (server CHƯA nhận CTKM)"; if(detailStatus) detailStatus.innerText = "⚠ Apps Script đang chạy bản cũ: chưa triển khai phiên bản mới nên CTKM không lên Sheet."; showToast("⚠ Apps Script chưa cập nhật bản mới: CTKM chưa lưu được lên Sheet"); }
                         else if(detailStatus) detailStatus.innerText += ` • CTKM trên Sheet: ${data.promoSaved}`;
-                        
+                        if (data.stepErrors && data.stepErrors.length) { if(detailStatus) detailStatus.innerText += ` • ⚠ Lỗi một số phần: ${data.stepErrors.join('; ')}`; showToast("⚠ Một số phần chưa lên Sheet: " + data.stepErrors.join('; ')); }
+
                         if (!document.getElementById('tab-stats').classList.contains('hidden-section')) renderStats();
                         if (!document.getElementById('tab-crm').classList.contains('hidden-section')) renderCrmList();
                         if (!document.getElementById('tab-shipping').classList.contains('hidden-section')) { renderShipperManagementList(); populateShipperDropdowns(); renderShippingStats(); }
@@ -2587,7 +2594,7 @@
             if (manual) showToast("Đang tải dữ liệu từ Sheets...");
             
             // Xóa redirect:'follow' để sử dụng mặc định của trình duyệt an toàn hơn
-            fetch(appSettings.gasUrl, { method: 'GET' })
+            fetch(window.gasGetUrl(), { method: 'GET', cache: 'no-store' })
             .then(response => {
                 if (!response.ok) throw new Error("HTTP " + response.status);
                 return response.json();
