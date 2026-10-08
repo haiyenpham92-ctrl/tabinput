@@ -1552,11 +1552,12 @@
             if(editOrderId) { 
                 const idx = ordersDB.findIndex(o => o.id === editOrderId); if(idx > -1) ordersDB[idx] = order; 
                 logAction('SỬA ĐƠN', `Sửa thông tin đơn [${editOrderId}]`); 
-                editOrderId = null; 
-                document.getElementById('mainTitle').innerText = "Lên đơn mới"; 
+                editOrderId = null;
+                document.getElementById('mainTitle').innerText = "Lên đơn mới";
                 document.getElementById('btnCancelEdit').classList.add('hidden-section');
                 document.getElementById('btnSubmitOrder').innerText = 'Hoàn tất đơn hàng';
-            } 
+                selectedDate = new Date(); document.getElementById('orderDate').value = formatFullDate(selectedDate); // Thoát chế độ sửa: đưa ngày về hôm nay cho đơn mới
+            }
             else { ordersDB.unshift(order); logAction('TẠO ĐƠN', `Lên đơn hàng mới [${currentId}] trị giá ${formatCurrency(order.total)}`); }
             
             saveData(); showToast("Đã lưu đơn hàng");
@@ -1992,7 +1993,7 @@
             let html = '';
             for(let i=0; i<firstDay; i++) html += `<div></div>`;
             for(let d=1; d<=daysInMonth; d++) {
-                const dObj = new Date(y, m, d); const isPast = dObj < today; const isTueThuSat = [2,4,6].includes(dObj.getDay()); const isSel = dObj.toDateString() === selectedDate.toDateString();
+                const dObj = new Date(y, m, d); const isPast = !editOrderId && dObj < today; /* Khi đang SỬA đơn thì cho chọn cả ngày trong quá khứ */ const isTueThuSat = [2,4,6].includes(dObj.getDay()); const isSel = dObj.toDateString() === selectedDate.toDateString();
                 let classes = "w-9 h-9 flex items-center justify-center rounded-full text-sm font-medium mx-auto cursor-pointer transition-colors";
                 if(isPast) classes += " text-gray-300 pointer-events-none"; else if(isSel) classes += " bg-black text-white"; else if(isTueThuSat) classes += " bg-indigo-50 text-indigo-600"; else classes += " text-gray-700 hover:bg-gray-100";
                 html += `<div class="${classes}" onclick="selectDate(${y},${m},${d})">${d}</div>`;
@@ -2151,6 +2152,7 @@
             document.getElementById('btnSubmitOrder').innerText = 'Lưu thay đổi';
 
             document.getElementById('custName').value = o.customerName; document.getElementById('custPhone').value = o.customerPhone; document.getElementById('orderDate').value = o.receiveDate;
+            { const rd = parseDateStr(o.receiveDate); if (rd && !isNaN(rd.getTime())) selectedDate = rd; } // Để lịch mở đúng tháng/ngày của đơn đang sửa
             const r = document.querySelector(`input[name="deliveryType"][value="${o.deliveryType}"]`); if(r) r.checked = true;
             document.getElementById('shippingAddress').value = o.shippingAddress || ''; document.getElementById('shippingFee').value = o.shippingFee || '';
             document.getElementById('shippingShipper').value = o.shipperName || '';
@@ -2166,6 +2168,7 @@
 
         window.cancelEdit = function() {
             editOrderId = null;
+            selectedDate = new Date(); document.getElementById('orderDate').value = formatFullDate(selectedDate);
             document.getElementById('mainTitle').innerText = "Lên đơn mới";
             document.getElementById('btnCancelEdit').classList.add('hidden-section');
             document.getElementById('btnSubmitOrder').innerText = 'Hoàn tất đơn hàng';
@@ -2232,7 +2235,7 @@
             printArea.innerHTML = htmlContent; setTimeout(() => { window.print(); printArea.innerHTML = ''; }, 500);
         };
 
-        window.exportImage = function(id) {
+        window.exportImage = function(id, preview) {
             const o = ordersDB.find(x => x.id === id); if(!o) return; const w = document.getElementById('exportWrapper'); const cfg = appSettings.invoiceConfig || {};
             const bgStyle = cfg.bgImage ? `background-image: url('${cfg.bgImage}'); background-size: cover; background-position: center;` : 'background: #FFFFFF;';
             const overlayStyle = cfg.bgImage ? `background: rgba(255,255,255,0.94); padding: 30px; box-sizing: border-box; width: 100%; height: 100%;` : `padding: 30px; box-sizing: border-box; width: 100%; height: 100%;`;
@@ -2278,7 +2281,7 @@
                 </div>
             `;
             
-            showToast("Đang tạo ảnh..."); setTimeout(() => { html2canvas(w, { scale: 2, useCORS: true, backgroundColor: '#FFFFFF' }).then(canvas => { const imgData = canvas.toDataURL('image/png'); w.innerHTML = ''; openImageModal(imgData); logAction('XUẤT HÓA ĐƠN', `Xuất ảnh hóa đơn đơn hàng [${o.id}]`); }).catch(err => { showToast("Lỗi xuất ảnh!"); console.error(err); }); }, 500);
+            showToast("Đang tạo ảnh..."); setTimeout(() => { html2canvas(w, { scale: 2, useCORS: true, backgroundColor: '#FFFFFF' }).then(canvas => { const imgData = canvas.toDataURL('image/png'); w.innerHTML = ''; openImageModal(imgData); if (!preview) logAction('XUẤT HÓA ĐƠN', `Xuất ảnh hóa đơn đơn hàng [${o.id}]`); }).catch(err => { showToast("Lỗi xuất ảnh!"); console.error(err); }); }, 500);
         };
 
         window.handleQRUpload = function(event) {
@@ -2408,7 +2411,7 @@
                     <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm relative">
                         <div class="flex justify-between items-start mb-2">
                             <div class="flex items-center">
-                                <span class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">${o.id}</span>
+                                <button type="button" onclick="exportImage('${o.id}', true)" class="text-xs font-mono bg-blue-50 px-2 py-0.5 rounded text-blue-600 font-bold underline active:scale-95 transition-transform" title="Bấm để xem trước đơn hàng">${o.id}</button>
                                 ${selectHTML}
                             </div>
                             <span class="font-bold text-black">${formatCurrency(o.shippingFee || 0)}</span>
