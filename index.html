@@ -38,6 +38,11 @@
         .segmented-control::-webkit-scrollbar { display: none; }
         .segmented-control { cursor: grab; user-select: none; -webkit-user-select: none; overscroll-behavior-x: contain; }
         .segmented-control.dragging { cursor: grabbing; }
+        .lb-chip { flex: none; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: #F2F2F7; color: #3A3A3C; white-space: nowrap; }
+        .lb-chip:active { transform: scale(0.96); }
+        .lb-chip-on { background: #000; color: #fff; }
+        .lb-seg { font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 8px; color: #8E8E93; }
+        .lb-seg-on { background: #fff; color: #000; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
         .segment-btn { flex: 1; text-align: center; padding: 10px 4px; font-size: 10px; font-weight: 600; cursor: pointer; z-index: 10; color: #8E8E93; transition: color 0.3s; white-space: nowrap; min-width: 65px; }
         .segment-btn.active { color: #1D1D1F; }
         .segment-bg { position: absolute; top: 3px; bottom: 3px; left: 0; background: #FFFFFF; border-radius: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1), width 0.3s cubic-bezier(0.25, 0.1, 0.25, 1); z-index: 1; }
@@ -477,6 +482,49 @@
                     <p class="text-lg font-black text-blue-700" id="totalShippingFee">0đ</p>
                 </div>
                 <div id="shippingStatsList" class="space-y-3 max-h-80 overflow-y-auto pr-1"></div>
+            </div>
+
+            <!-- Bảng xếp hạng Shipper -->
+            <div class="apple-card p-6">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-4"><i class="fa-solid fa-trophy text-yellow-500 mr-1"></i> Bảng xếp hạng Shipper</h2>
+                <div class="flex gap-2 mb-3 overflow-x-auto pb-1">
+                    <button type="button" onclick="setLbRange('today')" class="lb-chip">Hôm nay</button>
+                    <button type="button" onclick="setLbRange('week')" class="lb-chip">Tuần này</button>
+                    <button type="button" onclick="setLbRange('month')" class="lb-chip">Tháng này</button>
+                    <button type="button" onclick="setLbRange('all')" class="lb-chip">Tất cả</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Từ ngày</label>
+                        <input type="date" id="lbFrom" class="input-field py-2 px-3 text-sm" onchange="lbCustomDate()">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Đến ngày</label>
+                        <input type="date" id="lbTo" class="input-field py-2 px-3 text-sm" onchange="lbCustomDate()">
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 mb-4">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 whitespace-nowrap">Xếp theo</label>
+                    <select id="lbSort" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderLeaderboard()">
+                        <option value="fee">Tổng tiền ship (nhiều nhất)</option>
+                        <option value="count">Số đơn đã ship (nhiều nhất)</option>
+                    </select>
+                </div>
+                <div id="lbSummary" class="text-[11px] text-gray-500 mb-3"></div>
+                <div id="lbList" class="space-y-2"></div>
+
+                <div class="border-t border-gray-100 mt-5 pt-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xs font-bold uppercase text-gray-400"><i class="fa-solid fa-crown text-yellow-500 mr-1"></i> Bảng vàng</h3>
+                        <div class="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+                            <button type="button" id="lbHonorWeek" onclick="setLbHonor('week')" class="lb-seg lb-seg-on">Theo tuần</button>
+                            <button type="button" id="lbHonorMonth" onclick="setLbHonor('month')" class="lb-seg">Theo tháng</button>
+                        </div>
+                    </div>
+                    <div id="lbHonorList" class="space-y-2"></div>
+                    <div id="lbCrowns" class="text-[11px] text-gray-500 mt-3"></div>
+                    <p class="text-[10px] text-gray-400 mt-3">Chỉ tính đơn Ship đã gán Shipper, theo ngày giao. Hạng nhất = tổng tiền ship cao nhất (bằng nhau thì ai nhiều đơn hơn).</p>
+                </div>
             </div>
         </div>
 
@@ -2364,7 +2412,120 @@
             if(!filterDropdown.value) filterDropdown.value = "all";
         };
 
+        // ================= BẢNG XẾP HẠNG SHIPPER =================
+        let lbHonorMode = 'week';
+        let lbInited = false; let lbChip = null;
+        const lbEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const lbYmd = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const lbDmy = (d) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+        const lbWeekStart = (d) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const wd = (x.getDay() + 6) % 7; x.setDate(x.getDate() - wd); return x; }; // Tuần tính từ Thứ Hai
+
+        // Lấy các đơn Ship đã gán shipper, kèm ngày giao (Date) để tính toán
+        function lbGetOrders() {
+            const res = [];
+            ordersDB.forEach(o => {
+                if (o.isDeleted || o.deliveryType !== 'Ship' || !o.shipperName) return;
+                const d = parseDateStr(o.receiveDate);
+                if (!d || isNaN(d.getTime())) return;
+                res.push({ shipper: o.shipperName, fee: Number(o.shippingFee) || 0, date: d });
+            });
+            return res;
+        }
+
+        // Gom theo shipper rồi xếp hạng: theo tiền (hoặc số đơn), bằng nhau thì so tiêu chí còn lại
+        function lbRank(rows, sortBy) {
+            const map = {};
+            rows.forEach(r => { const m = map[r.shipper] || (map[r.shipper] = { name: r.shipper, fee: 0, count: 0 }); m.fee += r.fee; m.count += 1; });
+            const arr = Object.keys(map).map(k => map[k]);
+            arr.sort((a, b) => sortBy === 'count' ? (b.count - a.count) || (b.fee - a.fee) : (b.fee - a.fee) || (b.count - a.count));
+            return arr;
+        }
+
+        window.setLbRange = function(kind) {
+            const t = new Date(); const today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+            let from = '', to = '';
+            if (kind === 'today') { from = to = lbYmd(today); }
+            else if (kind === 'week') { const s = lbWeekStart(today); const e = new Date(s); e.setDate(e.getDate() + 6); from = lbYmd(s); to = lbYmd(e); }
+            else if (kind === 'month') { from = lbYmd(new Date(today.getFullYear(), today.getMonth(), 1)); to = lbYmd(new Date(today.getFullYear(), today.getMonth() + 1, 0)); }
+            document.getElementById('lbFrom').value = from; document.getElementById('lbTo').value = to;
+            lbInited = true; lbChip = kind; renderLeaderboard();
+        };
+
+        window.setLbHonor = function(mode) { lbHonorMode = mode; renderLeaderboard(); };
+
+        window.lbCustomDate = function() { lbChip = null; renderLeaderboard(); };
+
+        window.renderLeaderboard = function() {
+            const listEl = document.getElementById('lbList'); if (!listEl) return;
+            if (!lbInited) { // Lần đầu mở: mặc định lọc theo tháng này
+                lbInited = true;
+                const t = new Date();
+                document.getElementById('lbFrom').value = lbYmd(new Date(t.getFullYear(), t.getMonth(), 1));
+                document.getElementById('lbTo').value = lbYmd(new Date(t.getFullYear(), t.getMonth() + 1, 0));
+                lbChip = 'month';
+            }
+            const from = document.getElementById('lbFrom').value, to = document.getElementById('lbTo').value;
+            const sortBy = document.getElementById('lbSort').value;
+            const medals = ['🥇', '🥈', '🥉'];
+            const all = lbGetOrders();
+
+            // Tô sáng nút lọc nhanh đang dùng (nếu người dùng tự chọn ngày thì bỏ tô sáng)
+            document.querySelectorAll('.lb-chip').forEach(b => b.classList.remove('lb-chip-on'));
+            if (lbChip) { const idx = { today: 0, week: 1, month: 2, all: 3 }[lbChip]; const chips = document.querySelectorAll('.lb-chip'); if (chips[idx]) chips[idx].classList.add('lb-chip-on'); }
+
+            // 1) Xếp hạng theo khoảng thời gian
+            const fromD = from ? new Date(from + 'T00:00:00') : null, toD = to ? new Date(to + 'T23:59:59') : null;
+            const inRange = all.filter(r => (!fromD || r.date >= fromD) && (!toD || r.date <= toD));
+            const ranked = lbRank(inRange, sortBy);
+            const totalFee = inRange.reduce((s, r) => s + r.fee, 0);
+            document.getElementById('lbSummary').innerText = inRange.length ? `${inRange.length} đơn ship • tổng ${formatCurrency(totalFee)} • ${ranked.length} shipper` : '';
+            if (!ranked.length) { listEl.innerHTML = '<p class="text-center text-gray-400 py-4 text-sm">Chưa có đơn ship nào trong khoảng thời gian này</p>'; }
+            else {
+                const top = sortBy === 'count' ? ranked[0].count : ranked[0].fee;
+                listEl.innerHTML = ranked.map((r, i) => {
+                    const val = sortBy === 'count' ? r.count : r.fee; const pct = top > 0 ? Math.max(4, Math.round(val / top * 100)) : 4;
+                    return `<div class="p-3 rounded-xl border ${i === 0 ? 'border-yellow-200 bg-yellow-50' : 'border-gray-100 bg-white'}">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 min-w-0"><span class="text-lg w-7 text-center">${medals[i] || '<span class="text-xs font-bold text-gray-400">#' + (i + 1) + '</span>'}</span><span class="font-bold text-sm truncate">${lbEsc(r.name)}</span></div>
+                            <div class="text-right shrink-0"><p class="font-black text-sm">${formatCurrency(r.fee)}</p><p class="text-[10px] text-gray-500">${r.count} đơn</p></div>
+                        </div>
+                        <div class="h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden"><div class="h-full rounded-full ${i === 0 ? 'bg-yellow-400' : 'bg-gray-300'}" style="width:${pct}%"></div></div>
+                    </div>`;
+                }).join('');
+            }
+
+            // 2) Bảng vàng: người đứng đầu của từng tuần / tháng (không phụ thuộc bộ lọc ngày phía trên)
+            const groups = {};
+            all.forEach(r => {
+                const key = lbHonorMode === 'week' ? lbYmd(lbWeekStart(r.date)) : `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`;
+                (groups[key] || (groups[key] = [])).push(r);
+            });
+            const keys = Object.keys(groups).sort().reverse();
+            const now = new Date();
+            const curKey = lbHonorMode === 'week' ? lbYmd(lbWeekStart(now)) : `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+            const crowns = {};
+            const honorEl = document.getElementById('lbHonorList');
+            document.getElementById('lbHonorWeek').className = 'lb-seg' + (lbHonorMode === 'week' ? ' lb-seg-on' : '');
+            document.getElementById('lbHonorMonth').className = 'lb-seg' + (lbHonorMode === 'month' ? ' lb-seg-on' : '');
+            if (!keys.length) { honorEl.innerHTML = '<p class="text-center text-gray-400 py-3 text-sm">Chưa có dữ liệu</p>'; document.getElementById('lbCrowns').innerText = ''; return; }
+            const rows = keys.map(k => {
+                const rk = lbRank(groups[k], 'fee'); const w = rk[0]; crowns[w.name] = (crowns[w.name] || 0) + 1;
+                let label;
+                if (lbHonorMode === 'week') { const s = new Date(k + 'T00:00:00'); const e = new Date(s); e.setDate(e.getDate() + 6); label = `Tuần ${lbDmy(s)} – ${lbDmy(e)}`; }
+                else { const [y, m] = k.split('-'); label = `Tháng ${parseInt(m, 10)}/${y}`; }
+                const second = rk[1] ? ` • hạng 2: ${lbEsc(rk[1].name)}` : '';
+                return `<div class="flex items-center justify-between gap-2 p-3 rounded-xl border border-gray-100 bg-white">
+                    <div class="min-w-0"><p class="text-[11px] font-bold text-gray-500">${label}${k === curKey ? ' <span class="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full ml-1">đang diễn ra</span>' : ''}</p>
+                    <p class="font-bold text-sm truncate">👑 ${lbEsc(w.name)}</p><p class="text-[10px] text-gray-400 truncate">${w.count} đơn${second}</p></div>
+                    <span class="font-black text-sm shrink-0">${formatCurrency(w.fee)}</span></div>`;
+            });
+            honorEl.innerHTML = rows.slice(0, 12).join('') + (rows.length > 12 ? `<p class="text-center text-[10px] text-gray-400">Hiển thị 12 ${lbHonorMode === 'week' ? 'tuần' : 'tháng'} gần nhất</p>` : '');
+            const crownList = Object.keys(crowns).map(n => ({ n, c: crowns[n] })).sort((a, b) => b.c - a.c);
+            document.getElementById('lbCrowns').innerHTML = '<strong>Số lần đứng đầu:</strong> ' + crownList.map(x => `👑 ${lbEsc(x.n)} × ${x.c}`).join(' &nbsp; ');
+        };
+
         window.renderShippingStats = function() {
+            try { renderLeaderboard(); } catch (e) { console.error('Lỗi bảng xếp hạng', e); }
             const filterDate = document.getElementById('filterShipDate').value;
             const filterShipper = document.getElementById('filterShipperName').value;
             const list = document.getElementById('shippingStatsList');
