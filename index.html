@@ -748,6 +748,7 @@
             <div class="border border-gray-100 rounded-2xl overflow-hidden bg-gray-50 flex justify-center items-center p-2 max-h-[50vh] overflow-y-auto">
                 <img id="exportedImage" src="" alt="Hóa đơn" class="max-w-full h-auto rounded-xl shadow-sm">
             </div>
+            <button id="btnCopyImage" onclick="copyExportedImage()" class="w-full bg-blue-50 text-blue-600 py-3.5 rounded-2xl text-sm font-bold active:scale-[0.98] transition-transform"><i class="fa-regular fa-copy mr-1"></i> Copy ảnh</button>
             <button onclick="closeModal('imageModal')" class="btn-primary w-full bg-black text-white py-4 rounded-2xl text-sm font-medium">Đóng cửa sổ</button>
         </div>
     </div>
@@ -2241,6 +2242,20 @@
             document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
             toggleShipping(); toggleOtherNote(); calcTotal();
             switchTab('stats');
+        };
+
+        // Copy ảnh hóa đơn vào bộ nhớ tạm để dán thẳng vào Zalo/Messenger/iMessage...
+        window.copyExportedImage = function() {
+            const src = document.getElementById('exportedImage').src;
+            const btn = document.getElementById('btnCopyImage');
+            if (!src || src.indexOf('data:image') !== 0) { showToast('Chưa có ảnh để copy'); return; }
+            if (!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem)) { showToast('Trình duyệt không hỗ trợ copy ảnh, hãy nhấn giữ lên ảnh để sao chép'); return; }
+            // Truyền Promise vào ClipboardItem ngay trong lúc bấm: cách duy nhất Safari/iPhone chấp nhận
+            const blobPromise = fetch(src).then(r => r.blob()).then(b => b.type === 'image/png' ? b : new Blob([b], { type: 'image/png' }));
+            navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]).then(() => {
+                showToast('Đã copy ảnh hóa đơn');
+                if (btn) { const old = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i> Đã copy'; setTimeout(() => { btn.innerHTML = old; }, 1800); }
+            }).catch(err => { console.error(err); showToast('Không copy được, hãy nhấn giữ lên ảnh để sao chép'); });
         };
 
         window.openImageModal = function(imgData) { const img = document.getElementById('exportedImage'); img.src = imgData; document.getElementById('imageModal').classList.remove('opacity-0', 'pointer-events-none'); };
