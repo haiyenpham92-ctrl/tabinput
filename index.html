@@ -1056,6 +1056,20 @@
 
         function formatCurrency(n) { return new Intl.NumberFormat('vi-VN', {style: 'currency', currency: 'VND'}).format(n).replace('₫', 'đ'); }
         function formatFullDate(d) { const days = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"]; return `${days[d.getDay()]} - ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
+        // Sao chép số điện thoại: ưu tiên Clipboard API, dự phòng execCommand (iPhone/Safari hoặc trang không có https)
+        window.copyPhone = function(phone) {
+            const ok = () => showToast('Đã copy SĐT: ' + phone);
+            const fallback = () => {
+                try {
+                    const ta = document.createElement('textarea'); ta.value = phone; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;font-size:16px;';
+                    document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, phone.length);
+                    const done = document.execCommand('copy'); document.body.removeChild(ta);
+                    done ? ok() : showToast('Không copy được, hãy giữ vào số để sao chép');
+                } catch (e) { showToast('Không copy được, hãy giữ vào số để sao chép'); }
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(phone).then(ok).catch(fallback); } else { fallback(); }
+        };
+
         function showToast(msg) { const t = document.getElementById('toast'); t.innerText = msg; t.classList.remove('opacity-0'); setTimeout(() => t.classList.add('opacity-0'), 2500); }
         
         let promosDB = JSON.parse(localStorage.getItem('myPromos') || '[]') || [];
@@ -1818,7 +1832,7 @@
                             <div class="flex-grow">
                                 <div class="flex justify-between"><span class="text-xs font-mono bg-gray-200 px-2 rounded">${o.id}</span><span class="text-xs text-gray-500">${o.receiveDate || ''}</span></div>
                                 <h3 class="font-bold text-lg mt-1">${o.customerName || 'Khách chưa có tên'}</h3>
-                                <p class="text-xs text-blue-600 font-semibold">${o.customerPhone || 'Không có SĐT'} <span class="text-gray-500 font-normal">• ${o.deliveryType || ''}</span></p>
+                                <p class="text-xs text-blue-600 font-semibold flex flex-wrap items-center gap-1.5">${o.customerPhone || 'Không có SĐT'}${o.customerPhone ? `<button type="button" onclick="copyPhone('${String(o.customerPhone).replace(/[^0-9+]/g, '')}')" class="text-[10px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md active:scale-95 transition-transform"><i class="fa-regular fa-copy mr-0.5"></i>Copy</button><a href="tel:${String(o.customerPhone).replace(/[^0-9+]/g, '')}" class="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-md active:scale-95 transition-transform no-underline"><i class="fa-solid fa-phone mr-0.5"></i>Gọi</a>` : ''} <span class="text-gray-500 font-normal">• ${o.deliveryType || ''}</span></p>
                                 ${o.shippingAddress ? `<p class="text-xs text-neutral-600 mt-1">Địa chỉ: ${o.shippingAddress}</p>` : ''}
                                 ${o.notes && o.notes.length > 0 ? `<p class="text-xs text-amber-600 mt-1 font-medium"><i class="fas fa-sticky-note mr-1"></i>${o.notes.map(n => pe(n)).join(', ')}</p>` : ''}
                                 
