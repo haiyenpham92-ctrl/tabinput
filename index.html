@@ -173,6 +173,13 @@
                     <label class="radio-item"><input type="radio" name="deliveryType" value="Ship" onchange="toggleShipping()"> <span class="text-sm font-medium">Địa chỉ ship</span></label>
                 </div>
                 <div id="shippingInputs" class="hidden-section space-y-4 border-t border-gray-100 pt-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-2">Ship từ</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="radio-item border border-gray-200 justify-center"><input type="radio" name="shipFrom" value="Thụy Khuê"> <span class="text-sm font-medium">Thuỵ Khuê</span></label>
+                            <label class="radio-item border border-gray-200 justify-center"><input type="radio" name="shipFrom" value="Hòa Mã"> <span class="text-sm font-medium">Hoà Mã</span></label>
+                        </div>
+                    </div>
                     <input type="text" id="shippingAddress" class="input-field" placeholder="Địa chỉ giao hàng (Tự động nhớ)...">
                     <input type="number" id="shippingFee" class="input-field" placeholder="Phí ship (VNĐ)" oninput="calcTotal()">
                     <select id="shippingShipper" class="input-field bg-white">
@@ -374,6 +381,15 @@
                             <option value="Thụy Khuê">Pickup Thuỵ Khuê</option>
                             <option value="Hòa Mã">Pickup Hoà Mã</option>
                             <option value="Ship">Ship</option>
+                        </select>
+                    </div>
+                    <div class="relative flex flex-col justify-end">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Ship từ</label>
+                        <select id="filterShipFrom" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                            <option value="all">Tất cả</option>
+                            <option value="Thụy Khuê">Ship từ Thuỵ Khuê</option>
+                            <option value="Hòa Mã">Ship từ Hoà Mã</option>
+                            <option value="none">Ship chưa chọn nơi</option>
                         </select>
                     </div>
                 </div>
@@ -1513,7 +1529,7 @@
             document.getElementById('filterProductInput').value = '';
             document.getElementById('filterProductLogic').value = 'OR';
             document.getElementById('filterPayment').value = 'all';
-            document.getElementById('filterDelivery').value = 'all';
+            document.getElementById('filterDelivery').value = 'all'; document.getElementById('filterShipFrom').value = 'all';
             selectedFilterProducts = [];
             window.renderFilterProductTags();
             document.getElementById('selectAllBtn').checked = false;
@@ -1553,6 +1569,8 @@
             
             if(!name || !phone || !delivery) return showToast("Vui lòng nhập Tên, Số điện thoại và Nhận hàng");
             if(delivery === 'Ship' && !document.getElementById('shippingAddress').value.trim()){ return showToast("Vui lòng nhập địa chỉ giao hàng"); }
+            const shipFrom = document.querySelector('input[name="shipFrom"]:checked')?.value || '';
+            if(delivery === 'Ship' && !shipFrom){ return showToast("Vui lòng chọn Ship từ Thuỵ Khuê hoặc Hoà Mã"); }
 
             const rows = document.querySelectorAll('#productList > div');
             const activeRows = Array.from(rows).filter(r => r.querySelector('.prod-name').value.trim() !== '');
@@ -1603,7 +1621,7 @@
             const order = {
                 id: currentId, date: existingOrder ? existingOrder.date : new Date().toISOString(), receiveDate: receiveDate,
                 customerName: name, customerPhone: phone, deliveryType: delivery, shippingAddress: document.getElementById('shippingAddress').value,
-                shippingFee: shipFee, shipperName: delivery === 'Ship' ? shipperName : '', 
+                shippingFee: shipFee, shipperName: delivery === 'Ship' ? shipperName : '', shipFrom: delivery === 'Ship' ? shipFrom : '',
                 products: prods, 
                 discountType: discountType, discountValue: discountValue,
                 promoIds: money.applied.map(p => p.id), promoId: money.applied.length ? money.applied[0].id : '', promoName: money.applied.map(p => p.name).join(' + '), promoDiscount: money.promoProd, promoShipDiscount: money.promoShip, promoGifts: money.gifts || [],
@@ -1764,6 +1782,12 @@
                 filtered = filtered.filter(o => o.deliveryType === filterDelivery);
             }
 
+            // Lọc theo nơi xuất phát của đơn Ship (Thuỵ Khuê / Hoà Mã / chưa chọn)
+            const filterShipFrom = document.getElementById('filterShipFrom').value;
+            if (filterShipFrom !== 'all') {
+                filtered = filtered.filter(o => o.deliveryType === 'Ship' && (filterShipFrom === 'none' ? !o.shipFrom : o.shipFrom === filterShipFrom));
+            }
+
             // LỌC THEO THẺ BÁNH (AND / OR)
             if (selectedFilterProducts.length > 0) {
                 if (logic === 'OR') {
@@ -1833,7 +1857,7 @@
                             <div class="flex-grow">
                                 <div class="flex justify-between"><span class="text-xs font-mono bg-gray-200 px-2 rounded">${o.id}</span><span class="text-xs text-gray-500">${o.receiveDate || ''}</span></div>
                                 <h3 class="font-bold text-lg mt-1">${o.customerName || 'Khách chưa có tên'}</h3>
-                                <p class="text-xs text-blue-600 font-semibold flex flex-wrap items-center gap-1.5">${o.customerPhone || 'Không có SĐT'}${o.customerPhone ? `<button type="button" onclick="copyPhone('${String(o.customerPhone).replace(/[^0-9+]/g, '')}')" class="text-[10px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md active:scale-95 transition-transform"><i class="fa-regular fa-copy mr-0.5"></i>Copy</button><a href="tel:${String(o.customerPhone).replace(/[^0-9+]/g, '')}" aria-label="Gọi điện" title="Gọi điện" class="ml-4 inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-500 text-white text-[12px] shadow-sm active:scale-90 transition-transform no-underline"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></a>` : ''} <span class="text-gray-500 font-normal">• ${o.deliveryType || ''}</span></p>
+                                <p class="text-xs text-blue-600 font-semibold flex flex-wrap items-center gap-1.5">${o.customerPhone || 'Không có SĐT'}${o.customerPhone ? `<button type="button" onclick="copyPhone('${String(o.customerPhone).replace(/[^0-9+]/g, '')}')" class="text-[10px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md active:scale-95 transition-transform"><i class="fa-regular fa-copy mr-0.5"></i>Copy</button><a href="tel:${String(o.customerPhone).replace(/[^0-9+]/g, '')}" aria-label="Gọi điện" title="Gọi điện" class="ml-4 inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-500 text-white text-[12px] shadow-sm active:scale-90 transition-transform no-underline"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></a>` : ''} <span class="text-gray-500 font-normal">• ${o.deliveryType || ''}${o.deliveryType === 'Ship' && o.shipFrom ? ' từ ' + (o.shipFrom === 'Hòa Mã' ? 'Hoà Mã' : 'Thuỵ Khuê') : ''}</span></p>
                                 ${o.shippingAddress ? `<p class="text-xs text-neutral-600 mt-1">Địa chỉ: ${o.shippingAddress}</p>` : ''}
                                 ${o.notes && o.notes.length > 0 ? `<p class="text-xs text-amber-600 mt-1 font-medium"><i class="fas fa-sticky-note mr-1"></i>${o.notes.map(n => pe(n)).join(', ')}</p>` : ''}
                                 
@@ -2067,7 +2091,7 @@
         window.toggleShipping = function() {
             const val = document.querySelector('input[name="deliveryType"]:checked')?.value; const wrap = document.getElementById('shippingInputs'); const shipFeeField = document.getElementById('shippingFee');
             if(val === 'Ship') { wrap.classList.remove('hidden-section'); shipFeeField.removeAttribute('disabled'); } 
-            else { wrap.classList.add('hidden-section'); shipFeeField.setAttribute('disabled', 'true'); shipFeeField.value = ''; document.getElementById('shippingAddress').value = ''; }
+            else { wrap.classList.add('hidden-section'); shipFeeField.setAttribute('disabled', 'true'); shipFeeField.value = ''; document.getElementById('shippingAddress').value = ''; document.querySelectorAll('input[name="shipFrom"]').forEach(r => r.checked = false); }
             calcTotal();
         };
         window.toggleOtherNote = function() { const text = document.getElementById('otherNoteText'); document.getElementById('noteOther').checked ? text.classList.remove('hidden-section') : text.classList.add('hidden-section'); };
@@ -2219,6 +2243,7 @@
             const r = document.querySelector(`input[name="deliveryType"][value="${o.deliveryType}"]`); if(r) r.checked = true;
             document.getElementById('shippingAddress').value = o.shippingAddress || ''; document.getElementById('shippingFee').value = o.shippingFee || '';
             document.getElementById('shippingShipper').value = o.shipperName || '';
+            document.querySelectorAll('input[name="shipFrom"]').forEach(r => r.checked = (!!o.shipFrom && r.value === o.shipFrom));
             
             orderPromoIds = Array.isArray(o.promoIds) ? o.promoIds.slice() : (o.promoId ? [o.promoId] : []); document.getElementById('discountType').value = o.discountType || 'amount';
             document.getElementById('discountValue').value = o.discountValue || '';
