@@ -486,16 +486,43 @@
                         <input type="date" id="filterShipDate" class="input-field py-2 px-3 text-sm" onchange="renderShippingStats()">
                     </div>
                     <div class="relative flex flex-col justify-end">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Nhận hàng</label>
+                        <select id="filterShipDelivery" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderShippingStats()">
+                            <option value="all">Tất cả (Ship + Pick up)</option>
+                            <option value="Ship">Ship</option>
+                            <option value="Thụy Khuê">Pick up Thuỵ Khuê</option>
+                            <option value="Hòa Mã">Pick up Hoà Mã</option>
+                        </select>
+                    </div>
+                    <div class="relative flex flex-col justify-end">
                         <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Shipper</label>
                         <select id="filterShipperName" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderShippingStats()">
                             <option value="all">Tất cả Shipper</option>
                             <option value="Chưa gán">-- Đơn chưa gán Shipper --</option>
                         </select>
                     </div>
+                    <div class="relative flex flex-col justify-end">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Ship từ</label>
+                        <select id="filterShipFromShipping" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderShippingStats()">
+                            <option value="all">Tất cả</option>
+                            <option value="Thụy Khuê">Thuỵ Khuê</option>
+                            <option value="Hòa Mã">Hoà Mã</option>
+                            <option value="none">Chưa chọn nơi ship</option>
+                        </select>
+                    </div>
+                    <div class="relative flex flex-col justify-end col-span-2">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Tình trạng giao</label>
+                        <select id="filterDeliveryStatus" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderShippingStats()">
+                            <option value="all">Tất cả</option>
+                            <option value="pending">Chưa giao</option>
+                            <option value="delivered">Đã giao</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl flex flex-col justify-center mb-4">
                     <p class="text-[10px] uppercase text-blue-500 font-bold mb-1">Tổng tiền Ship (theo bộ lọc)</p>
                     <p class="text-lg font-black text-blue-700" id="totalShippingFee">0đ</p>
+                    <p class="text-[11px] text-blue-600 mt-1" id="shippingStatusSummary"></p>
                 </div>
                 <div id="shippingStatsList" class="space-y-3 max-h-80 overflow-y-auto pr-1"></div>
             </div>
@@ -1622,6 +1649,7 @@
                 id: currentId, date: existingOrder ? existingOrder.date : new Date().toISOString(), receiveDate: receiveDate,
                 customerName: name, customerPhone: phone, deliveryType: delivery, shippingAddress: document.getElementById('shippingAddress').value,
                 shippingFee: shipFee, shipperName: delivery === 'Ship' ? shipperName : '', shipFrom: delivery === 'Ship' ? shipFrom : '',
+                deliveryStatus: (existingOrder && existingOrder.deliveryStatus === 'delivered') ? 'delivered' : '', deliveredAt: (existingOrder && existingOrder.deliveryStatus === 'delivered') ? (existingOrder.deliveredAt || '') : '',
                 products: prods, 
                 discountType: discountType, discountValue: discountValue,
                 promoIds: money.applied.map(p => p.id), promoId: money.applied.length ? money.applied[0].id : '', promoName: money.applied.map(p => p.name).join(' + '), promoDiscount: money.promoProd, promoShipDiscount: money.promoShip, promoGifts: money.gifts || [],
@@ -2585,7 +2613,9 @@
             const list = document.getElementById('shippingStatsList');
             list.innerHTML = '';
 
-            let shipOrders = ordersDB.filter(o => !o.isDeleted && o.deliveryType === 'Ship');
+            let shipOrders = ordersDB.filter(o => !o.isDeleted && ['Ship', 'Thụy Khuê', 'Hòa Mã'].includes(o.deliveryType));
+            const filterShipDelivery = document.getElementById('filterShipDelivery').value;
+            if (filterShipDelivery !== 'all') shipOrders = shipOrders.filter(o => o.deliveryType === filterShipDelivery);
 
             if(filterDate) {
                 shipOrders = shipOrders.filter(o => {
@@ -2594,13 +2624,24 @@
                 });
             }
 
-            if(filterShipper !== 'all') {
-                if(filterShipper === 'Chưa gán') { shipOrders = shipOrders.filter(o => !o.shipperName); }
-                else { shipOrders = shipOrders.filter(o => o.shipperName === filterShipper); }
+            if(filterShipper !== 'all') { // Shipper chỉ có ở đơn Ship
+                if(filterShipper === 'Chưa gán') { shipOrders = shipOrders.filter(o => o.deliveryType === 'Ship' && !o.shipperName); }
+                else { shipOrders = shipOrders.filter(o => o.deliveryType === 'Ship' && o.shipperName === filterShipper); }
             }
 
+            const filterShipFromShipping = document.getElementById('filterShipFromShipping').value;
+            if (filterShipFromShipping !== 'all') {
+                shipOrders = shipOrders.filter(o => o.deliveryType === 'Ship' && (filterShipFromShipping === 'none' ? !o.shipFrom : o.shipFrom === filterShipFromShipping)); // Ship từ chỉ có ở đơn Ship
+            }
+            const filterStatus = document.getElementById('filterDeliveryStatus').value;
+            if (filterStatus === 'delivered') shipOrders = shipOrders.filter(o => o.deliveryStatus === 'delivered');
+            else if (filterStatus === 'pending') shipOrders = shipOrders.filter(o => o.deliveryStatus !== 'delivered');
+
             let totalFee = 0;
-            if(shipOrders.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-6 text-sm">Không có đơn giao hàng nào</p>'; document.getElementById('totalShippingFee').innerText = '0đ'; return; }
+            const summaryEl = document.getElementById('shippingStatusSummary');
+            const deliveredCount = shipOrders.filter(o => o.deliveryStatus === 'delivered').length;
+            if (summaryEl) summaryEl.innerText = shipOrders.length ? `${shipOrders.length} đơn • ✓ Đã giao ${deliveredCount} • Chưa giao ${shipOrders.length - deliveredCount}` : '';
+            if(shipOrders.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-6 text-sm">Không có đơn nào</p>'; document.getElementById('totalShippingFee').innerText = '0đ'; return; }
 
             const activeShippers = shippersDB.filter(s => !s.isDeleted);
 
@@ -2622,22 +2663,50 @@
                 });
                 selectHTML += `</select>`;
 
+                const done = o.deliveryStatus === 'delivered';
+                const isShip = o.deliveryType === 'Ship';
+                const pickupLabel = o.deliveryType === 'Hòa Mã' ? 'Pick up Hoà Mã' : 'Pick up Thuỵ Khuê';
+                const fromLabel = o.shipFrom ? (o.shipFrom === 'Hòa Mã' ? 'Hoà Mã' : 'Thuỵ Khuê') : '';
                 html += `
-                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm relative">
+                    <div class="${done ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100'} p-4 rounded-xl border shadow-sm relative">
                         <div class="flex justify-between items-start mb-2">
-                            <div class="flex items-center">
+                            <div class="flex items-center flex-wrap gap-y-1">
                                 <button type="button" onclick="exportImage('${o.id}', true)" class="text-xs font-mono bg-blue-50 px-2 py-0.5 rounded text-blue-600 font-bold underline active:scale-95 transition-transform" title="Bấm để xem trước đơn hàng">${o.id}</button>
-                                ${selectHTML}
+                                ${isShip ? selectHTML : `<span class="text-[10px] ml-2 font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-200">${pickupLabel}</span>`}
                             </div>
-                            <span class="font-bold text-black">${formatCurrency(o.shippingFee || 0)}</span>
+                            ${isShip ? `<span class="font-bold text-black">${formatCurrency(o.shippingFee || 0)}</span>` : ''}
                         </div>
-                        <p class="text-xs text-gray-600"><strong>Giao đến:</strong> ${o.shippingAddress || 'Không ghi địa chỉ'}</p>
-                        <p class="text-[10px] text-gray-400 mt-1">Ngày giao: ${o.receiveDate || ''}</p>
+                        ${isShip
+                            ? `<p class="text-xs text-gray-600"><strong>Giao đến:</strong> ${o.shippingAddress || 'Không ghi địa chỉ'}</p>`
+                            : `<p class="text-xs text-gray-600"><strong>Khách:</strong> ${o.customerName || 'Khách chưa có tên'}${o.customerPhone ? ' • ' + o.customerPhone : ''}</p>`}
+                        <p class="text-[10px] text-gray-400 mt-1">${isShip ? 'Ngày giao' : 'Ngày nhận'}: ${o.receiveDate || ''}${isShip && fromLabel ? ' • Ship từ: ' + fromLabel : ''}</p>
+                        <div class="flex items-center gap-2 mt-3">
+                            <div class="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+                                <button type="button" onclick="setDeliveryStatus('${o.id}', 'pending')" class="text-[11px] font-bold px-3 py-1.5 rounded-md ${!done ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-400'}">Chưa giao</button>
+                                <button type="button" onclick="setDeliveryStatus('${o.id}', 'delivered')" class="text-[11px] font-bold px-3 py-1.5 rounded-md ${done ? 'bg-green-500 text-white shadow-sm' : 'text-gray-400'}">Đã giao</button>
+                            </div>
+                            ${done ? '<span class="text-[11px] font-bold text-green-600">✓ Done</span>' : ''}
+                        </div>
                     </div>
                 `;
             });
             list.innerHTML = html;
             document.getElementById('totalShippingFee').innerText = formatCurrency(totalFee);
+        };
+
+        // Đặt tình trạng giao hàng cho đơn: 'delivered' (đã giao) hoặc 'pending' (chưa giao)
+        window.setDeliveryStatus = function(orderId, status) {
+            const order = ordersDB.find(o => o.id === orderId);
+            if (!order) return;
+            const newStatus = status === 'delivered' ? 'delivered' : '';
+            if ((order.deliveryStatus === 'delivered' ? 'delivered' : '') === newStatus) return; // không đổi thì bỏ qua
+            order.deliveryStatus = newStatus;
+            order.deliveredAt = newStatus ? new Date().toISOString() : '';
+            order._updatedAt = Date.now(); // để đồng bộ giữa các thiết bị lấy bản mới nhất
+            saveData();
+            logAction('SHIPPING', `Đơn ${orderId}: ${newStatus ? 'ĐÃ GIAO' : 'CHƯA GIAO'}`);
+            showToast(newStatus ? 'Đã đánh dấu: Đã giao' : 'Đã chuyển về: Chưa giao');
+            renderShippingStats();
         };
 
         window.quickAssignShipper = function(orderId, shipperName) {
