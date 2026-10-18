@@ -135,6 +135,7 @@
             <div id="btn-tab-order" class="segment-btn active" onclick="switchTab('order')">Lên đơn</div>
             <div id="btn-tab-revenue" class="segment-btn" onclick="switchTab('revenue')">Doanh thu</div>
             <div id="btn-tab-stats" class="segment-btn" onclick="switchTab('stats')">Thống kê</div>
+            <div id="btn-tab-capacity" class="segment-btn" onclick="switchTab('capacity')">Đặt bánh</div>
             <div id="btn-tab-shipping" class="segment-btn" onclick="switchTab('shipping')">Giao hàng</div>
             <div id="btn-tab-products" class="segment-btn" onclick="switchTab('products')">Kho SP</div>
             <div id="btn-tab-promos" class="segment-btn" onclick="switchTab('promos')">Khuyến mãi</div>
@@ -470,6 +471,33 @@
                 <h2 class="text-xs font-bold uppercase text-gray-400 mb-2">Top Khách hàng mua nhiều</h2>
                 <div id="revTopCustomers" class="space-y-2 mt-3 max-h-48 overflow-y-auto pr-1"></div>
             </div>
+        </div>
+
+        <!-- ================= TAB: ĐẶT BÁNH (QUẢN LÝ SỐ LƯỢNG THEO NGÀY) ================= -->
+        <div id="tab-capacity" class="hidden-section space-y-4 fade-in">
+            <div class="apple-card p-4 space-y-3">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xs font-bold uppercase text-gray-400">Quản lý đặt bánh</h2>
+                    <button type="button" onclick="capGoToday()" class="text-[10px] text-blue-500 font-semibold bg-blue-50 px-2 py-1 rounded-lg active:scale-95 transition">Hôm nay</button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="capShiftDay(-1)" class="w-10 h-10 rounded-xl bg-gray-100 text-gray-600 font-bold text-lg active:scale-95 transition" aria-label="Ngày trước">‹</button>
+                    <input type="date" id="capDate" class="input-field py-2 px-3 text-sm flex-1" onchange="renderCapacity()">
+                    <button type="button" onclick="capShiftDay(1)" class="w-10 h-10 rounded-xl bg-gray-100 text-gray-600 font-bold text-lg active:scale-95 transition" aria-label="Ngày sau">›</button>
+                </div>
+                <p id="capDateLabel" class="text-[11px] text-gray-500 text-center -mt-1"></p>
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div class="bg-gray-50 rounded-xl py-2"><p class="text-[9px] uppercase font-bold text-gray-400">Tối đa</p><p id="capSumMax" class="text-lg font-black text-gray-700">0</p></div>
+                    <div class="bg-blue-50 rounded-xl py-2"><p class="text-[9px] uppercase font-bold text-blue-400">Đã đặt</p><p id="capSumOrdered" class="text-lg font-black text-blue-600">0</p></div>
+                    <div class="bg-green-50 rounded-xl py-2"><p class="text-[9px] uppercase font-bold text-green-500">Còn lại</p><p id="capSumRemain" class="text-lg font-black text-green-600">0</p></div>
+                </div>
+                <p class="text-[10px] text-gray-400 text-center -mt-1">Tối đa và Còn lại chỉ tính các món đã điền số lượng tối đa</p>
+                <div class="flex gap-2">
+                    <button type="button" onclick="capCopyFromPrev()" class="flex-1 text-[11px] font-semibold text-gray-600 bg-gray-100 px-3 py-2 rounded-lg active:scale-95 transition">Chép số tối đa từ ngày trước</button>
+                    <button type="button" id="btnCapZero" onclick="capToggleZero()" class="text-[11px] font-semibold text-gray-500 bg-gray-100 px-3 py-2 rounded-lg active:scale-95 transition">Hiện SP 0đ</button>
+                </div>
+            </div>
+            <div id="capList" class="space-y-2"></div>
         </div>
 
         <!-- ================= TAB: SHIPPING (GIAO HÀNG) ================= -->
@@ -1128,6 +1156,9 @@
         function showToast(msg) { const t = document.getElementById('toast'); t.innerText = msg; t.classList.remove('opacity-0'); setTimeout(() => t.classList.add('opacity-0'), 2500); }
         
         let promosDB = JSON.parse(localStorage.getItem('myPromos') || '[]') || [];
+        // Số lượng bánh tối đa theo ngày: mỗi dòng = 1 món trong 1 ngày. {id:'2026-10-20|Tên bánh', date, product, max, _updatedAt}
+        // (thiết kế sẵn để sau này đồng bộ lên Sheet: gộp theo id + _updatedAt giống CTKM/Shipper)
+        let capacityDB = (function(){ try { const v = JSON.parse(localStorage.getItem('myCapacity') || '[]'); return Array.isArray(v) ? v : []; } catch(e) { return []; } })();
         let orderPromoIds = [];
         const pe = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
         const PROMO_TYPES = {
@@ -1414,7 +1445,7 @@
         window.saveData = function() {
             localStorage.setItem('myOrders', JSON.stringify(ordersDB)); localStorage.setItem('myProds', JSON.stringify(productsDB));
             localStorage.setItem('myCustomers', JSON.stringify(customersDB)); localStorage.setItem('mySettings', JSON.stringify(appSettings)); 
-            localStorage.setItem('myShippers', JSON.stringify(shippersDB)); localStorage.setItem('myPromos', JSON.stringify(promosDB));
+            localStorage.setItem('myShippers', JSON.stringify(shippersDB)); localStorage.setItem('myPromos', JSON.stringify(promosDB)); localStorage.setItem('myCapacity', JSON.stringify(capacityDB));
             if (appSettings.gasUrl) syncToGoogle();
         }
 
@@ -2002,7 +2033,7 @@
         };
 
         window.switchTab = function(tabId) {
-            const tabs = ['order', 'revenue', 'stats', 'shipping', 'products', 'promos', 'crm', 'settings'];
+            const tabs = ['order', 'revenue', 'stats', 'capacity', 'shipping', 'products', 'promos', 'crm', 'settings'];
             tabs.forEach((t) => {
                 const btn = document.getElementById(`btn-tab-${t}`); const content = document.getElementById(`tab-${t}`);
                 if(t === tabId) { btn.classList.add('active'); content.classList.remove('hidden-section'); } 
@@ -2013,9 +2044,136 @@
             if(tabId === 'stats') { document.getElementById('selectAllBtn').checked = false; renderStats(); }
             if(tabId === 'crm') { renderCrmList(); }
             if(tabId === 'promos') { renderPromos(); }
+            if(tabId === 'capacity') { renderCapacity(); }
             if(tabId === 'revenue') { renderRevenueCharts(); }
             if(tabId === 'shipping') { renderShipperManagementList(); populateShipperDropdowns(); renderShippingStats(); }
             selectedOrders.clear(); updateBulkBar();
+        };
+
+        // ================= QUẢN LÝ ĐẶT BÁNH THEO NGÀY =================
+        let capShowZero = false;
+        let capRows = [];
+        const capYmd = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const capEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const capKey = (date, name) => `${date}|${name}`;
+        function capSave() { try { localStorage.setItem('myCapacity', JSON.stringify(capacityDB)); } catch (e) { console.error(e); } }
+        // Giữ số lượng của 90 ngày gần nhất (khớp với Apps Script) để dữ liệu không phình to
+        function capPrune(list) {
+            const d = new Date(); d.setDate(d.getDate() - 90); const cutoff = capYmd(d);
+            return (list || []).filter(r => r && r.id && String(r.date || String(r.id).split('|')[0]) >= cutoff);
+        }
+        // Gộp số lượng nhận từ Sheet (theo id + _updatedAt) rồi lưu
+        function capMergeFromCloud(cloudList) {
+            if (!Array.isArray(cloudList)) return;
+            capacityDB = capPrune(mergeDataLists(capacityDB, cloudList)); capSave();
+        }
+        // Làm mới tab Đặt bánh sau đồng bộ, nhưng KHÔNG vẽ lại khi đang gõ trong ô số lượng (tránh đóng bàn phím / mất số đang gõ)
+        function capRefreshIfVisible() {
+            try {
+                const t = document.getElementById('tab-capacity'); if (!t || t.classList.contains('hidden-section')) return;
+                const a = document.activeElement; if (a && a.closest && a.closest('#capList')) return;
+                renderCapacity();
+            } catch (e) {}
+        }
+        // Gõ xong khoảng 1,5 giây thì tự đồng bộ lên Sheet (gộp nhiều lần gõ thành 1 lần đồng bộ)
+        let capSyncTimer = null;
+        function capScheduleSync() {
+            if (!appSettings || !appSettings.gasUrl) return;
+            clearTimeout(capSyncTimer); capSyncTimer = setTimeout(() => { try { syncToGoogle(); } catch (e) {} }, 1500);
+        }
+        function capGet(date, name) { const r = capacityDB.find(x => x.id === capKey(date, name)); return (r && r.max !== null && r.max !== undefined && r.max !== '') ? Number(r.max) : null; }
+        function capSet(date, name, val) {
+            const id = capKey(date, name); const num = (val === '' || val === null || isNaN(Number(val))) ? null : Math.max(0, Math.floor(Number(val)));
+            const rec = capacityDB.find(x => x.id === id);
+            if (rec) { rec.max = num; rec._updatedAt = Date.now(); }
+            else if (num !== null) { capacityDB.push({ id, date, product: name, max: num, _updatedAt: Date.now() }); }
+            capSave(); capScheduleSync();
+        }
+        // Đếm số bánh đã đặt trong ngày (theo ngày nhận), bỏ đơn đã xóa, tính cả bánh tặng
+        function capCountOrdered(date) {
+            const counts = {};
+            ordersDB.forEach(o => {
+                if (o.isDeleted) return;
+                const d = parseDateStr(o.receiveDate); if (!d || isNaN(d.getTime()) || capYmd(d) !== date) return;
+                (o.products || []).forEach(p => { if (p && p.name) counts[p.name] = (counts[p.name] || 0) + (Number(p.qty) || 0); });
+            });
+            return counts;
+        }
+        window.capGoToday = function() { document.getElementById('capDate').value = capYmd(new Date()); renderCapacity(); };
+        window.capShiftDay = function(n) {
+            const el = document.getElementById('capDate'); const base = el.value ? new Date(el.value + 'T00:00:00') : new Date();
+            base.setDate(base.getDate() + n); el.value = capYmd(base); renderCapacity();
+        };
+        window.capToggleZero = function() { capShowZero = !capShowZero; document.getElementById('btnCapZero').innerText = capShowZero ? 'Ẩn SP 0đ' : 'Hiện SP 0đ'; renderCapacity(); };
+        window.capCopyFromPrev = function() {
+            const date = document.getElementById('capDate').value; if (!date) return;
+            const prevDates = Array.from(new Set(capacityDB.filter(r => r.date < date && r.max !== null && r.max !== undefined && r.max !== '').map(r => r.date))).sort();
+            if (!prevDates.length) { showToast('Chưa có ngày nào trước đó được điền số lượng'); return; }
+            const src = prevDates[prevDates.length - 1]; let n = 0;
+            capacityDB.filter(r => r.date === src && r.max !== null && r.max !== undefined && r.max !== '').forEach(r => { if (capGet(date, r.product) === null) { capSet(date, r.product, r.max); n++; } }); // chỉ điền vào ô còn trống, không ghi đè
+            const [y, m, d] = src.split('-'); showToast(n ? `Đã chép ${n} món từ ngày ${d}/${m}` : `Các món đã có số lượng, không chép thêm (ngày gần nhất: ${d}/${m})`);
+            renderCapacity();
+        };
+        // Cập nhật 1 dòng + tổng ngay khi gõ (không vẽ lại cả danh sách để bàn phím không bị đóng)
+        window.capOnInput = function(idx, val) {
+            const date = document.getElementById('capDate').value; const row = capRows[idx]; if (!row || !date) return;
+            capSet(date, row.name, val); capPaintRow(idx); capPaintSummary();
+        };
+        function capStatus(max, ordered) {
+            if (max === null) return { remain: null, cls: 'text-gray-300', bar: 'bg-gray-200', pct: 0, text: 'Chưa đặt giới hạn' };
+            const remain = max - ordered;
+            if (remain < 0) return { remain, cls: 'text-red-600', bar: 'bg-red-500', pct: 100, text: `Vượt ${-remain}` };
+            if (remain === 0) return { remain, cls: 'text-red-600', bar: 'bg-red-500', pct: 100, text: 'Hết bánh' };
+            const pct = max > 0 ? Math.round(ordered / max * 100) : 100;
+            if (remain <= Math.ceil(max * 0.2)) return { remain, cls: 'text-orange-500', bar: 'bg-orange-400', pct, text: 'Sắp hết' };
+            return { remain, cls: 'text-green-600', bar: 'bg-green-500', pct, text: '' };
+        }
+        function capPaintRow(idx) {
+            const row = capRows[idx]; const date = document.getElementById('capDate').value; const st = capStatus(capGet(date, row.name), row.ordered);
+            const rEl = document.getElementById(`capRemain-${idx}`), bEl = document.getElementById(`capBar-${idx}`), tEl = document.getElementById(`capNote-${idx}`), card = document.getElementById(`capCard-${idx}`);
+            if (rEl) { rEl.innerText = st.remain === null ? '—' : st.remain; rEl.className = `text-lg font-black ${st.cls}`; }
+            if (bEl) { bEl.style.width = Math.min(100, st.pct) + '%'; bEl.className = `h-full rounded-full ${st.bar}`; }
+            if (tEl) { tEl.innerText = st.text; tEl.className = `text-[10px] font-bold ${st.cls}`; }
+            if (card) { card.classList.toggle('border-red-200', st.remain !== null && st.remain <= 0); card.classList.toggle('border-gray-100', !(st.remain !== null && st.remain <= 0)); }
+        }
+        function capPaintSummary() {
+            const date = document.getElementById('capDate').value; let max = 0, ordered = 0, remain = 0;
+            capRows.forEach(r => { ordered += r.ordered; if (!r.unknown) { const m = capGet(date, r.name); if (m !== null) { max += m; remain += (m - r.ordered); } } });
+            document.getElementById('capSumMax').innerText = max; document.getElementById('capSumOrdered').innerText = ordered;
+            const rEl = document.getElementById('capSumRemain'); rEl.innerText = remain; rEl.className = `text-lg font-black ${remain < 0 ? 'text-red-600' : 'text-green-600'}`;
+        }
+        window.renderCapacity = function() {
+            const dateEl = document.getElementById('capDate'); const list = document.getElementById('capList'); if (!dateEl || !list) return;
+            if (!dateEl.value) dateEl.value = capYmd(new Date());
+            const date = dateEl.value; const [y, m, d] = date.split('-').map(Number);
+            document.getElementById('capDateLabel').innerText = formatFullDate(new Date(y, m - 1, d));
+            const counts = capCountOrdered(date); const seen = new Set(); capRows = [];
+            productsDB.forEach(p => {
+                if (!p || !p.name) return; seen.add(p.name);
+                const isZero = Math.round(parseFloat(p.price)) === 0;
+                if (isZero && !capShowZero) return;
+                capRows.push({ name: p.name, ordered: counts[p.name] || 0, unknown: false });
+            });
+            Object.keys(counts).forEach(n => { if (!seen.has(n)) capRows.push({ name: n, ordered: counts[n], unknown: true }); }); // món có đơn nhưng không còn trong Kho SP
+            if (!capRows.length) { list.innerHTML = '<p class="text-center text-gray-400 py-8 text-sm">Chưa có sản phẩm. Hãy thêm sản phẩm ở tab Kho SP.</p>'; capPaintSummary(); return; }
+            list.innerHTML = capRows.map((r, i) => {
+                const max = r.unknown ? null : capGet(date, r.name);
+                return `<div id="capCard-${i}" class="apple-card p-3 border ${r.unknown ? 'bg-gray-50' : ''} border-gray-100">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <p class="font-bold text-sm truncate">${capEsc(r.name)}${r.unknown ? ' <span class="text-[9px] font-semibold text-orange-500">(không có trong Kho SP)</span>' : ''}</p>
+                        <span id="capNote-${i}" class="text-[10px] font-bold"></span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 items-end text-center">
+                        <div><p class="text-[9px] uppercase font-bold text-gray-400 mb-1">Tối đa</p>
+                            ${r.unknown ? '<p class="text-lg font-black text-gray-300">—</p>' : `<input type="number" inputmode="numeric" min="0" value="${max === null ? '' : max}" placeholder="—" oninput="capOnInput(${i}, this.value)" class="input-field py-1.5 px-2 text-center text-base font-black w-full">`}
+                        </div>
+                        <div><p class="text-[9px] uppercase font-bold text-blue-400 mb-1">Đã đặt</p><p class="text-lg font-black ${r.ordered > 0 ? 'text-blue-600' : 'text-gray-300'}">${r.ordered}</p></div>
+                        <div><p class="text-[9px] uppercase font-bold text-gray-400 mb-1">Còn lại</p><p id="capRemain-${i}" class="text-lg font-black">—</p></div>
+                    </div>
+                    <div class="h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden"><div id="capBar-${i}" class="h-full rounded-full bg-gray-200" style="width:0%"></div></div>
+                </div>`;
+            }).join('');
+            capRows.forEach((r, i) => capPaintRow(i)); capPaintSummary();
         };
 
         function parseDateStr(str) {
@@ -2830,6 +2988,7 @@
                     if (cloudData.products) productsDB = mergeDataLists(productsDB, cloudData.products);
                     if (cloudData.shippers) shippersDB = mergeDataLists(shippersDB, cloudData.shippers);
                     if (Array.isArray(cloudData.promotions)) promosDB = mergeDataLists(promosDB, cloudData.promotions);
+                    if (Array.isArray(cloudData.capacity)) capMergeFromCloud(cloudData.capacity);
                     
                     localStorage.setItem('myOrders', JSON.stringify(ordersDB));
                     localStorage.setItem('myCustomers', JSON.stringify(customersDB));
@@ -2837,13 +2996,14 @@
                     localStorage.setItem('myShippers', JSON.stringify(shippersDB)); localStorage.setItem('myPromos', JSON.stringify(promosDB));
                     // Làm mới danh sách CTKM (tab Khuyến mãi + danh sách chọn CTKM ở Lên đơn) khi vừa nhận CTKM từ thiết bị khác
                     try { renderPromos(); calcTotal(); } catch (e) {}
+                    capRefreshIfVisible();
 
                     await new Promise(resolve => setTimeout(resolve, 800));
 
                     // POST data dưới dạng string thuần túy không kèm custom headers để tránh lỗi chặn CORS
                     const pushRes = await fetch(appSettings.gasUrl, { 
                         method: 'POST', 
-                        body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, customers: customersDB, shippers: shippersDB, promotions: promosDB, logs: logsDB, settings: appSettings }) 
+                        body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, customers: customersDB, shippers: shippersDB, promotions: promosDB, capacity: capPrune(capacityDB), logs: logsDB, settings: appSettings }) 
                     });
                     
                     if (!pushRes.ok) throw new Error("HTTP " + pushRes.status);
@@ -2856,6 +3016,8 @@
                         isCloudSyncReady = true;
                         if (data.promoSaved === undefined) { status.innerText = "Đã đồng bộ (server CHƯA nhận CTKM)"; if(detailStatus) detailStatus.innerText = "⚠ Apps Script đang chạy bản cũ: chưa triển khai phiên bản mới nên CTKM không lên Sheet."; showToast("⚠ Apps Script chưa cập nhật bản mới: CTKM chưa lưu được lên Sheet"); }
                         else if(detailStatus) detailStatus.innerText += ` • CTKM trên Sheet: ${data.promoSaved}`;
+                        if (capacityDB.length && data.capacitySaved === undefined) { if(detailStatus) detailStatus.innerText += ' • ⚠ Apps Script chưa cập nhật bản v7: số lượng bánh (tab Đặt bánh) chưa lên Sheet'; showToast('⚠ Apps Script chưa cập nhật bản mới: số lượng bánh chưa lưu được lên Sheet'); }
+                        else if (detailStatus && data.capacitySaved >= 0) detailStatus.innerText += ` • Đặt bánh trên Sheet: ${data.capacitySaved}`;
                         if (data.stepErrors && data.stepErrors.length) { if(detailStatus) detailStatus.innerText += ` • ⚠ Lỗi một số phần: ${data.stepErrors.join('; ')}`; showToast("⚠ Một số phần chưa lên Sheet: " + data.stepErrors.join('; ')); }
 
                         if (!document.getElementById('tab-stats').classList.contains('hidden-section')) renderStats();
@@ -2911,6 +3073,7 @@
                     // nhưng chưa kịp đồng bộ lên Sheet tại đúng thời điểm bấm "Tải dữ liệu".
                     if (data.products) { productsDB = mergeDataLists(productsDB, data.products); localStorage.setItem('myProds', JSON.stringify(productsDB)); renderProductsList(); }
                     if (Array.isArray(data.promotions)) { promosDB = mergeDataLists(promosDB, data.promotions); localStorage.setItem('myPromos', JSON.stringify(promosDB)); renderPromos(); calcTotal(); }
+                    if (Array.isArray(data.capacity)) { capMergeFromCloud(data.capacity); capRefreshIfVisible(); }
                     if (data.shippers) { 
                         shippersDB = mergeDataLists(shippersDB, data.shippers); localStorage.setItem('myShippers', JSON.stringify(shippersDB)); 
                         populateShipperDropdowns();
