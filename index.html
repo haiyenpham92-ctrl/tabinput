@@ -318,7 +318,7 @@
                     <h2 class="text-xs font-bold uppercase text-gray-400">Tổng hợp bánh theo ngày nhận</h2>
                     <button onclick="window.toggleZeroPriceInSum()" id="btnToggleZeroPriceSum" class="text-[10px] text-gray-500 font-semibold bg-gray-100 px-2 py-1 rounded-lg hover:bg-gray-200 transition active:scale-95">Hiện SP 0đ</button>
                 </div>
-                <div class="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 flex items-center justify-between gap-3">
+                <div id="productSumTotalBox" class="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 flex items-center justify-between gap-3" style="display:none">
                     <div class="min-w-0">
                         <p class="text-[10px] uppercase text-blue-500 font-bold">Tổng giá trị đơn hàng</p>
                         <p class="text-[10px] text-blue-400" id="productSumOrderCount">0 đơn • đã gồm phí ship</p>
@@ -971,6 +971,7 @@
 
         window.handleLogout = function() {
             logAction('ĐĂNG XUẤT', 'Đã đăng xuất'); currentUser = null;
+            { const sb = document.getElementById('productSumTotalBox'); if (sb) { sb.style.display = 'none'; document.getElementById('productSumTotal').innerText = ''; document.getElementById('productSumOrderCount').innerText = ''; } } // Xóa số tổng của admin khỏi trang khi đăng xuất
             clearRememberedLogin();
             document.getElementById('loginUsername').value = ''; document.getElementById('loginPassword').value = '';
             document.getElementById('loginScreen').classList.remove('hidden-section'); document.getElementById('mainApp').classList.add('hidden-section'); document.getElementById('loginError').classList.add('hidden-section');
@@ -1055,8 +1056,10 @@
             const revBtn = document.getElementById('btn-tab-revenue');
             const shippingBtn = document.getElementById('btn-tab-shipping');
             const btnOpenTrash = document.getElementById('btnOpenTrash');
+            const sumTotalBox = document.getElementById('productSumTotalBox'); // Ô "Tổng giá trị đơn hàng": chỉ admin được xem
             
             if (currentUser.role !== 'admin') { 
+                if (sumTotalBox) { sumTotalBox.style.display = 'none'; document.getElementById('productSumTotal').innerText = ''; document.getElementById('productSumOrderCount').innerText = ''; }
                 settingsBtn.style.display = 'none'; 
                 productsBtn.style.display = 'none'; 
                 deleteBtn.style.display = 'none'; 
@@ -1070,6 +1073,7 @@
                 revBtn.style.display = '';
                 shippingBtn.style.display = '';
                 btnOpenTrash.style.display = ''; // Hiển thị nút Thùng rác cho admin
+                if (sumTotalBox) sumTotalBox.style.display = '';
             }
             switchTab('order'); 
         }
@@ -1951,7 +1955,7 @@
 
             // Tổng giá trị các đơn đang hiển thị theo bộ lọc (tiền cuối của đơn, đã trừ giảm giá, đã gồm phí ship)
             const sumTotalEl = document.getElementById('productSumTotal');
-            if (sumTotalEl) {
+            if (sumTotalEl && typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'admin') { // Chỉ admin: tài khoản khác không tính và không ghi số tổng ra trang
                 const sumValue = filteredOrders.reduce((s, o) => s + (Number(o.total) || 0), 0);
                 sumTotalEl.innerText = formatCurrency(sumValue);
                 const cntEl = document.getElementById('productSumOrderCount'); if (cntEl) cntEl.innerText = `${filteredOrders.length} đơn • đã gồm phí ship`;
