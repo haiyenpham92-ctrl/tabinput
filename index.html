@@ -318,6 +318,13 @@
                     <h2 class="text-xs font-bold uppercase text-gray-400">Tổng hợp bánh theo ngày nhận</h2>
                     <button onclick="window.toggleZeroPriceInSum()" id="btnToggleZeroPriceSum" class="text-[10px] text-gray-500 font-semibold bg-gray-100 px-2 py-1 rounded-lg hover:bg-gray-200 transition active:scale-95">Hiện SP 0đ</button>
                 </div>
+                <div class="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-[10px] uppercase text-blue-500 font-bold">Tổng giá trị đơn hàng</p>
+                        <p class="text-[10px] text-blue-400" id="productSumOrderCount">0 đơn • đã gồm phí ship</p>
+                    </div>
+                    <p class="text-lg font-black text-blue-700 whitespace-nowrap" id="productSumTotal">0 đ</p>
+                </div>
                 <div id="productSumGrid" class="flex flex-wrap gap-2 mt-2">
                     <p class="text-xs text-gray-400 italic text-center w-full py-2">Chọn ngày giao bánh ở dưới để xem số lượng</p>
                 </div>
@@ -1941,6 +1948,14 @@
             const grid = document.getElementById('productSumGrid');
             if(!grid) return;
             lastProductSumOrders = filteredOrders;
+
+            // Tổng giá trị các đơn đang hiển thị theo bộ lọc (tiền cuối của đơn, đã trừ giảm giá, đã gồm phí ship)
+            const sumTotalEl = document.getElementById('productSumTotal');
+            if (sumTotalEl) {
+                const sumValue = filteredOrders.reduce((s, o) => s + (Number(o.total) || 0), 0);
+                sumTotalEl.innerText = formatCurrency(sumValue);
+                const cntEl = document.getElementById('productSumOrderCount'); if (cntEl) cntEl.innerText = `${filteredOrders.length} đơn • đã gồm phí ship`;
+            }
             
             let counts = {};
             filteredOrders.forEach(o => {
