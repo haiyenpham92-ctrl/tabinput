@@ -43,6 +43,8 @@
         .lb-chip-on { background: #000; color: #fff; }
         .lb-seg { font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 8px; color: #8E8E93; }
         .lb-seg-on { background: #fff; color: #000; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+        /* Phân quyền tài khoản giới hạn (user1): ẩn mọi nút sửa */
+        body.limited-user .perm-edit { display: none !important; }
         .segment-btn { flex: 1; text-align: center; padding: 10px 4px; font-size: 10px; font-weight: 600; cursor: pointer; z-index: 10; color: #8E8E93; transition: color 0.3s; white-space: nowrap; min-width: 65px; }
         .segment-btn.active { color: #1D1D1F; }
         .segment-bg { position: absolute; top: 3px; bottom: 3px; left: 0; background: #FFFFFF; border-radius: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1), width 0.3s cubic-bezier(0.25, 0.1, 0.25, 1); z-index: 1; }
@@ -228,6 +230,7 @@
                     </div>
                 </div>
                 
+                <div id="stockWarnBox" class="hidden-section text-[11px] font-semibold rounded-xl px-3 py-2 mb-3 bg-red-50 text-red-600 whitespace-pre-line"></div>
                 <div class="flex justify-between items-end mb-6">
                     <div>
                         <p class="text-gray-400 text-xs">Tổng tiền</p>
@@ -493,7 +496,7 @@
                 </div>
                 <p class="text-[10px] text-gray-400 text-center -mt-1">Tối đa và Còn lại chỉ tính các món đã điền số lượng tối đa</p>
                 <div class="flex gap-2">
-                    <button type="button" onclick="capCopyFromPrev()" class="flex-1 text-[11px] font-semibold text-gray-600 bg-gray-100 px-3 py-2 rounded-lg active:scale-95 transition">Chép số tối đa từ ngày trước</button>
+                    <button type="button" onclick="capCopyFromPrev()" class="perm-edit flex-1 text-[11px] font-semibold text-gray-600 bg-gray-100 px-3 py-2 rounded-lg active:scale-95 transition">Chép số tối đa từ ngày trước</button>
                     <button type="button" id="btnCapZero" onclick="capToggleZero()" class="text-[11px] font-semibold text-gray-500 bg-gray-100 px-3 py-2 rounded-lg active:scale-95 transition">Hiện SP 0đ</button>
                 </div>
             </div>
@@ -502,8 +505,8 @@
 
         <!-- ================= TAB: SHIPPING (GIAO HÀNG) ================= -->
         <div id="tab-shipping" class="hidden-section space-y-6 fade-in">
-            <!-- Quản lý danh sách Shipper -->
-            <div class="apple-card p-6">
+            <!-- Quản lý danh sách Shipper (tài khoản giới hạn không thấy) -->
+            <div class="apple-card p-6 perm-edit">
                 <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Quản lý Shipper</h2>
                 <div class="flex gap-2 mb-4">
                     <input type="text" id="newShipperName" class="input-field py-2 text-sm" placeholder="Tên Shipper mới...">
@@ -720,7 +723,7 @@
     <!-- Bulk Action Bar -->
     <div id="bulkActionBar">
         <span id="bulkCount" class="font-bold text-sm">0 đơn</span>
-        <button onclick="bulkMarkPaid()" class="text-green-400 text-sm font-semibold ml-2">Thanh toán</button>
+        <button onclick="bulkMarkPaid()" class="perm-edit text-green-400 text-sm font-semibold ml-2">Thanh toán</button>
         <button onclick="bulkPrint()" class="text-blue-400 text-sm font-semibold ml-4">In đơn</button>
         <button id="btn-bulk-delete" onclick="bulkDelete()" class="text-red-400 text-sm font-semibold ml-4">Xóa</button>
     </div>
@@ -730,7 +733,7 @@
         <header class="flex justify-between items-center p-4 bg-white shadow-sm rounded-b-3xl">
             <button onclick="document.getElementById('crmDetailModal').classList.add('hidden-section')" class="font-semibold text-blue-500 text-sm bg-blue-50 px-3 py-1.5 rounded-full active:scale-95">&larr; Đóng</button>
             <h2 class="font-bold text-lg">Hồ sơ khách hàng</h2>
-            <button onclick="openEditCustomer()" class="font-semibold text-blue-500 text-sm bg-blue-50 px-3 py-1.5 rounded-full active:scale-95">Sửa</button>
+            <button onclick="openEditCustomer()" class="perm-edit font-semibold text-blue-500 text-sm bg-blue-50 px-3 py-1.5 rounded-full active:scale-95">Sửa</button>
         </header>
         <div class="flex-1 overflow-y-auto p-4 space-y-4">
             <div class="apple-card p-6 text-center">
@@ -783,10 +786,10 @@
     <div id="confirmModal" class="fixed inset-0 bg-black/50 z-[1000] flex items-center justify-center opacity-0 pointer-events-none transition-opacity">
         <div class="bg-white p-6 rounded-3xl max-w-sm w-full m-4 shadow-2xl text-center">
             <h3 class="font-bold text-lg mb-2">Xác nhận</h3>
-            <p id="confirmModalText" class="text-sm text-gray-500 mb-6">Bạn có chắc khách hàng không yêu cầu gì đặc biệt?</p>
+            <p id="confirmModalText" class="text-sm text-gray-500 mb-6 whitespace-pre-line text-left">Bạn có chắc khách hàng không yêu cầu gì đặc biệt?</p>
             <div class="flex gap-2">
-                <button onclick="resolveConfirm(false)" class="btn-secondary flex-1">Quay lại</button>
-                <button onclick="resolveConfirm(true)" class="btn-primary flex-1 bg-black text-white">Chắc chắn</button>
+                <button id="confirmNoBtn" onclick="resolveConfirm(false)" class="btn-secondary flex-1">Quay lại</button>
+                <button id="confirmYesBtn" onclick="resolveConfirm(true)" class="btn-primary flex-1 bg-black text-white">Chắc chắn</button>
             </div>
         </div>
     </div>
@@ -998,6 +1001,7 @@
         };
 
         window.handleLogout = function() {
+            document.body.classList.remove('limited-user');
             logAction('ĐĂNG XUẤT', 'Đã đăng xuất'); currentUser = null;
             { const sb = document.getElementById('productSumTotalBox'); if (sb) { sb.style.display = 'none'; document.getElementById('productSumTotal').innerText = ''; document.getElementById('productSumOrderCount').innerText = ''; } } // Xóa số tổng của admin khỏi trang khi đăng xuất
             clearRememberedLogin();
@@ -1077,7 +1081,19 @@
             }
         };
 
+        // ===== PHÂN QUYỀN RIÊNG CHO TÀI KHOẢN user1 =====
+        // user1: chỉ XEM các tab Đặt bánh, Thống kê, Khách hàng. Có thêm tab Giao hàng nhưng chỉ được
+        // gán/bỏ gán shipper "Hoàng" và đổi trạng thái giao của các đơn đang gán cho Hoàng.
+        // (Chặn ở cả giao diện lẫn trong từng hàm xử lý. Lưu ý: đây là phân quyền trong app, không phải bảo mật phía máy chủ.)
+        const LIMITED_USERNAME = 'user1';
+        const LIMITED_SHIPPER = 'Hoàng';
+        const permNorm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/\s+/g, ' ').trim();
+        window.isLimitedUser = function() { return !!(currentUser && currentUser.role !== 'admin' && permNorm(currentUser.username) === permNorm(LIMITED_USERNAME)); };
+        window.isLimitedShipper = function(name) { return permNorm(name) === permNorm(LIMITED_SHIPPER); };
+        window.denyViewOnly = function() { showToast('Tài khoản của bạn chỉ có quyền xem mục này'); };
+
         function applyRoleRestrictions() {
+            document.body.classList.toggle('limited-user', isLimitedUser());
             const settingsBtn = document.getElementById('btn-tab-settings'); 
             const productsBtn = document.getElementById('btn-tab-products'); 
             const deleteBtn = document.getElementById('btn-bulk-delete');
@@ -1092,14 +1108,15 @@
                 productsBtn.style.display = 'none'; 
                 deleteBtn.style.display = 'none'; 
                 revBtn.style.display = 'none';
-                shippingBtn.style.display = 'none'; document.getElementById('btn-tab-promos').style.display = 'none';
+                shippingBtn.style.display = isLimitedUser() ? '' : 'none'; // user1 được thêm tab Giao hàng (chỉ thao tác với Hoàng)
+                document.getElementById('btn-tab-promos').style.display = 'none';
                 btnOpenTrash.style.display = 'none';
             } else { 
                 settingsBtn.style.display = ''; 
                 productsBtn.style.display = ''; 
                 deleteBtn.style.display = ''; 
                 revBtn.style.display = '';
-                shippingBtn.style.display = '';
+                shippingBtn.style.display = ''; document.getElementById('btn-tab-promos').style.display = '';
                 btnOpenTrash.style.display = ''; // Hiển thị nút Thùng rác cho admin
                 if (sumTotalBox) sumTotalBox.style.display = '';
             }
@@ -1621,8 +1638,10 @@
             document.querySelectorAll('[id^="sug-"]').forEach(box => { const rowId = box.id.replace('sug-', ''); const row = document.getElementById(`row-${rowId}`); if (row && !row.contains(e.target)) box.classList.add('hidden'); });
         });
 
-        window.showConfirmModal = function(msg) {
+        window.showConfirmModal = function(msg, noLabel, yesLabel) {
             document.getElementById('confirmModalText').innerText = msg;
+            document.getElementById('confirmNoBtn').innerText = noLabel || 'Quay lại';
+            document.getElementById('confirmYesBtn').innerText = yesLabel || 'Chắc chắn';
             document.getElementById('confirmModal').classList.remove('opacity-0', 'pointer-events-none');
             return new Promise(r => confirmResolver = r).then(res => {
                 document.getElementById('confirmModal').classList.add('opacity-0', 'pointer-events-none');
@@ -1630,13 +1649,31 @@
             });
         };
 
+        // Tạo SĐT giả duy nhất: dạng 0000 + 6 số, tăng dần, không trùng khách hàng/đơn nào (kể cả đã xóa)
+        window.generateUniquePhone = function() {
+            const taken = new Set();
+            customersDB.forEach(c => c && c.phone && taken.add(String(c.phone)));
+            ordersDB.forEach(o => o && o.customerPhone && taken.add(String(o.customerPhone)));
+            let max = 0;
+            taken.forEach(s => { const m = /^0000(\d{6})$/.exec(s); if (m) max = Math.max(max, parseInt(m[1], 10)); });
+            let n = max + 1, s;
+            do { s = '0000' + String(n++).padStart(6, '0'); } while (taken.has(s));
+            return s;
+        };
         window.submitOrder = async function() {
             const name = document.getElementById('custName').value.trim();
-            const phone = window.normalizePhone(document.getElementById('custPhone').value.trim());
+            let phone = window.normalizePhone(document.getElementById('custPhone').value.trim());
             const delivery = document.querySelector('input[name="deliveryType"]:checked')?.value;
             const receiveDate = document.getElementById('orderDate').value;
             
-            if(!name || !phone || !delivery) return showToast("Vui lòng nhập Tên, Số điện thoại và Nhận hàng");
+            if(!name || !delivery) return showToast("Vui lòng nhập Tên và Nhận hàng");
+            if(!phone) {
+                // Không có SĐT: cho chọn quay lại nhập, hoặc tự tạo 1 số riêng (không trùng với khách/đơn hiện có)
+                const gen = window.generateUniquePhone();
+                const useGen = await window.showConfirmModal(`Chưa có số điện thoại của khách.\n\n• Quay lại nhập SĐT\n• Hoặc tự tạo số tạm: ${gen} (không trùng với dữ liệu hiện có)`, 'Quay lại nhập SĐT', 'Tự tạo số');
+                if(!useGen) { document.getElementById('custPhone').focus(); return; }
+                phone = gen; document.getElementById('custPhone').value = gen;
+            }
             if(delivery === 'Ship' && !document.getElementById('shippingAddress').value.trim()){ return showToast("Vui lòng nhập địa chỉ giao hàng"); }
             const shipFrom = document.querySelector('input[name="shipFrom"]:checked')?.value || '';
             if(delivery === 'Ship' && !shipFrom){ return showToast("Vui lòng chọn Ship từ Thuỵ Khuê hoặc Hoà Mã"); }
@@ -1650,6 +1687,14 @@
             if (isDuplicate) {
                 const ok = await window.showConfirmModal(`Khách hàng này đã có đơn vào ngày ${receiveDate}. Bạn có chắc muốn lên thêm đơn nữa không?`);
                 if (!ok) return; // Hủy lên đơn nếu chọn Quay lại
+            }
+
+            // 1b. Cảnh báo hết bánh / không đủ bánh trong ngày nhận (vẫn cho phép lên đơn nếu bạn chắc chắn)
+            const stock = getStockIssues();
+            if (stock.list.length) {
+                const lines = stock.list.map(it => it.status === 'out' ? `• ${it.name}: đã hết bánh (tối đa ${it.max}, đã đặt ${it.used})` : `• ${it.name}: chỉ còn ${it.remaining}, đơn này lấy ${it.want}`);
+                const ok = await window.showConfirmModal(`⚠ Số lượng bánh ngày ${stock.dm} không đủ:\n${lines.join('\n')}\n\nBạn vẫn muốn lên đơn này?`);
+                if (!ok) return;
             }
 
             // 2. Cảnh báo thiếu ghi chú
@@ -1779,6 +1824,7 @@
         };
 
         window.openEditCustomer = function() {
+            if (isLimitedUser()) return denyViewOnly();
             if (!currentCrmPhone) return;
             const c = customersDB.find(x => x.phone === currentCrmPhone);
             if (!c) return;
@@ -1790,6 +1836,7 @@
         };
 
         window.saveEditCustomer = function() {
+            if (isLimitedUser()) return denyViewOnly();
             const origPhone = document.getElementById('editCrmOriginalPhone').value;
             const newName = document.getElementById('editCrmName').value.trim();
             const newPhoneRaw = document.getElementById('editCrmPhone').value.trim();
@@ -1940,11 +1987,11 @@
                                 
                                 <div class="flex gap-2 items-center justify-between mt-3 text-xs">
                                     <span class="px-3 py-1 rounded-full font-bold ${o.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${o.paymentStatus === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}</span>
-                                    <button onclick="togglePaymentStatus('${o.id}')" class="${o.paymentStatus === 'paid' ? 'text-orange-500' : 'text-blue-500'} font-semibold underline">${o.paymentStatus === 'paid' ? 'Hủy thanh toán' : 'Xác nhận thanh toán'}</button>
+                                    <button onclick="togglePaymentStatus('${o.id}')" class="perm-edit ${o.paymentStatus === 'paid' ? 'text-orange-500' : 'text-blue-500'} font-semibold underline">${o.paymentStatus === 'paid' ? 'Hủy thanh toán' : 'Xác nhận thanh toán'}</button>
                                 </div>
                                 
                                 <div class="flex gap-2 mt-4 border-t pt-3">
-                                    <button type="button" onclick="editOrder('${o.id}')" class="btn-secondary text-xs px-3 py-1 flex-1">Sửa</button>
+                                    <button type="button" onclick="editOrder('${o.id}')" class="perm-edit btn-secondary text-xs px-3 py-1 flex-1">Sửa</button>
                                     <button type="button" onclick="exportImage('${o.id}')" class="btn-primary text-xs px-3 py-1 flex-1">Xuất ảnh</button>
                                 </div>
                             </div>
@@ -2066,6 +2113,7 @@
         function capMergeFromCloud(cloudList) {
             if (!Array.isArray(cloudList)) return;
             capacityDB = capPrune(mergeDataLists(capacityDB, cloudList)); capSave();
+            try { refreshStockWarnings(); } catch (e) {}
         }
         // Làm mới tab Đặt bánh sau đồng bộ, nhưng KHÔNG vẽ lại khi đang gõ trong ô số lượng (tránh đóng bàn phím / mất số đang gõ)
         function capRefreshIfVisible() {
@@ -2083,6 +2131,7 @@
         }
         function capGet(date, name) { const r = capacityDB.find(x => x.id === capKey(date, name)); return (r && r.max !== null && r.max !== undefined && r.max !== '') ? Number(r.max) : null; }
         function capSet(date, name, val) {
+            if (isLimitedUser()) return; // chỉ xem
             const id = capKey(date, name); const num = (val === '' || val === null || isNaN(Number(val))) ? null : Math.max(0, Math.floor(Number(val)));
             const rec = capacityDB.find(x => x.id === id);
             if (rec) { rec.max = num; rec._updatedAt = Date.now(); }
@@ -2106,6 +2155,7 @@
         };
         window.capToggleZero = function() { capShowZero = !capShowZero; document.getElementById('btnCapZero').innerText = capShowZero ? 'Ẩn SP 0đ' : 'Hiện SP 0đ'; renderCapacity(); };
         window.capCopyFromPrev = function() {
+            if (isLimitedUser()) return denyViewOnly();
             const date = document.getElementById('capDate').value; if (!date) return;
             const prevDates = Array.from(new Set(capacityDB.filter(r => r.date < date && r.max !== null && r.max !== undefined && r.max !== '').map(r => r.date))).sort();
             if (!prevDates.length) { showToast('Chưa có ngày nào trước đó được điền số lượng'); return; }
@@ -2116,6 +2166,7 @@
         };
         // Cập nhật 1 dòng + tổng ngay khi gõ (không vẽ lại cả danh sách để bàn phím không bị đóng)
         window.capOnInput = function(idx, val) {
+            if (isLimitedUser()) return denyViewOnly();
             const date = document.getElementById('capDate').value; const row = capRows[idx]; if (!row || !date) return;
             capSet(date, row.name, val); capPaintRow(idx); capPaintSummary();
         };
@@ -2165,7 +2216,7 @@
                     </div>
                     <div class="grid grid-cols-3 gap-2 items-end text-center">
                         <div><p class="text-[9px] uppercase font-bold text-gray-400 mb-1">Tối đa</p>
-                            ${r.unknown ? '<p class="text-lg font-black text-gray-300">—</p>' : `<input type="number" inputmode="numeric" min="0" value="${max === null ? '' : max}" placeholder="—" oninput="capOnInput(${i}, this.value)" class="input-field py-1.5 px-2 text-center text-base font-black w-full">`}
+                            ${r.unknown ? '<p class="text-lg font-black text-gray-300">—</p>' : isLimitedUser() ? `<p class="text-lg font-black text-gray-700">${max === null ? '—' : max}</p>` : `<input type="number" inputmode="numeric" min="0" value="${max === null ? '' : max}" placeholder="—" oninput="capOnInput(${i}, this.value)" class="input-field py-1.5 px-2 text-center text-base font-black w-full">`}
                         </div>
                         <div><p class="text-[9px] uppercase font-bold text-blue-400 mb-1">Đã đặt</p><p class="text-lg font-black ${r.ordered > 0 ? 'text-blue-600' : 'text-gray-300'}">${r.ordered}</p></div>
                         <div><p class="text-[9px] uppercase font-bold text-gray-400 mb-1">Còn lại</p><p id="capRemain-${i}" class="text-lg font-black">—</p></div>
@@ -2300,7 +2351,53 @@
             calcTotal();
         };
         window.toggleOtherNote = function() { const text = document.getElementById('otherNoteText'); document.getElementById('noteOther').checked ? text.classList.remove('hidden-section') : text.classList.add('hidden-section'); };
+        // ===== CẢNH BÁO HẾT BÁNH KHI LÊN ĐƠN =====
+        // Dựa vào số "Tối đa" đã điền ở tab Đặt bánh cho đúng ngày nhận. Chỉ kiểm tra món đã điền số tối đa.
+        // Số đã đặt = các đơn khác cùng ngày nhận (bỏ đơn đã xóa và bỏ chính đơn đang sửa để không đếm trùng).
+        window.getStockIssues = function() {
+            const res = { ymd: '', dm: '', byName: {}, list: [] };
+            const d = parseDateStr(document.getElementById('orderDate').value);
+            if (!d || isNaN(d.getTime())) return res;
+            const ymd = capYmd(d); res.ymd = ymd; res.dm = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const used = Object.create(null);
+            ordersDB.forEach(o => {
+                if (o.isDeleted || o.id === editOrderId) return;
+                const od = parseDateStr(o.receiveDate); if (!od || isNaN(od.getTime()) || capYmd(od) !== ymd) return;
+                (o.products || []).forEach(p => { if (p && p.name) used[p.name] = (used[p.name] || 0) + (Number(p.qty) || 0); });
+            });
+            const items = getCartItems(); const want = Object.create(null);
+            items.forEach(i => { const n = (i.name || '').trim(); if (n && i.qty > 0) want[n] = (want[n] || 0) + i.qty; });
+            try { // quà tặng khuyến mãi cũng lấy từ kho bánh của ngày đó
+                const fee = (() => { const t = document.getElementById('shippingFee').value.replace(/[^0-9]/g, ''); return t ? parseInt(t, 10) : 0; })();
+                const m = computeMoney(items, document.getElementById('discountType').value, parseFloat(document.getElementById('discountValue').value) || 0, fee, orderPromoIds);
+                (m.gifts || []).forEach(g => { if (g && g.name && g.qty > 0) want[g.name] = (want[g.name] || 0) + g.qty; });
+            } catch (e) {}
+            Object.keys(want).forEach(name => {
+                const max = capGet(ymd, name); if (max === null) return; // chưa đặt giới hạn thì không cảnh báo
+                const u = used[name] || 0, remaining = max - u, w = want[name];
+                if (remaining <= 0) { const it = { name, status: 'out', max, used: u, remaining, want: w }; res.byName[name] = it; res.list.push(it); }
+                else if (w > remaining) { const it = { name, status: 'short', max, used: u, remaining, want: w }; res.byName[name] = it; res.list.push(it); }
+            });
+            return res;
+        };
+        window.stockLine = function(it, dm) {
+            return it.status === 'out' ? `⚠ ${it.name} đã hết bánh ngày ${dm} (tối đa ${it.max}, đã đặt ${it.used})` : `⚠ ${it.name} ngày ${dm} chỉ còn ${it.remaining} (tối đa ${it.max}, đã đặt ${it.used}), đơn này lấy ${it.want}`;
+        };
+        window.refreshStockWarnings = function() {
+            const rows = document.querySelectorAll('#productList > div'); if (!rows.length) return;
+            const s = getStockIssues(); const shown = new Set();
+            rows.forEach(row => {
+                const el = row.querySelector('.stock-warn'); if (!el) return;
+                const n = (row.querySelector('.prod-name').value || '').trim(); const it = s.byName[n];
+                el.classList.remove('bg-red-50', 'text-red-600', 'bg-orange-50', 'text-orange-600');
+                if (it) { el.innerText = stockLine(it, s.dm); el.classList.add(it.status === 'out' ? 'bg-red-50' : 'bg-orange-50', it.status === 'out' ? 'text-red-600' : 'text-orange-600'); el.classList.remove('hidden-section'); shown.add(n); }
+                else { el.innerText = ''; el.classList.add('hidden-section'); }
+            });
+            const box = document.getElementById('stockWarnBox'); // phần còn lại (ví dụ bánh tặng không có dòng riêng)
+            if (box) { const rest = s.list.filter(it => !shown.has(it.name)); if (rest.length) { box.innerText = rest.map(it => stockLine(it, s.dm) + (it.status === 'out' ? '' : '')).join('\n'); box.classList.remove('hidden-section'); } else { box.innerText = ''; box.classList.add('hidden-section'); } }
+        };
         window.checkAndAutoAppend = function(rowId) {
+            try { refreshStockWarnings(); } catch (e) {}
             const list = document.getElementById('productList'); const rows = list.querySelectorAll('.prod-row'); if (rows.length === 0) return;
             const lastRow = rows[rows.length - 1]; if (lastRow && lastRow.id === `row-${rowId}`) { const nameVal = lastRow.querySelector('.prod-name').value.trim(); if (nameVal !== "") addProductRow(); }
         };
@@ -2320,6 +2417,7 @@
                         <input type="number" placeholder="SL" class="input-field py-2 text-sm prod-qty w-1/3" value="${data ? data.qty : 1}" oninput="calcTotal()" onchange="window.checkAndAutoAppend('${id}')">
                         <input type="number" placeholder="Đơn giá" class="input-field py-2 text-sm prod-price w-2/3" value="${data ? data.price : ''}" oninput="calcTotal()" onchange="window.checkAndAutoAppend('${id}')">
                     </div>
+                    <div class="stock-warn hidden-section text-[11px] font-semibold rounded-lg px-2 py-1"></div>
                 </div>
                 <button type="button" onclick="document.getElementById('row-${id}').remove(); calcTotal();" class="text-gray-400 p-2">&times;</button>
             `;
@@ -2372,6 +2470,7 @@
                 info.innerText = orderPromoIds.length ? ((d > 0 || gt) ? `Đã áp dụng ${m.applied.length}/${orderPromoIds.length} CTKM` + (d > 0 ? ` - giảm ${formatCurrency(d)}` : '') + (gt ? ` - ${gt}` : '') : 'Chưa đủ điều kiện áp dụng CTKM đã chọn') : '';
             }
             document.getElementById('totalPrice').innerText = formatCurrency(m.total);
+            try { refreshStockWarnings(); } catch (e) {}
         };
         window.resolveConfirm = function(val) { if(confirmResolver) { confirmResolver(val); confirmResolver = null; } };
 
@@ -2381,6 +2480,7 @@
         
         // SOFT DELETE AN TOÀN
         window.bulkDelete = function() { 
+            if (isLimitedUser()) return denyViewOnly();
             logAction('XÓA ĐƠN', `Chuyển vào thùng rác ${selectedOrders.size} đơn hàng`); 
             ordersDB.forEach(o => {
                 if (selectedOrders.has(o.id)) {
@@ -2392,9 +2492,10 @@
             selectedOrders.clear(); saveData(); document.getElementById('selectAllBtn').checked = false; renderStats(); showToast("Đã chuyển vào thùng rác"); 
         };
         
-        window.bulkMarkPaid = function() { logAction('THANH TOÁN', `Đánh dấu thanh toán cho ${selectedOrders.size} đơn hàng`); ordersDB.forEach(o => { if (selectedOrders.has(o.id)) { o.paymentStatus = 'paid'; o._updatedAt = Date.now(); } }); selectedOrders.clear(); saveData(); document.getElementById('selectAllBtn').checked = false; renderStats(); showToast("Đã đổi trạng thái thanh toán"); };
+        window.bulkMarkPaid = function() { if (isLimitedUser()) return denyViewOnly(); logAction('THANH TOÁN', `Đánh dấu thanh toán cho ${selectedOrders.size} đơn hàng`); ordersDB.forEach(o => { if (selectedOrders.has(o.id)) { o.paymentStatus = 'paid'; o._updatedAt = Date.now(); } }); selectedOrders.clear(); saveData(); document.getElementById('selectAllBtn').checked = false; renderStats(); showToast("Đã đổi trạng thái thanh toán"); };
         
         window.togglePaymentStatus = function(id) { 
+            if (isLimitedUser()) return denyViewOnly();
             const order = ordersDB.find(o => o.id === id); 
             if(order) { 
                 order.paymentStatus = order.paymentStatus === 'paid' ? 'unpaid' : 'paid'; 
@@ -2439,6 +2540,7 @@
         };
 
         window.editOrder = function(id) {
+            if (isLimitedUser()) return denyViewOnly();
             const o = ordersDB.find(x => x.id === id); editOrderId = id; document.getElementById('mainTitle').innerText = "Sửa đơn: " + id; switchTab('order');
             document.getElementById('btnCancelEdit').classList.remove('hidden-section');
             document.getElementById('btnSubmitOrder').innerText = 'Lưu thay đổi';
@@ -2614,6 +2716,7 @@
 
         // === CÁC HÀM XỬ LÝ SHIPPING ===
         window.addShipper = function() {
+            if (isLimitedUser()) return denyViewOnly();
             const name = document.getElementById('newShipperName').value.trim();
             if(!name) return showToast("Vui lòng nhập tên Shipper");
             if(shippersDB.some(s => !s.isDeleted && s.name.toLowerCase() === name.toLowerCase())) return showToast("Shipper này đã tồn tại!");
@@ -2623,6 +2726,7 @@
         };
 
         window.deleteShipper = function(id) {
+            if (isLimitedUser()) return denyViewOnly();
             const shipper = shippersDB.find(s => s.id === id);
             if(shipper) {
                 shipper.isDeleted = true; // Xóa mềm để an toàn khi đồng bộ
@@ -2842,6 +2946,29 @@
 
                 const done = o.deliveryStatus === 'delivered';
                 const isShip = o.deliveryType === 'Ship';
+                const limited = isLimitedUser();
+                // Tài khoản giới hạn: chỉ thao tác được với shipper Hoàng (đơn chưa gán hoặc đang gán cho Hoàng)
+                if (limited && isShip) {
+                    const cur = o.shipperName || '';
+                    if (cur && !isLimitedShipper(cur)) {
+                        selectHTML = `<span class="text-[10px] ml-2 text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded font-bold max-w-[140px] truncate" title="Chỉ được thao tác với đơn của Hoàng">🔒 ${cur}</span>`;
+                    } else {
+                        const names = [];
+                        activeShippers.forEach(s => { if (isLimitedShipper(s.name) && !names.includes(s.name)) names.push(s.name); });
+                        if (cur && !names.includes(cur)) names.push(cur);
+                        if (!names.length) {
+                            selectHTML = `<span class="text-[10px] ml-2 text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded font-bold">Chưa gán Shipper</span>`;
+                        } else {
+                            selectHTML = `<select onchange="quickAssignShipper('${o.id}', this.value)" class="text-[10px] ml-2 ${cur ? 'text-green-700 bg-green-50 border-green-200' : 'text-orange-600 bg-orange-50 border-orange-200'} px-1 py-0.5 rounded font-bold border outline-none cursor-pointer max-w-[120px] truncate"><option value="">Chưa gán Shipper</option>`;
+                            names.forEach(n => { selectHTML += `<option value="${n}" ${cur === n ? 'selected' : ''}>${n}</option>`; });
+                            selectHTML += `</select>`;
+                        }
+                    }
+                }
+                // Đổi trạng thái giao: tài khoản giới hạn chỉ được với đơn Ship đang gán cho Hoàng
+                const canStatus = !limited || (isShip && isLimitedShipper(o.shipperName));
+                const stDis = canStatus ? '' : ' disabled';
+                const stLock = canStatus ? '' : ' opacity-50 cursor-not-allowed';
                 const pickupLabel = o.deliveryType === 'Hòa Mã' ? 'Pick up Hoà Mã' : 'Pick up Thuỵ Khuê';
                 const fromLabel = o.shipFrom ? (o.shipFrom === 'Hòa Mã' ? 'Hoà Mã' : 'Thuỵ Khuê') : '';
                 html += `
@@ -2859,10 +2986,11 @@
                         <p class="text-[10px] text-gray-400 mt-1">${isShip ? 'Ngày giao' : 'Ngày nhận'}: ${o.receiveDate || ''}${isShip && fromLabel ? ' • Ship từ: ' + fromLabel : ''}</p>
                         <div class="flex items-center gap-2 mt-3">
                             <div class="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-                                <button type="button" onclick="setDeliveryStatus('${o.id}', 'pending')" class="text-[11px] font-bold px-3 py-1.5 rounded-md ${!done ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-400'}">Chưa giao</button>
-                                <button type="button" onclick="setDeliveryStatus('${o.id}', 'delivered')" class="text-[11px] font-bold px-3 py-1.5 rounded-md ${done ? 'bg-green-500 text-white shadow-sm' : 'text-gray-400'}">Đã giao</button>
+                                <button type="button" onclick="setDeliveryStatus('${o.id}', 'pending')"${stDis} class="text-[11px] font-bold px-3 py-1.5 rounded-md ${!done ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-400'}${stLock}">Chưa giao</button>
+                                <button type="button" onclick="setDeliveryStatus('${o.id}', 'delivered')"${stDis} class="text-[11px] font-bold px-3 py-1.5 rounded-md ${done ? 'bg-green-500 text-white shadow-sm' : 'text-gray-400'}${stLock}">Đã giao</button>
                             </div>
                             ${done ? '<span class="text-[11px] font-bold text-green-600">✓ Done</span>' : ''}
+                            ${canStatus ? '' : '<span class="text-[10px] text-gray-400">Chỉ đổi được đơn của Hoàng</span>'}
                         </div>
                     </div>
                 `;
@@ -2875,6 +3003,7 @@
         window.setDeliveryStatus = function(orderId, status) {
             const order = ordersDB.find(o => o.id === orderId);
             if (!order) return;
+            if (isLimitedUser() && !(order.deliveryType === 'Ship' && isLimitedShipper(order.shipperName))) { showToast('Bạn chỉ được đổi trạng thái đơn của shipper Hoàng'); renderShippingStats(); return; }
             const newStatus = status === 'delivered' ? 'delivered' : '';
             if ((order.deliveryStatus === 'delivered' ? 'delivered' : '') === newStatus) return; // không đổi thì bỏ qua
             order.deliveryStatus = newStatus;
@@ -2888,6 +3017,11 @@
 
         window.quickAssignShipper = function(orderId, shipperName) {
             const order = ordersDB.find(o => o.id === orderId);
+            if (order && isLimitedUser()) {
+                const cur = order.shipperName || '';
+                const allowed = order.deliveryType === 'Ship' && (cur === '' || isLimitedShipper(cur)) && (shipperName === '' || isLimitedShipper(shipperName));
+                if (!allowed) { showToast('Bạn chỉ được gán/bỏ gán shipper Hoàng'); renderShippingStats(); return; }
+            }
             if(order) {
                 order.shipperName = shipperName;
                 order._updatedAt = Date.now(); 
