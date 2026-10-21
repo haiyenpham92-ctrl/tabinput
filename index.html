@@ -152,7 +152,7 @@
                 <h2 class="text-xs font-bold uppercase text-gray-400 mb-4">Khách hàng (Tự động lưu CRM)</h2>
                 <div class="space-y-4">
                     <div class="relative z-50">
-                        <input type="tel" id="custPhone" class="input-field font-bold text-blue-600" placeholder="Số điện thoại (*)" oninput="suggestCustomer(this.value, 'phone')" autocomplete="off">
+                        <input type="tel" id="custPhone" class="input-field font-bold text-blue-600" placeholder="Số điện thoại (*)" oninput="suggestCustomer(this.value, 'phone')" onchange="autoFillByPhone(this.value)" autocomplete="off">
                         <!-- Dropdown gợi ý SĐT -->
                         <div id="phoneSuggestions" class="absolute bg-white border border-gray-200 shadow-xl w-full rounded-xl hidden max-h-40 overflow-y-auto mt-2 top-full"></div>
                     </div>
@@ -1490,6 +1490,41 @@
             return Array.from(map.values());
         }
 
+        // Tự điền lại thói quen của khách đã từng mua: Nhận hàng (pick up/ship), Ship từ, địa chỉ, phí ship, ghi chú (Cắt lát SD, Ship HC, Other...)
+        // Lấy theo đơn gần nhất chưa xóa của khách. Không đụng tới sản phẩm, ngày giao, giảm giá. Không áp dụng khi đang sửa đơn.
+        window.applyCustomerDefaults = function(c, addrFallback, feeFallback) {
+            if (editOrderId || !c) return '';
+            const past = ordersDB.filter(o => o && !o.isDeleted && o.customerPhone === c.phone).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+            if (!past.length) return '';
+            const o = past[0];
+            const r = document.querySelector(`input[name="deliveryType"][value="${o.deliveryType}"]`);
+            if (r) { r.checked = true; toggleShipping(); }
+            if (o.deliveryType === 'Ship') {
+                document.getElementById('shippingAddress').value = o.shippingAddress || addrFallback || '';
+                document.getElementById('shippingFee').value = o.shippingFee || feeFallback || '';
+                document.querySelectorAll('input[name="shipFrom"]').forEach(x => x.checked = (!!o.shipFrom && x.value === o.shipFrom));
+            }
+            { const sel = document.getElementById('shippingShipper'); if (sel) sel.value = ''; } // không nhớ shipper: luôn để trống
+            document.querySelectorAll('input[name="orderNote"]').forEach(x => x.checked = false);
+            document.getElementById('otherNoteText').value = '';
+            (o.notes || []).forEach(n => {
+                const cb = document.querySelector(`input[name="orderNote"][value="${n}"]`);
+                if (cb && n !== 'Other') cb.checked = true;
+                else if (n) { document.getElementById('noteOther').checked = true; document.getElementById('otherNoteText').value = n; }
+            });
+            toggleOtherNote();
+            return o.id || '';
+        };
+        // Gõ đủ SĐT đã có trong CRM (rồi bấm ra ngoài) cũng tự điền, nhưng chỉ khi form còn trống để không ghi đè thứ bạn đang nhập
+        window.autoFillByPhone = function(val) {
+            if (editOrderId) return;
+            const phone = window.normalizePhone(String(val || '').trim()); if (!phone) return;
+            const c = customersDB.find(x => x.phone === phone); if (!c) return;
+            if (document.querySelector('input[name="deliveryType"]:checked') || document.querySelectorAll('input[name="orderNote"]:checked').length) return;
+            if (!document.getElementById('custName').value.trim()) document.getElementById('custName').value = c.name || '';
+            const used = window.applyCustomerDefaults(c, c.address || '', '');
+            if (used) { calcTotal(); showToast(`Đã điền tự động từ CRM (theo đơn ${used})`); }
+        };
         window.suggestCustomer = function(query, type) {
             const phoneBox = document.getElementById('phoneSuggestions');
             const nameBox = document.getElementById('nameSuggestions');
@@ -1534,8 +1569,9 @@
                     document.getElementById('shippingAddress').value = suggestedAddress; 
                     document.getElementById('shippingFee').value = suggestedFee;
                     activeBox.classList.add('hidden'); 
+                    const used = window.applyCustomerDefaults(c, suggestedAddress, suggestedFee);
                     calcTotal();
-                    showToast("Đã điền tự động từ CRM"); 
+                    showToast(used ? `Đã điền tự động từ CRM (theo đơn ${used})` : "Đã điền tự động từ CRM"); 
                 };
                 activeBox.appendChild(d);
             });
