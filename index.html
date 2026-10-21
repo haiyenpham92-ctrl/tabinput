@@ -2435,9 +2435,9 @@
             row.classList.add('opacity-60', 'bg-blue-50', 'rounded-xl', 'shadow-lg'); handle.style.cursor = 'grabbing';
             let raf = null;
             const reorder = () => {
-                let prev = row.previousElementSibling, next = row.nextElementSibling;
-                while (prev && prev.classList.contains('prod-row')) { const r = prev.getBoundingClientRect(); if (lastY < r.top + r.height / 2) { list.insertBefore(row, prev); prev = row.previousElementSibling; } else break; }
-                while (next && next.classList.contains('prod-row')) { const r = next.getBoundingClientRect(); if (lastY > r.top + r.height / 2) { list.insertBefore(row, next.nextElementSibling); next = row.nextElementSibling; } else break; }
+                let prev = row.previousElementSibling, next = row.nextElementSibling; // chỉ dời các dòng bên cạnh, KHÔNG gỡ dòng đang kéo -> kéo qua nhiều ô liên tục
+                while (prev && prev.classList.contains('prod-row')) { const r = prev.getBoundingClientRect(); if (lastY < r.top + r.height / 2) { row.after(prev); prev = row.previousElementSibling; } else break; }
+                while (next && next.classList.contains('prod-row')) { const r = next.getBoundingClientRect(); if (lastY > r.top + r.height / 2) { row.before(next); next = row.nextElementSibling; } else break; }
             };
             const autoScroll = () => { // kéo sát mép trên/dưới màn hình thì tự cuộn
                 const edge = 70; if (lastY < edge) window.scrollBy(0, -12); else if (lastY > window.innerHeight - edge) window.scrollBy(0, 12);
