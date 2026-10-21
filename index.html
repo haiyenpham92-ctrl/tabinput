@@ -2407,6 +2407,7 @@
             const id = Date.now() + Math.random(); const row = document.createElement('div'); row.id = `row-${id}`; row.className = "flex gap-2 relative border-b border-gray-100 pb-3 prod-row"; 
             const pCode = data && data.code ? data.code : '';
             row.innerHTML = `
+                <div class="prod-drag text-gray-300 hover:text-gray-500 cursor-grab flex items-center px-0.5 select-none" style="touch-action:none" title="Giữ và kéo để đổi thứ tự" onpointerdown="window.startRowDrag(event, '${id}')"><svg class="w-4 h-6" viewBox="0 0 16 24" fill="currentColor"><circle cx="5" cy="6" r="1.6"/><circle cx="11" cy="6" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="11" cy="12" r="1.6"/><circle cx="5" cy="18" r="1.6"/><circle cx="11" cy="18" r="1.6"/></svg></div>
                 <div class="flex-grow space-y-2">
                     <div class="relative flex items-center">
                         <input type="text" placeholder="Tên SP" class="input-field py-2 text-sm prod-name pr-8" value="${data ? data.name : ''}" data-code="${pCode}" oninput="searchProd(this, '${id}')" onfocus="searchProd(this, '${id}', true)" onclick="searchProd(this, '${id}', true)" onchange="window.checkAndAutoAppend('${id}')">
@@ -2422,6 +2423,37 @@
                 <button type="button" onclick="document.getElementById('row-${id}').remove(); calcTotal();" class="text-gray-400 p-2">&times;</button>
             `;
             list.appendChild(row);
+        };
+        // Kéo thả đổi thứ tự dòng sản phẩm (chuột hoặc cảm ứng): giữ biểu tượng 6 chấm bên trái rồi kéo lên/xuống
+        window.startRowDrag = function(ev, rowId) {
+            const row = document.getElementById(`row-${rowId}`); if (!row) return;
+            if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+            ev.preventDefault();
+            const handle = ev.currentTarget, list = row.parentElement; let lastY = ev.clientY;
+            try { handle.setPointerCapture(ev.pointerId); } catch (e) {}
+            document.querySelectorAll('[id^="sug-"]').forEach(b => b.classList.add('hidden'));
+            row.classList.add('opacity-60', 'bg-blue-50', 'rounded-xl', 'shadow-lg'); handle.style.cursor = 'grabbing';
+            let raf = null;
+            const reorder = () => {
+                let prev = row.previousElementSibling, next = row.nextElementSibling;
+                while (prev && prev.classList.contains('prod-row')) { const r = prev.getBoundingClientRect(); if (lastY < r.top + r.height / 2) { list.insertBefore(row, prev); prev = row.previousElementSibling; } else break; }
+                while (next && next.classList.contains('prod-row')) { const r = next.getBoundingClientRect(); if (lastY > r.top + r.height / 2) { list.insertBefore(row, next.nextElementSibling); next = row.nextElementSibling; } else break; }
+            };
+            const autoScroll = () => { // kéo sát mép trên/dưới màn hình thì tự cuộn
+                const edge = 70; if (lastY < edge) window.scrollBy(0, -12); else if (lastY > window.innerHeight - edge) window.scrollBy(0, 12);
+                reorder(); raf = requestAnimationFrame(autoScroll);
+            };
+            raf = requestAnimationFrame(autoScroll);
+            const move = (e) => { lastY = e.clientY; reorder(); };
+            const end = () => {
+                cancelAnimationFrame(raf);
+                handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', end); handle.removeEventListener('pointercancel', end);
+                row.classList.remove('opacity-60', 'bg-blue-50', 'rounded-xl', 'shadow-lg'); handle.style.cursor = '';
+                const rows = list.querySelectorAll('.prod-row'); const last = rows[rows.length - 1];
+                if (last && last.querySelector('.prod-name').value.trim() !== '') addProductRow(); // luôn còn 1 dòng trống ở cuối
+                calcTotal();
+            };
+            handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
         };
         window.toggleProdDropdown = function(rowId, event) { event.stopPropagation(); const row = document.getElementById(`row-${rowId}`); if(!row) return; const input = row.querySelector('.prod-name'); const box = document.getElementById(`sug-${rowId}`); if(box.classList.contains('hidden')) window.searchProd(input, rowId, true); else box.classList.add('hidden'); };
         window.searchProd = function(input, rowId, forceAll = false) {
