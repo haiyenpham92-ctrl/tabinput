@@ -3166,16 +3166,22 @@
         // Link tải dữ liệu luôn kèm tham số thời gian để không bao giờ nhận bản lưu đệm cũ của trình duyệt
         window.gasGetUrl = function() { const u = appSettings.gasUrl; return u + (u.indexOf('?') > -1 ? '&' : '?') + '_t=' + Date.now(); };
 
+        // fetch có giới hạn thời gian: mạng treo quá lâu thì ngắt để thử lại, không để app đứng ở "Đang đồng bộ..."
+        function fetchTimeout(url, opts, ms) {
+            const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms || 60000);
+            return fetch(url, Object.assign({}, opts || {}, { signal: ctl.signal })).finally(() => clearTimeout(t));
+        }
+        let _lastSettingsSent = null; // chỉ gửi Cài đặt (có ảnh logo/QR nặng) lên Sheet khi thật sự thay đổi
         async function syncToGoogleCore(manual = false) {
             const status = document.getElementById('syncStatus'); const detailStatus = document.getElementById('syncDetailStatus');
-            if(!appSettings.gasUrl) { if(manual) { showToast("Chưa cấu hình URL đồng bộ."); } status.innerText = "Chưa kết nối Cloud"; return; }
+            if(!appSettings.gasUrl) { if(manual) { showToast("Chưa cấu hình URL đồng bộ."); } status.innerText = "Chưa kết nối Cloud"; return true; }
             status.innerText = "Đang đồng bộ..."; if(detailStatus) detailStatus.innerText = "Đang xử lý dữ liệu...";
             
             try {
                 // Đã loại bỏ các header tùy chỉnh (như Content-Type) và option redirect không cần thiết
                 // Việc này ngăn trình duyệt gửi yêu cầu CORS Preflight (OPTIONS) vốn thường gây lỗi "Failed to fetch" với Google Apps Script.
                 // Thêm tham số ngẫu nhiên + no-store: chặn iPhone/Safari trả về dữ liệu CŨ đã lưu đệm (nguyên nhân làm đẩy ngược dữ liệu cũ lên Sheet)
-                const pullRes = await fetch(window.gasGetUrl(), { method: 'GET', cache: 'no-store' });
+                const pullRes = await fetchTimeout(window.gasGetUrl(), { method: 'GET', cache: 'no-store' }, 60000);
                 if (!pullRes.ok) throw new Error("HTTP " + pullRes.status);
                 const cloudData = await pullRes.json();
 
@@ -3203,10 +3209,13 @@
                     await new Promise(resolve => setTimeout(resolve, 800));
 
                     // POST data dưới dạng string thuần túy không kèm custom headers để tránh lỗi chặn CORS
-                    const pushRes = await fetch(appSettings.gasUrl, { 
+                    const settingsStr = JSON.stringify(appSettings); const sendSettings = settingsStr !== _lastSettingsSent;
+                    const payloadObj = { action: "sync", orders: ordersDB, products: productsDB, customers: customersDB, shippers: shippersDB, promotions: promosDB, capacity: capPrune(capacityDB), logs: logsDB };
+                    if (sendSettings) payloadObj.settings = appSettings; // không đổi thì không gửi lại (tiết kiệm ảnh logo/QR mỗi lần đồng bộ)
+                    const pushRes = await fetchTimeout(appSettings.gasUrl, { 
                         method: 'POST', 
-                        body: JSON.stringify({ action: "sync", orders: ordersDB, products: productsDB, customers: customersDB, shippers: shippersDB, promotions: promosDB, capacity: capPrune(capacityDB), logs: logsDB, settings: appSettings }) 
-                    });
+                        body: JSON.stringify(payloadObj) 
+                    }, 90000);
                     
                     if (!pushRes.ok) throw new Error("HTTP " + pushRes.status);
                     const data = await pushRes.json();
@@ -3215,7 +3224,7 @@
                         logsDB = []; localStorage.setItem('myLogs', '[]'); status.innerText = "Đã đồng bộ"; status.className = "text-green-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-green-600 transition-colors";
                         if(detailStatus) detailStatus.innerText = `Đồng bộ 2 chiều thành công: ${new Date().toLocaleTimeString()}`; 
                         if(manual) showToast("Đã đồng bộ dữ liệu mới lên Sheets");
-                        isCloudSyncReady = true;
+                        isCloudSyncReady = true; if (sendSettings && !(data.stepErrors || []).some(s => /Cài đặt/.test(s))) _lastSettingsSent = settingsStr;
                         if (data.promoSaved === undefined) { status.innerText = "Đã đồng bộ (server CHƯA nhận CTKM)"; if(detailStatus) detailStatus.innerText = "⚠ Apps Script đang chạy bản cũ: chưa triển khai phiên bản mới nên CTKM không lên Sheet."; showToast("⚠ Apps Script chưa cập nhật bản mới: CTKM chưa lưu được lên Sheet"); }
                         else if(detailStatus) detailStatus.innerText += ` • CTKM trên Sheet: ${data.promoSaved}`;
                         if (capacityDB.length && data.capacitySaved === undefined) { if(detailStatus) detailStatus.innerText += ' • ⚠ Apps Script chưa cập nhật bản v7: số lượng bánh (tab Đặt bánh) chưa lên Sheet'; showToast('⚠ Apps Script chưa cập nhật bản mới: số lượng bánh chưa lưu được lên Sheet'); }
@@ -3229,14 +3238,16 @@
                         throw new Error(data.message || 'Lỗi không xác định từ Server'); 
                     }
                 } else {
-                    throw new Error("Lỗi lấy dữ liệu đám mây");
+                    throw new Error(cloudData.message || "Lỗi lấy dữ liệu đám mây");
                 }
+                return true;
             } catch (error) {
                 status.innerText = "Lỗi đồng bộ"; 
                 status.className = "text-red-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-red-600 transition-colors"; 
                 if(detailStatus) detailStatus.innerText = `Lỗi: Kiểm tra lại quyền "Anyone" trên Apps Script hoặc URL.`; 
                 console.error("Sync error:", error);
                 if(manual) showToast("Lỗi đồng bộ (Failed to fetch). Vui lòng kiểm tra quyền Apps Script!");
+                return false;
             }
         }
 
@@ -3245,26 +3256,35 @@
         // (VD: tạo KH mới + tạo đơn mới + saveData() đều tự kích hoạt đồng bộ riêng),
         // khiến 2 lượt đồng bộ chạy chồng lên nhau và lượt "chụp" dữ liệu CŨ hơn (chưa có đơn mới)
         // ghi đè lên Sheet SAU lượt đã có đơn mới, làm đơn biến mất dù Log vẫn còn ghi nhận.
-        let _syncRunning = false, _syncQueued = false, _syncQueuedManual = false;
+        let _syncRunning = false, _syncQueued = false, _syncQueuedManual = false, _syncFails = 0, _retryTimer = null;
         window.syncToGoogle = async function(manual = false) {
             if (_syncRunning) { _syncQueued = true; if (manual) _syncQueuedManual = true; return; } // Có lượt khác đang chạy -> xếp hàng, không chạy chồng (dù là auto-sync hay manual đều phải xếp hàng, không được bỏ qua)
             _syncRunning = true;
             try {
-                await syncToGoogleCore(manual);
+                const ok = await syncToGoogleCore(manual);
+                // Lỗi (server bận / mạng chập chờn) -> tự thử lại tối đa 3 lần, cách 5s, 15s, 30s. Dữ liệu vẫn nằm an toàn trên máy trong lúc chờ.
+                if (ok === false) {
+                    _syncFails++;
+                    if (_syncFails <= 3) {
+                        const wait = [5000, 15000, 30000][_syncFails - 1];
+                        const st = document.getElementById('syncStatus'); if (st) st.innerText = `Lỗi đồng bộ - tự thử lại sau ${wait / 1000}s (lần ${_syncFails}/3)`;
+                        clearTimeout(_retryTimer); _retryTimer = setTimeout(() => { try { window.syncToGoogle(false); } catch (e) {} }, wait);
+                    }
+                } else { _syncFails = 0; clearTimeout(_retryTimer); }
             } finally {
                 _syncRunning = false;
                 if (_syncQueued) { const wasManual = _syncQueuedManual; _syncQueued = false; _syncQueuedManual = false; window.syncToGoogle(wasManual); } // Chạy bù đúng 1 lượt duy nhất, luôn mang theo TRẠNG THÁI MỚI NHẤT hiện có
             }
         };
 
-        window.pullDataFromGoogle = function(manual = false) {
+        window.pullDataFromGoogle = function(manual = false, silent = false) {
             const status = document.getElementById('syncStatus'); const detailStatus = document.getElementById('syncDetailStatus');
             if(!appSettings.gasUrl) return;
-            status.innerText = "Đang tải về..."; if(detailStatus) detailStatus.innerText = "Đang kéo dữ liệu từ đám mây...";
+            if (!silent) { status.innerText = "Đang tải về..."; if(detailStatus) detailStatus.innerText = "Đang kéo dữ liệu từ đám mây..."; }
             if (manual) showToast("Đang tải dữ liệu từ Sheets...");
             
             // Xóa redirect:'follow' để sử dụng mặc định của trình duyệt an toàn hơn
-            fetch(window.gasGetUrl(), { method: 'GET', cache: 'no-store' })
+            fetchTimeout(window.gasGetUrl(), { method: 'GET', cache: 'no-store' }, 60000)
             .then(response => {
                 if (!response.ok) throw new Error("HTTP " + response.status);
                 return response.json();
@@ -3298,7 +3318,8 @@
                     if(detailStatus) detailStatus.innerText = `Tải về gần nhất: ${new Date().toLocaleTimeString()}`; if(manual) showToast("Đã cập nhật dữ liệu mới nhất!");
                     if (document.querySelectorAll('#productList > div').length === 0) addProductRow();
                 } else { status.innerText = "Lỗi dữ liệu"; status.className = "text-red-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-red-600 transition-colors"; if(manual) showToast("Lỗi: " + (data.message || "Không thể tải dữ liệu")); }
-            }).catch(e => { 
+ }).catch(e => { 
+                if (silent) { console.warn("Auto pull error:", e); return; } // tự tải ngầm bị lỗi thì im lặng, không làm đỏ trạng thái
                 status.innerText = "Lỗi kết nối"; 
                 status.className = "text-red-500 text-[11px] font-semibold mt-1"; 
                 if(detailStatus) detailStatus.innerText = "Lỗi: Failed to fetch. Xem lại quyền Apps Script.";
@@ -3306,6 +3327,23 @@
                 if(manual) showToast("Lỗi kết nối, không thể tải dữ liệu.");
             });
         };
+        // ===== TỰ CẬP NHẬT: máy đang mở cũng nhận được CTKM/đơn mới từ máy khác =====
+        // Tải ngầm khi: mở lại app (quay lại từ nền), có mạng trở lại, và mỗi 90 giây khi đang xem app.
+        // Không chạy khi đang gõ nhập, đang đồng bộ, hoặc chưa đăng nhập. Chỉ GỘP dữ liệu, không bao giờ xóa dữ liệu trên máy.
+        let _lastAutoPull = Date.now();
+        function autoPullIfIdle(minGapMs) {
+            try {
+                if (!appSettings.gasUrl || !isCloudSyncReady || _syncRunning || document.hidden) return;
+                if (Date.now() - _lastAutoPull < minGapMs) return;
+                const a = document.activeElement; if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+                if (document.getElementById('mainApp') && document.getElementById('mainApp').classList.contains('hidden-section')) return;
+                _lastAutoPull = Date.now(); window.pullDataFromGoogle(false, true);
+            } catch (e) {}
+        }
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) autoPullIfIdle(15000); });
+        window.addEventListener('online', () => autoPullIfIdle(0));
+        window.addEventListener('pageshow', () => autoPullIfIdle(15000));
+        setInterval(() => autoPullIfIdle(85000), 90000);
     </script>
 </body>
 </html>
