@@ -208,6 +208,15 @@
                     <label class="flex items-center gap-3"><input type="checkbox" id="noteOther" name="orderNote" value="Other" onchange="toggleOtherNote()"> <span class="text-sm">Other</span></label>
                 </div>
                 <input type="text" id="otherNoteText" class="input-field hidden-section" placeholder="Nhập yêu cầu khác...">
+                <div class="mt-4 pt-4 border-t border-gray-100">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Nguồn khách (không bắt buộc, không in trên bill)</label>
+                    <select id="orderSource" class="input-field py-2 text-sm bg-gray-50">
+                        <option value="">-- Không chọn --</option>
+                        <option value="Fb-Insta">Fb-Insta</option>
+                        <option value="Threads">Threads</option>
+                        <option value="Bạn bè">Bạn bè</option>
+                    </select>
+                </div>
             </div>
 
             <div class="apple-card p-6">
@@ -401,6 +410,16 @@
                             <option value="Thụy Khuê">Ship từ Thuỵ Khuê</option>
                             <option value="Hòa Mã">Ship từ Hoà Mã</option>
                             <option value="none">Ship chưa chọn nơi</option>
+                        </select>
+                    </div>
+                    <div class="relative flex flex-col justify-end">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Nguồn</label>
+                        <select id="filterSource" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                            <option value="all">Tất cả</option>
+                            <option value="Fb-Insta">Fb-Insta</option>
+                            <option value="Threads">Threads</option>
+                            <option value="Bạn bè">Bạn bè</option>
+                            <option value="none">Chưa ghi nguồn</option>
                         </select>
                     </div>
                     <div class="relative flex flex-col justify-end">
@@ -1659,7 +1678,7 @@
             document.getElementById('filterProductInput').value = '';
             document.getElementById('filterProductLogic').value = 'OR';
             document.getElementById('filterPayment').value = 'all';
-            document.getElementById('filterDelivery').value = 'all'; document.getElementById('filterShipFrom').value = 'all'; document.getElementById('filterStatsDelivery').value = 'all';
+            document.getElementById('filterDelivery').value = 'all'; document.getElementById('filterShipFrom').value = 'all'; document.getElementById('filterStatsDelivery').value = 'all'; document.getElementById('filterSource').value = 'all';
             selectedFilterProducts = [];
             window.renderFilterProductTags();
             document.getElementById('selectAllBtn').checked = false;
@@ -1786,6 +1805,7 @@
                 promoIds: money.applied.map(p => p.id), promoId: money.applied.length ? money.applied[0].id : '', promoName: money.applied.map(p => p.name).join(' + '), promoDiscount: money.promoProd, promoShipDiscount: money.promoShip, promoGifts: money.gifts || [],
                 total: finalTotal, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
                 notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value),
+                source: document.getElementById('orderSource').value || '', // Nguồn khách (chỉ để thống kê, không đưa vào bill)
                 _updatedAt: Date.now() // Timestamp cho 2-way sync
             };
 
@@ -1802,7 +1822,7 @@
             
             saveData(); showToast("Đã lưu đơn hàng");
             
-            document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = ''; document.getElementById('shippingShipper').value = '';
+            document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = ''; document.getElementById('shippingShipper').value = ''; document.getElementById('orderSource').value = '';
             orderPromoIds = []; document.getElementById('discountType').value = 'amount'; document.getElementById('discountValue').value = '';
             document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
             toggleShipping(); toggleOtherNote(); calcTotal(); if (!document.getElementById('tab-crm').classList.contains('hidden-section')) renderCrmList();
@@ -1943,6 +1963,8 @@
                 filtered = filtered.filter(o => o.deliveryType === filterDelivery);
             }
 
+            const filterSrc = document.getElementById('filterSource').value; // Lọc theo nguồn khách
+            if (filterSrc !== 'all') filtered = filtered.filter(o => filterSrc === 'none' ? !o.source : o.source === filterSrc);
             const filterSD = document.getElementById('filterStatsDelivery').value; // Tình trạng giao: áp dụng cho cả đơn Ship và Pick up
             if (filterSD === 'delivered') filtered = filtered.filter(o => o.deliveryStatus === 'delivered');
             else if (filterSD === 'pending') filtered = filtered.filter(o => o.deliveryStatus !== 'delivered');
@@ -2025,6 +2047,7 @@
                                 <h3 class="font-bold text-lg mt-1">${o.customerName || 'Khách chưa có tên'}</h3>
                                 <p class="text-xs text-blue-600 font-semibold flex flex-wrap items-center gap-1.5">${o.customerPhone || 'Không có SĐT'}${o.customerPhone ? `<button type="button" onclick="copyPhone('${String(o.customerPhone).replace(/[^0-9+]/g, '')}')" class="text-[10px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md active:scale-95 transition-transform"><i class="fa-regular fa-copy mr-0.5"></i>Copy</button><a href="tel:${String(o.customerPhone).replace(/[^0-9+]/g, '')}" aria-label="Gọi điện" title="Gọi điện" class="ml-4 inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-500 text-white text-[12px] shadow-sm active:scale-90 transition-transform no-underline"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></a>` : ''} <span class="text-gray-500 font-normal">• ${o.deliveryType || ''}${o.deliveryType === 'Ship' && o.shipFrom ? ' từ ' + (o.shipFrom === 'Hòa Mã' ? 'Hoà Mã' : 'Thuỵ Khuê') : ''}</span></p>
                                 ${o.shippingAddress ? `<p class="text-xs text-neutral-600 mt-1">Địa chỉ: ${o.shippingAddress}</p>` : ''}
+                                ${o.source ? `<p class="text-[10px] text-gray-400 mt-1">Nguồn: ${pe(o.source)}</p>` : ''}
                                 ${o.deliveryType === 'Ship' ? `<p class="text-xs mt-1 font-semibold ${o.shipperName ? 'text-green-700' : 'text-orange-600'}">Shipper: ${o.shipperName ? pe(o.shipperName) : 'Chưa gán'}</p>` : ''}
                                 ${o.notes && o.notes.length > 0 ? `<p class="text-xs text-amber-600 mt-1 font-medium"><i class="fas fa-sticky-note mr-1"></i>${o.notes.map(n => pe(n)).join(', ')}</p>` : ''}
                                 
@@ -2647,6 +2670,7 @@
             const r = document.querySelector(`input[name="deliveryType"][value="${o.deliveryType}"]`); if(r) r.checked = true;
             document.getElementById('shippingAddress').value = o.shippingAddress || ''; document.getElementById('shippingFee').value = o.shippingFee || '';
             document.getElementById('shippingShipper').value = o.shipperName || '';
+            document.getElementById('orderSource').value = o.source || '';
             document.querySelectorAll('input[name="shipFrom"]').forEach(r => r.checked = (!!o.shipFrom && r.value === o.shipFrom));
             
             orderPromoIds = Array.isArray(o.promoIds) ? o.promoIds.slice() : (o.promoId ? [o.promoId] : []); document.getElementById('discountType').value = o.discountType || 'amount';
@@ -2665,7 +2689,7 @@
             document.getElementById('btnCancelEdit').classList.add('hidden-section');
             document.getElementById('btnSubmitOrder').innerText = 'Hoàn tất đơn hàng';
             
-            document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = ''; document.getElementById('shippingShipper').value = '';
+            document.getElementById('custName').value = ''; document.getElementById('custPhone').value = ''; document.getElementById('shippingAddress').value = ''; document.getElementById('shippingFee').value = ''; document.getElementById('shippingShipper').value = ''; document.getElementById('orderSource').value = '';
             orderPromoIds = []; document.getElementById('discountType').value = 'amount'; document.getElementById('discountValue').value = '';
 
             document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => i.checked = false); document.getElementById('productList').innerHTML = ''; addProductRow();
