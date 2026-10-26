@@ -136,7 +136,7 @@
         <div class="segmented-control" id="tabsContainer">
             <div id="btn-tab-order" class="segment-btn active" onclick="switchTab('order')">Lên đơn</div>
             <div id="btn-tab-revenue" class="segment-btn" onclick="switchTab('revenue')">Doanh thu</div>
-            <div id="btn-tab-stats" class="segment-btn" onclick="switchTab('stats')">Thống kê</div>
+            <div id="btn-tab-stats" class="segment-btn" onclick="statsOpenToday()">Thống kê</div>
             <div id="btn-tab-capacity" class="segment-btn" onclick="switchTab('capacity')">Đặt bánh</div>
             <div id="btn-tab-shipping" class="segment-btn" onclick="switchTab('shipping')">Giao hàng</div>
             <div id="btn-tab-products" class="segment-btn" onclick="switchTab('products')">Kho SP</div>
@@ -401,6 +401,14 @@
                             <option value="Thụy Khuê">Ship từ Thuỵ Khuê</option>
                             <option value="Hòa Mã">Ship từ Hoà Mã</option>
                             <option value="none">Ship chưa chọn nơi</option>
+                        </select>
+                    </div>
+                    <div class="relative flex flex-col justify-end">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Tình trạng giao</label>
+                        <select id="filterStatsDelivery" class="input-field py-2 px-3 text-sm bg-gray-50" onchange="renderStats(); document.getElementById('selectAllBtn').checked = false;">
+                            <option value="all">Tất cả</option>
+                            <option value="pending">Chưa giao</option>
+                            <option value="delivered">Đã giao</option>
                         </select>
                     </div>
                 </div>
@@ -1651,7 +1659,7 @@
             document.getElementById('filterProductInput').value = '';
             document.getElementById('filterProductLogic').value = 'OR';
             document.getElementById('filterPayment').value = 'all';
-            document.getElementById('filterDelivery').value = 'all'; document.getElementById('filterShipFrom').value = 'all';
+            document.getElementById('filterDelivery').value = 'all'; document.getElementById('filterShipFrom').value = 'all'; document.getElementById('filterStatsDelivery').value = 'all';
             selectedFilterProducts = [];
             window.renderFilterProductTags();
             document.getElementById('selectAllBtn').checked = false;
@@ -1935,6 +1943,10 @@
                 filtered = filtered.filter(o => o.deliveryType === filterDelivery);
             }
 
+            const filterSD = document.getElementById('filterStatsDelivery').value; // Tình trạng giao: áp dụng cho cả đơn Ship và Pick up
+            if (filterSD === 'delivered') filtered = filtered.filter(o => o.deliveryStatus === 'delivered');
+            else if (filterSD === 'pending') filtered = filtered.filter(o => o.deliveryStatus !== 'delivered');
+
             // Lọc theo nơi xuất phát của đơn Ship (Thuỵ Khuê / Hoà Mã / chưa chọn)
             const filterShipFrom = document.getElementById('filterShipFrom').value;
             if (filterShipFrom !== 'all') {
@@ -1994,7 +2006,8 @@
 
                 displayOrders.forEach(o => {
                     const isSel = selectedOrders.has(o.id);
-                    const card = document.createElement('div'); card.className = `apple-card p-5 border-2 transition-all ${isSel ? 'border-black bg-gray-50' : 'border-transparent'}`;
+                    const card = document.createElement('div'); const doneS = o.deliveryStatus === 'delivered';
+                    card.className = `apple-card p-5 border-2 transition-all ${isSel ? 'border-black bg-gray-50' : (doneS ? 'border-green-200 bg-green-50' : 'border-transparent')}`;
                     let prodsHTML = (o.products || []).map(p => `<div class="flex justify-between text-sm"><span>${p.qty}x ${p.name}</span><span class="text-gray-500">${formatCurrency(p.qty * p.price)}</span></div>`).join('');
                     
                     let discountHTML = '';
@@ -2012,6 +2025,7 @@
                                 <h3 class="font-bold text-lg mt-1">${o.customerName || 'Khách chưa có tên'}</h3>
                                 <p class="text-xs text-blue-600 font-semibold flex flex-wrap items-center gap-1.5">${o.customerPhone || 'Không có SĐT'}${o.customerPhone ? `<button type="button" onclick="copyPhone('${String(o.customerPhone).replace(/[^0-9+]/g, '')}')" class="text-[10px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md active:scale-95 transition-transform"><i class="fa-regular fa-copy mr-0.5"></i>Copy</button><a href="tel:${String(o.customerPhone).replace(/[^0-9+]/g, '')}" aria-label="Gọi điện" title="Gọi điện" class="ml-4 inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-500 text-white text-[12px] shadow-sm active:scale-90 transition-transform no-underline"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></a>` : ''} <span class="text-gray-500 font-normal">• ${o.deliveryType || ''}${o.deliveryType === 'Ship' && o.shipFrom ? ' từ ' + (o.shipFrom === 'Hòa Mã' ? 'Hoà Mã' : 'Thuỵ Khuê') : ''}</span></p>
                                 ${o.shippingAddress ? `<p class="text-xs text-neutral-600 mt-1">Địa chỉ: ${o.shippingAddress}</p>` : ''}
+                                ${o.deliveryType === 'Ship' ? `<p class="text-xs mt-1 font-semibold ${o.shipperName ? 'text-green-700' : 'text-orange-600'}">Shipper: ${o.shipperName ? pe(o.shipperName) : 'Chưa gán'}</p>` : ''}
                                 ${o.notes && o.notes.length > 0 ? `<p class="text-xs text-amber-600 mt-1 font-medium"><i class="fas fa-sticky-note mr-1"></i>${o.notes.map(n => pe(n)).join(', ')}</p>` : ''}
                                 
                                 <div class="mt-3 bg-white p-3 rounded-xl border border-gray-100">
@@ -2026,6 +2040,16 @@
                                     <button onclick="togglePaymentStatus('${o.id}')" class="perm-edit ${o.paymentStatus === 'paid' ? 'text-orange-500' : 'text-blue-500'} font-semibold underline">${o.paymentStatus === 'paid' ? 'Hủy thanh toán' : 'Xác nhận thanh toán'}</button>
                                 </div>
                                 
+                                <div class="flex items-center gap-2 mt-3">
+                                    ${isLimitedUser()
+                                        ? `<span class="text-[11px] font-bold px-3 py-1.5 rounded-md ${doneS ? 'bg-green-500 text-white' : 'bg-gray-100 text-orange-600'}">${doneS ? 'Đã giao' : 'Chưa giao'}</span>`
+                                        : `<div class="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+                                            <button type="button" onclick="setDeliveryStatus('${o.id}', 'pending')" class="text-[11px] font-bold px-3 py-1.5 rounded-md ${!doneS ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-400'}">Chưa giao</button>
+                                            <button type="button" onclick="setDeliveryStatus('${o.id}', 'delivered')" class="text-[11px] font-bold px-3 py-1.5 rounded-md ${doneS ? 'bg-green-500 text-white shadow-sm' : 'text-gray-400'}">Đã giao</button>
+                                        </div>`}
+                                    ${doneS ? '<span class="text-[11px] font-bold text-green-600">✓ Done</span>' : ''}
+                                </div>
+
                                 <div class="flex gap-2 mt-4 border-t pt-3">
                                     <button type="button" onclick="editOrder('${o.id}')" class="perm-edit btn-secondary text-xs px-3 py-1 flex-1">Sửa</button>
                                     <button type="button" onclick="exportImage('${o.id}')" class="btn-primary text-xs px-3 py-1 flex-1">Xuất ảnh</button>
@@ -2115,6 +2139,11 @@
             if (activeTab && bg && activeTab.style.display !== 'none') { bg.style.width = activeTab.offsetWidth + 'px'; bg.style.transform = `translateX(${activeTab.offsetLeft}px)`; }
         };
 
+        // Bấm vào tab Thống kê: tự chọn ngày hôm nay ở bộ lọc ngày nhận (các bộ lọc khác giữ nguyên)
+        window.statsOpenToday = function() {
+            const el = document.getElementById('filterCreateDate'); if (el) el.value = capYmd(new Date());
+            switchTab('stats');
+        };
         window.switchTab = function(tabId) {
             const tabs = ['order', 'revenue', 'stats', 'capacity', 'shipping', 'products', 'promos', 'crm', 'settings'];
             tabs.forEach((t) => {
@@ -3081,6 +3110,7 @@
             logAction('SHIPPING', `Đơn ${orderId}: ${newStatus ? 'ĐÃ GIAO' : 'CHƯA GIAO'}`);
             showToast(newStatus ? 'Đã đánh dấu: Đã giao' : 'Đã chuyển về: Chưa giao');
             renderShippingStats();
+            if (!document.getElementById('tab-stats').classList.contains('hidden-section')) renderStats(true); // đang xem tab Thống kê thì làm mới luôn (giữ nguyên số đơn đang hiển thị)
         };
 
         window.quickAssignShipper = function(orderId, shipperName) {
