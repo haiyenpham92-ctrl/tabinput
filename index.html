@@ -475,8 +475,14 @@
                     <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl flex flex-col justify-center">
                         <p class="text-[10px] uppercase text-blue-500 font-bold mb-1">Tổng Doanh thu</p>
                         <p class="text-lg font-black text-blue-700" id="revTotalAmount">0đ</p>
+                        <p class="text-[10px] text-blue-400">đã gồm phí ship</p>
                     </div>
-                    <div class="bg-green-50 border border-green-100 p-3 rounded-xl flex flex-col justify-center">
+                    <div class="bg-indigo-50 border border-indigo-100 p-3 rounded-xl flex flex-col justify-center">
+                        <p class="text-[10px] uppercase text-indigo-500 font-bold mb-1">Doanh thu trừ ship</p>
+                        <p class="text-lg font-black text-indigo-700" id="revNetAmount">0đ</p>
+                        <p class="text-[10px] text-indigo-400" id="revShipNote">ship thu: 0đ</p>
+                    </div>
+                    <div class="bg-green-50 border border-green-100 p-3 rounded-xl flex flex-col justify-center col-span-2">
                         <p class="text-[10px] uppercase text-green-500 font-bold mb-1">Đơn thành công</p>
                         <p class="text-lg font-black text-green-700" id="revTotalOrders">0</p>
                     </div>
@@ -488,6 +494,20 @@
                 <div class="w-full h-48">
                     <canvas id="chartDaily"></canvas>
                 </div>
+            </div>
+
+            <div class="apple-card p-4">
+                <div class="flex justify-between items-center mb-1">
+                    <h2 class="text-xs font-bold uppercase text-gray-400">Doanh thu theo loại bánh</h2>
+                    <div class="flex gap-1">
+                        <button type="button" onclick="revSelectAllProducts(true)" class="text-[10px] font-semibold bg-gray-100 px-2 py-1 rounded-lg active:scale-95">Chọn hết</button>
+                        <button type="button" onclick="revSelectAllProducts(false)" class="text-[10px] font-semibold bg-gray-100 px-2 py-1 rounded-lg active:scale-95">Bỏ chọn</button>
+                    </div>
+                </div>
+                <p class="text-[10px] text-gray-400 mb-2">Bấm để chọn một hoặc nhiều loại bánh. Doanh thu đã trừ giảm giá/CTKM và không gồm ship; chưa chọn loại nào thì hiện tất cả.</p>
+                <div id="revProdChips" class="flex flex-wrap gap-1.5 mb-3"></div>
+                <div id="revProdTotal" class="bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2 flex justify-between items-center mb-2"></div>
+                <div id="revProdList" class="space-y-2 max-h-72 overflow-y-auto pr-1"></div>
             </div>
 
             <div class="apple-card p-4">
@@ -2325,6 +2345,40 @@
             } catch(e) { return null; }
         }
 
+        // ===== DOANH THU THEO LOẠI BÁNH =====
+        // Doanh thu mỗi loại = phần của đơn (đã trừ giảm giá, CTKM và không gồm ship) chia theo tỉ lệ giá trị từng dòng bánh,
+        // nên cộng tất cả các loại sẽ đúng bằng "Doanh thu trừ ship". Bánh tặng (CTKM) không tính doanh thu.
+        let revSelProducts = new Set(); let revProdRows = [];
+        window.revSelectAllProducts = function(all) { revSelProducts = all ? new Set(revProdRows.map(r => r.name)) : new Set(); renderRevenueByProduct(null); };
+        window.renderRevenueByProduct = function(orders, shipOf) {
+            if (orders) {
+                const agg = Object.create(null);
+                orders.forEach(o => {
+                    const lines = (o.products || []).filter(p => p && p.name && !p.isPromoGift);
+                    const gross = lines.reduce((s, p) => s + (Number(p.qty) || 0) * (Number(p.price) || 0), 0);
+                    const net = Math.max(0, (Number(o.total) || 0) - Math.min(shipOf(o), Number(o.total) || 0));
+                    lines.forEach(p => {
+                        const g = (Number(p.qty) || 0) * (Number(p.price) || 0);
+                        const e = agg[p.name] || (agg[p.name] = { name: p.name, qty: 0, rev: 0 });
+                        e.qty += Number(p.qty) || 0; e.rev += gross > 0 ? net * g / gross : 0;
+                    });
+                });
+                revProdRows = Object.values(agg).sort((a, b) => b.rev - a.rev || b.qty - a.qty);
+                const names = new Set(revProdRows.map(r => r.name)); revSelProducts = new Set([...revSelProducts].filter(n => names.has(n)));
+            }
+            const chips = document.getElementById('revProdChips'), list = document.getElementById('revProdList'), tot = document.getElementById('revProdTotal'); if (!chips) return;
+            chips.innerHTML = '';
+            revProdRows.forEach(r => {
+                const on = revSelProducts.has(r.name); const b = document.createElement('button'); b.type = 'button';
+                b.className = `text-[11px] font-semibold px-2.5 py-1 rounded-full border active:scale-95 ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200'}`;
+                b.textContent = r.name; b.onclick = () => { if (revSelProducts.has(r.name)) revSelProducts.delete(r.name); else revSelProducts.add(r.name); renderRevenueByProduct(null); };
+                chips.appendChild(b);
+            });
+            const shown = revSelProducts.size ? revProdRows.filter(r => revSelProducts.has(r.name)) : revProdRows;
+            const sumRev = shown.reduce((s, r) => s + r.rev, 0), sumQty = shown.reduce((s, r) => s + r.qty, 0), max = Math.max(1, ...shown.map(r => r.rev));
+            tot.innerHTML = `<div><p class="text-[10px] uppercase text-indigo-500 font-bold">${revSelProducts.size ? `Tổng ${shown.length} loại đã chọn` : 'Tổng tất cả loại bánh'}</p><p class="text-[10px] text-indigo-400">${sumQty} bánh</p></div><p class="text-lg font-black text-indigo-700">${formatCurrency(Math.round(sumRev))}</p>`;
+            list.innerHTML = shown.length ? shown.map(r => `<div><div class="flex justify-between text-xs"><span class="font-semibold truncate pr-2">${pe(r.name)} <span class="text-gray-400 font-normal">• ${r.qty} cái</span></span><span class="font-bold text-green-600 whitespace-nowrap">${formatCurrency(Math.round(r.rev))}</span></div><div class="h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden"><div class="h-full bg-indigo-400 rounded-full" style="width:${Math.round(r.rev / max * 100)}%"></div></div></div>`).join('') : '<p class="text-xs text-gray-400 italic py-2">Chưa có dữ liệu thanh toán</p>';
+        };
         window.renderRevenueCharts = function() {
             const fromStr = document.getElementById('revFromDate').value; 
             const toStr = document.getElementById('revToDate').value;
@@ -2341,6 +2395,12 @@
             const totalRev = filteredOrders.reduce((sum, o) => sum + o.total, 0);
             document.getElementById('revTotalAmount').innerText = formatCurrency(totalRev);
             document.getElementById('revTotalOrders').innerText = filteredOrders.length;
+            // Phí ship thực thu của đơn = phí ship - phần CTKM giảm ship (không âm). Doanh thu trừ ship = tổng đơn - ship thực thu.
+            const shipOf = o => Math.max(0, (Number(o.shippingFee) || 0) - (Number(o.promoShipDiscount) || 0));
+            const totalShip = filteredOrders.reduce((s, o) => s + Math.min(shipOf(o), Number(o.total) || 0), 0);
+            document.getElementById('revNetAmount').innerText = formatCurrency(totalRev - totalShip);
+            document.getElementById('revShipNote').innerText = `ship thu: ${formatCurrency(totalShip)}`;
+            window.renderRevenueByProduct(filteredOrders, shipOf);
 
             // 2. Tính toán Data cho Chart
             let dailyRev = {}; let productQty = {}; let customerSpends = {};
