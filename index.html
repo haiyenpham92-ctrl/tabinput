@@ -289,6 +289,22 @@
                     <button onclick="savePromo()" class="btn-primary flex-1">Lưu CTKM</button>
                 </div>
             </div>
+            <div class="apple-card p-4 space-y-3">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xs font-bold uppercase text-gray-400">Thống kê giá trị khuyến mãi</h2>
+                    <div class="flex gap-1">
+                        <button type="button" onclick="promoStatsRange('month')" class="text-[10px] font-semibold bg-gray-100 px-2 py-1 rounded-lg active:scale-95">Tháng này</button>
+                        <button type="button" onclick="promoStatsRange('prev')" class="text-[10px] font-semibold bg-gray-100 px-2 py-1 rounded-lg active:scale-95">Tháng trước</button>
+                        <button type="button" onclick="promoStatsRange('all')" class="text-[10px] font-semibold bg-gray-100 px-2 py-1 rounded-lg active:scale-95">Tất cả</button>
+                    </div>
+                </div>
+                <div class="flex gap-2 items-end">
+                    <div class="flex-1"><label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Từ ngày nhận</label><input type="date" id="promoStatFrom" class="input-field py-2 px-3 text-sm" onchange="renderPromos()"></div>
+                    <div class="flex-1"><label class="text-[10px] font-bold text-gray-400 uppercase ml-1 block mb-1">Đến ngày nhận</label><input type="date" id="promoStatTo" class="input-field py-2 px-3 text-sm" onchange="renderPromos()"></div>
+                </div>
+                <label class="flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" id="promoStatPaid" onchange="renderPromos()"> Chỉ tính đơn đã thanh toán</label>
+                <div id="promoStatsSummary"></div>
+            </div>
             <div id="promoList" class="space-y-3"></div>
         </div>
 
@@ -305,6 +321,7 @@
                     <input type="text" id="newProdCode" class="input-field uppercase" placeholder="Mã SP (VD: SP01)">
                     <input type="text" id="newProdName" class="input-field" placeholder="Tên sản phẩm">
                     <input type="number" id="newProdPrice" class="input-field" placeholder="Đơn giá">
+                    <input type="number" id="newProdCost" class="input-field" placeholder="Giá vốn (không bắt buộc, dùng tính chi phí khuyến mãi)">
                     <button onclick="saveProduct()" class="btn-primary w-full">Lưu SP</button>
                 </div>
             </div>
@@ -1325,16 +1342,20 @@
             const ctx = getPromoCtx();
             const productTotal = items.reduce((a, i) => a + i.qty * i.price, 0);
             const manual = dType === 'percent' ? productTotal * (Math.min(dVal, 100) / 100) : dVal;
-            let prod = 0, ship = 0; const gifts = [], applied = [];
+            let prod = 0, ship = 0; const gifts = [], applied = [], detail = [];
             ids.map(id => promosDB.find(x => x.id === id && !x.deleted)).filter(Boolean).forEach(p => {
                 const r = calcPromo(p, items, productTotal, fee, ctx);
                 prod += r.prod; ship += r.ship;
+                if (r.prod > 0 || r.ship > 0 || (r.gifts || []).length) detail.push({ id: p.id, name: p.name, prod: r.prod, ship: r.ship, gifts: (r.gifts || []).map(g => ({ name: g.name, qty: g.qty })) });
                 (r.gifts || []).forEach(g => { const e = gifts.find(x => x.name === g.name); if (e) e.qty += g.qty; else gifts.push({ name: g.name, qty: g.qty }); });
                 if (r.prod > 0 || r.ship > 0 || (r.gifts || []).length) applied.push(p);
             });
             const promoProd = Math.round(Math.min(prod, Math.max(0, productTotal - manual)));
             const promoShip = Math.round(Math.min(ship, fee));
-            return { productTotal, manual, applied, promoProd, promoShip, gifts, total: Math.max(0, Math.round(productTotal - manual - promoProd) + fee - promoShip) };
+            // Chi tiết từng CTKM (đã quy về đúng tổng tiền giảm thực tế của đơn, vì tổng giảm có thể bị chặn trần)
+            const sP = prod > 0 ? promoProd / prod : 0, sS = ship > 0 ? promoShip / ship : 0;
+            detail.forEach(d => { d.prod = Math.round(d.prod * sP); d.ship = Math.round(d.ship * sS); });
+            return { productTotal, manual, applied, promoProd, promoShip, gifts, detail, total: Math.max(0, Math.round(productTotal - manual - promoProd) + fee - promoShip) };
         };
         window.getCartItems = function() {
             return Array.from(document.querySelectorAll('#productList > div')).map(row => {
@@ -1410,8 +1431,83 @@
             }
             return '';
         };
+        // ===== THỐNG KÊ GIÁ TRỊ KHUYẾN MÃI THEO KHOẢNG NGÀY NHẬN =====
+        // Chi phí KM = tiền giảm giá + tiền giảm ship + giá vốn của bánh tặng (giá vốn tự nhập ở Kho SP).
+        // Đơn mới có chi tiết từng CTKM (chính xác). Đơn cũ: 1 CTKM -> chính xác; nhiều CTKM -> tính lại theo cài đặt CTKM hiện tại (ước tính).
+        window.promoStatsRange = function(kind) {
+            const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; const t = new Date(); let a = '', b = '';
+            if (kind === 'month') { a = ymd(new Date(t.getFullYear(), t.getMonth(), 1)); b = ymd(new Date(t.getFullYear(), t.getMonth() + 1, 0)); }
+            else if (kind === 'prev') { a = ymd(new Date(t.getFullYear(), t.getMonth() - 1, 1)); b = ymd(new Date(t.getFullYear(), t.getMonth(), 0)); }
+            document.getElementById('promoStatFrom').value = a; document.getElementById('promoStatTo').value = b; renderPromos();
+        };
+        window.promoStatsCompute = function(fromS, toS, paidOnly) {
+            const from = fromS ? new Date(fromS + 'T00:00:00') : null, to = toS ? new Date(toS + 'T23:59:59.999') : null;
+            const costOf = n => { const pd = productsDB.find(x => x.name === n); return pd && Number(pd.cost) > 0 ? Number(pd.cost) : 0; };
+            const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const by = Object.create(null); const allOrders = new Set(); let allRevenue = 0;
+            const bucket = id => by[id] || (by[id] = { orders: new Set(), revenue: 0, prod: 0, ship: 0, gifts: Object.create(null), giftCost: 0, estimated: false, missing: new Set(), name: '' });
+            ordersDB.forEach(o => {
+                if (!o || o.isDeleted) return; if (paidOnly && o.paymentStatus !== 'paid') return;
+                const d = parseDateStr(o.receiveDate) || new Date(o.date); if (isNaN(d.getTime())) return; if ((from && d < from) || (to && d > to)) return;
+                const ids = Array.isArray(o.promoIds) ? o.promoIds.filter(Boolean) : (o.promoId ? [o.promoId] : []);
+                if (!ids.length && !(Number(o.promoDiscount) > 0 || Number(o.promoShipDiscount) > 0 || (o.promoGifts || []).length)) return;
+                let parts, est = false;
+                if (Array.isArray(o.promoBreakdown) && o.promoBreakdown.length) parts = o.promoBreakdown;
+                else if (ids.length <= 1) parts = [{ id: ids[0] || '?', name: o.promoName || '', prod: Number(o.promoDiscount) || 0, ship: Number(o.promoShipDiscount) || 0, gifts: (o.promoGifts || []).map(g => ({ name: g.name, qty: g.qty })) }];
+                else {
+                    est = true; parts = [];
+                    try {
+                        const items = (o.products || []).filter(x => !x.isPromoGift).map(x => ({ name: x.name, qty: Number(x.qty) || 0, price: Number(x.price) || 0 }));
+                        const pt = items.reduce((s, i) => s + i.qty * i.price, 0); const rd = parseDateStr(o.receiveDate);
+                        const ctx = { created: ymd(new Date(o.date)), receive: rd && !isNaN(rd.getTime()) ? ymd(rd) : '' }; let sp = 0, ss = 0;
+                        ids.forEach(id => { const pr = promosDB.find(x => x.id === id); if (!pr) { parts.push({ id, name: '', prod: 0, ship: 0, gifts: [] }); return; } const r = calcPromo(pr, items, pt, Number(o.shippingFee) || 0, ctx); parts.push({ id, name: pr.name, prod: r.prod, ship: r.ship, gifts: (r.gifts || []).map(g => ({ name: g.name, qty: g.qty })) }); sp += r.prod; ss += r.ship; });
+                        const kp = sp > 0 ? (Number(o.promoDiscount) || 0) / sp : 0, ks = ss > 0 ? (Number(o.promoShipDiscount) || 0) / ss : 0; parts.forEach(x => { x.prod = Math.round(x.prod * kp); x.ship = Math.round(x.ship * ks); });
+                        if (!parts.some(x => x.gifts.length) && (o.promoGifts || []).length && parts.length) parts[0].gifts = o.promoGifts.map(g => ({ name: g.name, qty: g.qty }));
+                    } catch (e) { parts = [{ id: '?', name: o.promoName || '', prod: Number(o.promoDiscount) || 0, ship: Number(o.promoShipDiscount) || 0, gifts: (o.promoGifts || []).map(g => ({ name: g.name, qty: g.qty })) }]; }
+                }
+                allOrders.add(o.id); allRevenue += Number(o.total) || 0;
+                parts.forEach(x => {
+                    const b = bucket(x.id || '?'); if (!b.orders.has(o.id)) { b.orders.add(o.id); b.revenue += Number(o.total) || 0; }
+                    if (x.name && !b.name) b.name = x.name; b.prod += Number(x.prod) || 0; b.ship += Number(x.ship) || 0; if (est) b.estimated = true;
+                    (x.gifts || []).forEach(g => { const q = Number(g.qty) || 0; b.gifts[g.name] = (b.gifts[g.name] || 0) + q; const c = Number(g.cost) > 0 ? Number(g.cost) : costOf(g.name); if (c > 0) b.giftCost += c * q; else b.missing.add(g.name); });
+                });
+            });
+            return { by, orders: allOrders.size, revenue: allRevenue };
+        };
+        window.promoStatBlock = function(b, withName) {
+            if (!b || !b.orders.size) return `<p class="text-[11px] text-gray-400 mt-2">${withName ? '' : 'Chưa có đơn dùng CTKM này trong khoảng ngày đã chọn'}</p>`;
+            const giftTxt = Object.keys(b.gifts).map(n => `${b.gifts[n]} ${pe(n)}`).join(', ');
+            const total = b.prod + b.ship + b.giftCost; const pct = b.revenue > 0 ? (total / b.revenue * 100).toFixed(1) : '0';
+            return `<div class="mt-2 bg-gray-50 rounded-xl p-2.5 text-[11px] text-gray-600 space-y-0.5">
+                <p><b>${b.orders.size}</b> đơn • doanh thu các đơn: <b>${formatCurrency(b.revenue)}</b></p>
+                <p>Giảm giá: <b>${formatCurrency(b.prod)}</b> • Giảm ship: <b>${formatCurrency(b.ship)}</b></p>
+                <p>Bánh tặng: <b>${giftTxt || 'không có'}</b>${giftTxt ? ` • giá vốn: <b>${formatCurrency(b.giftCost)}</b>` : ''}</p>
+                <p class="text-pink-600 font-bold">Chi phí khuyến mãi: ${formatCurrency(total)} <span class="font-normal text-gray-400">(${pct}% doanh thu các đơn)</span></p>
+                ${b.missing.size ? `<p class="text-orange-600">⚠ Chưa nhập giá vốn: ${[...b.missing].map(pe).join(', ')} (chưa tính vào chi phí)</p>` : ''}
+                ${b.estimated ? '<p class="text-gray-400">* Có đơn cũ dùng nhiều CTKM: phần chia giữa các CTKM là ước tính</p>' : ''}
+            </div>`;
+        };
+        let _promoStatInit = false;
         window.renderPromos = function() {
             const list = document.getElementById('promoList'); if (!list) return;
+            if (!_promoStatInit) { _promoStatInit = true; const t = new Date(), ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; document.getElementById('promoStatFrom').value = ymd(new Date(t.getFullYear(), t.getMonth(), 1)); document.getElementById('promoStatTo').value = ymd(new Date(t.getFullYear(), t.getMonth() + 1, 0)); }
+            const st = promoStatsCompute(document.getElementById('promoStatFrom').value, document.getElementById('promoStatTo').value, document.getElementById('promoStatPaid').checked);
+            const activeIds = new Set(promosDB.filter(p => !p.deleted).map(p => p.id));
+            // Tổng hợp + CTKM đã xóa / không xác định
+            const sum = { prod: 0, ship: 0, giftCost: 0, gifts: Object.create(null), missing: new Set() }; const others = { orders: new Set(), revenue: 0, prod: 0, ship: 0, gifts: Object.create(null), giftCost: 0, estimated: false, missing: new Set() };
+            Object.keys(st.by).forEach(id => { const b = st.by[id]; sum.prod += b.prod; sum.ship += b.ship; sum.giftCost += b.giftCost; Object.keys(b.gifts).forEach(n => sum.gifts[n] = (sum.gifts[n] || 0) + b.gifts[n]); b.missing.forEach(n => sum.missing.add(n));
+                if (!activeIds.has(id)) { b.orders.forEach(x => others.orders.add(x)); others.revenue += b.revenue; others.prod += b.prod; others.ship += b.ship; others.giftCost += b.giftCost; others.estimated = others.estimated || b.estimated; Object.keys(b.gifts).forEach(n => others.gifts[n] = (others.gifts[n] || 0) + b.gifts[n]); b.missing.forEach(n => others.missing.add(n)); } });
+            const sumEl = document.getElementById('promoStatsSummary');
+            if (sumEl) {
+                const total = sum.prod + sum.ship + sum.giftCost, giftTxt = Object.keys(sum.gifts).map(n => `${sum.gifts[n]} ${pe(n)}`).join(', ');
+                sumEl.innerHTML = st.orders ? `<div class="bg-pink-50 border border-pink-100 rounded-xl p-3 text-xs text-gray-700 space-y-0.5">
+                    <p class="text-[10px] uppercase text-pink-500 font-bold">Tổng tất cả CTKM trong khoảng ngày</p>
+                    <p><b>${st.orders}</b> đơn có khuyến mãi • doanh thu các đơn: <b>${formatCurrency(st.revenue)}</b></p>
+                    <p>Giảm giá: <b>${formatCurrency(sum.prod)}</b> • Giảm ship: <b>${formatCurrency(sum.ship)}</b></p>
+                    <p>Bánh tặng: <b>${giftTxt || 'không có'}</b>${giftTxt ? ` • giá vốn: <b>${formatCurrency(sum.giftCost)}</b>` : ''}</p>
+                    <p class="text-pink-600 font-bold text-sm">Chi phí khuyến mãi: ${formatCurrency(total)} <span class="font-normal text-xs text-gray-400">(${st.revenue > 0 ? (total / st.revenue * 100).toFixed(1) : '0'}% doanh thu)</span></p>
+                    ${sum.missing.size ? `<p class="text-orange-600">⚠ Chưa nhập giá vốn: ${[...sum.missing].map(pe).join(', ')} — nhập ở tab Kho SP để tính đủ</p>` : ''}</div>` : '<p class="text-xs text-gray-400">Chưa có đơn nào dùng khuyến mãi trong khoảng ngày đã chọn.</p>';
+            }
             const arr = promosDB.filter(p => !p.deleted);
             if (!arr.length) { list.innerHTML = '<p class="text-center text-gray-400 py-10 text-sm">Chưa có chương trình khuyến mãi nào</p>'; return; }
             list.innerHTML = arr.map(p => `<div class="apple-card p-4 ${p.active ? '' : 'opacity-60'}">
@@ -1419,8 +1515,10 @@
                     <div class="flex-1"><p class="font-bold text-sm">${pe(p.name)}</p><p class="text-xs text-pink-600 mt-1">${describePromo(p)}</p>${promoTimeHTML(p)}<p class="text-[10px] text-gray-400 mt-1">${PROMO_TYPES[p.type] ? PROMO_TYPES[p.type].label : ''}</p></div>
                     <label class="inline-flex items-center cursor-pointer relative"><input type="checkbox" class="sr-only peer" ${p.active ? 'checked' : ''} onchange="togglePromo('${p.id}')"><div class="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div></label>
                 </div>
+                ${promoStatBlock(st.by[p.id])}
+                ${(p.startDate || p.endDate) ? `<button type="button" onclick="document.getElementById('promoStatFrom').value='${p.startDate || ''}'; document.getElementById('promoStatTo').value='${p.endDate || ''}'; renderPromos();" class="text-[10px] text-blue-500 underline mt-1">Xem theo thời gian chạy của CTKM này</button>` : ''}
                 <div class="flex gap-4 mt-3 text-xs font-semibold"><button onclick="openPromoForm('${p.id}')" class="text-blue-500">Sửa</button><button onclick="deletePromo('${p.id}')" class="text-red-500">Xóa</button></div>
-            </div>`).join('');
+            </div>`).join('') + (others.orders.size ? `<div class="apple-card p-4"><p class="font-bold text-sm">CTKM đã xóa / không xác định</p>${promoStatBlock(others)}</div>` : '');
         };
         window.onPromoTypeChange = function() {
             const t = PROMO_TYPES[document.getElementById('pf-type').value]; if (!t) return;
@@ -1813,6 +1911,8 @@
             let discountAmount = discountType === 'percent' ? productTotal * (Math.min(discountValue, 100) / 100) : discountValue;
             const money = computeMoney(prods, discountType, discountValue, shipFee, orderPromoIds);
             let finalTotal = money.total;
+            // Chi tiết từng CTKM của đơn (giảm giá, giảm ship, bánh tặng + giá vốn tại lúc lên đơn) để thống kê hiệu quả khuyến mãi
+            const promoBreakdown = (money.detail || []).map(d => ({ id: d.id, name: d.name, prod: d.prod, ship: d.ship, gifts: d.gifts.map(g => { const pd = productsDB.find(x => x.name === g.name); return { name: g.name, qty: g.qty, cost: pd && Number(pd.cost) > 0 ? Number(pd.cost) : 0, price: pd ? (Number(pd.price) || 0) : 0 }; }) }));
             (money.gifts || []).forEach(g => { const pd = productsDB.find(x => x.name === g.name); prods.push({ code: pd ? (pd.code || '') : '', name: g.name, qty: g.qty, price: 0, isPromoGift: true }); });
 
             const order = {
@@ -1822,7 +1922,7 @@
                 deliveryStatus: (existingOrder && existingOrder.deliveryStatus === 'delivered') ? 'delivered' : '', deliveredAt: (existingOrder && existingOrder.deliveryStatus === 'delivered') ? (existingOrder.deliveredAt || '') : '',
                 products: prods, 
                 discountType: discountType, discountValue: discountValue,
-                promoIds: money.applied.map(p => p.id), promoId: money.applied.length ? money.applied[0].id : '', promoName: money.applied.map(p => p.name).join(' + '), promoDiscount: money.promoProd, promoShipDiscount: money.promoShip, promoGifts: money.gifts || [],
+                promoIds: money.applied.map(p => p.id), promoId: money.applied.length ? money.applied[0].id : '', promoName: money.applied.map(p => p.name).join(' + '), promoDiscount: money.promoProd, promoShipDiscount: money.promoShip, promoGifts: money.gifts || [], promoBreakdown: promoBreakdown,
                 total: finalTotal, paymentStatus: existingOrder ? existingOrder.paymentStatus : "unpaid",
                 notes: Array.from(notesChecked).map(c => c.value === 'Other' ? document.getElementById('otherNoteText').value : c.value),
                 source: document.getElementById('orderSource').value || '', // Nguồn khách (chỉ để thống kê, không đưa vào bill)
@@ -3266,12 +3366,19 @@
         window.saveProduct = function() {
             const c = document.getElementById('newProdCode').value.trim().toUpperCase(); const n = document.getElementById('newProdName').value.trim(); const p = document.getElementById('newProdPrice').value;
             if(!c || !n || !p) return showToast("Nhập đủ Mã SP, Tên và Giá"); if(productsDB.some(prod => prod.code === c)) return showToast("Mã SP này đã tồn tại!");
-            productsDB.push({ id: Date.now(), code: c, name: n, price: Math.round(parseFloat(p)) }); saveData(); document.getElementById('newProdCode').value = ''; document.getElementById('newProdName').value = ''; document.getElementById('newProdPrice').value = ''; renderProductsList(); showToast("Đã thêm SP"); logAction('SẢN PHẨM', `Thêm sản phẩm mới [${c}] ${n}`);
+            { const cv = parseFloat(document.getElementById('newProdCost').value); const np = { id: Date.now(), code: c, name: n, price: Math.round(parseFloat(p)), _updatedAt: Date.now() }; if (cv > 0) np.cost = Math.round(cv); productsDB.push(np); } saveData(); document.getElementById('newProdCost').value = ''; document.getElementById('newProdCode').value = ''; document.getElementById('newProdName').value = ''; document.getElementById('newProdPrice').value = ''; renderProductsList(); showToast("Đã thêm SP"); logAction('SẢN PHẨM', `Thêm sản phẩm mới [${c}] ${n}`);
+        };
+        // Lưu giá vốn của sản phẩm (để trống = chưa nhập). Đánh dấu _updatedAt để đồng bộ giữa các máy lấy bản mới nhất.
+        window.setProductCost = function(id, val) {
+            const p = productsDB.find(x => String(x.id) === String(id)); if (!p) return;
+            const v = parseFloat(val); if (v > 0) p.cost = Math.round(v); else delete p.cost;
+            p._updatedAt = Date.now(); saveData(); showToast(v > 0 ? 'Đã lưu giá vốn' : 'Đã xóa giá vốn'); logAction('SẢN PHẨM', `Giá vốn [${p.code || p.name}]: ${v > 0 ? Math.round(v) : 'trống'}`);
+            try { renderPromos(); } catch (e) {}
         };
         window.renderProductsList = function() {
             const l = document.getElementById('dbProductList'); l.innerHTML = '';
             let html = '';
-            productsDB.forEach(p => { html += `<div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm"><div><p class="font-bold text-sm">${p.code ? `<span class="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mr-1">${p.code}</span>` : ''}${p.name || 'Sản phẩm'}</p><p class="text-xs text-gray-500 mt-1">${formatCurrency(p.price)}</p></div><button onclick="productsDB = productsDB.filter(x=>x.id!==${p.id}); saveData(); renderProductsList(); logAction('SẢN PHẨM', 'Xóa sản phẩm [${p.code}]');" class="text-red-400 font-bold p-2">&times;</button></div>`; });
+            productsDB.forEach(p => { html += `<div class="flex justify-between items-center p-3 border-b border-gray-100 bg-white rounded-xl mb-1 shadow-sm"><div><p class="font-bold text-sm">${p.code ? `<span class="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mr-1">${p.code}</span>` : ''}${p.name || 'Sản phẩm'}</p><p class="text-xs text-gray-500 mt-1">${formatCurrency(p.price)}</p><label class="text-[10px] text-gray-400 font-semibold flex items-center gap-1 mt-1">Giá vốn <input type="number" inputmode="numeric" value="${Number(p.cost) > 0 ? Number(p.cost) : ''}" placeholder="chưa nhập" onchange="setProductCost('${p.id}', this.value)" class="w-28 text-xs border border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-black"></label></div><button onclick="productsDB = productsDB.filter(x=>x.id!==${p.id}); saveData(); renderProductsList(); logAction('SẢN PHẨM', 'Xóa sản phẩm [${p.code}]');" class="text-red-400 font-bold p-2">&times;</button></div>`; });
             l.innerHTML = html;
         };
         window.saveSettings = function() { appSettings.gasUrl = document.getElementById('gasUrl').value.trim(); saveData(); showToast("Đã lưu cấu hình"); logAction('CÀI ĐẶT', 'Cập nhật Web App URL'); window.pullDataFromGoogle(true); };
