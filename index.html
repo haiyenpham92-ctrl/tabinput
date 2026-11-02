@@ -136,7 +136,7 @@
         <div class="segmented-control" id="tabsContainer">
             <div id="btn-tab-order" class="segment-btn active" onclick="switchTab('order')">Lên đơn</div>
             <div id="btn-tab-revenue" class="segment-btn" onclick="switchTab('revenue')">Doanh thu</div>
-            <div id="btn-tab-stats" class="segment-btn" onclick="statsOpenToday()">Thống kê</div>
+            <div id="btn-tab-stats" class="segment-btn" onclick="switchTab('stats')">Thống kê</div>
             <div id="btn-tab-capacity" class="segment-btn" onclick="switchTab('capacity')">Đặt bánh</div>
             <div id="btn-tab-shipping" class="segment-btn" onclick="switchTab('shipping')">Giao hàng</div>
             <div id="btn-tab-products" class="segment-btn" onclick="switchTab('products')">Kho SP</div>
@@ -164,6 +164,7 @@
                     <div>
                         <label class="text-xs font-semibold text-gray-500 mb-1 block">Ngày giao bánh</label>
                         <input type="text" id="orderDate" readonly class="input-field cursor-pointer bg-gray-50" placeholder="Chọn ngày" onclick="openDatePicker()">
+                        <p id="orderDateClosedNote" class="hidden-section text-[11px] font-semibold text-red-600 mt-1"></p>
                     </div>
                 </div>
             </div>
@@ -689,6 +690,18 @@
 
         <!-- ================= TAB: CÀI ĐẶT ================= -->
         <div id="tab-settings" class="hidden-section space-y-6 fade-in">
+            <div class="apple-card p-6">
+                <h2 class="text-xs font-bold uppercase text-gray-400 mb-1">Ngày mở bán</h2>
+                <p class="text-[10px] text-gray-400 mb-3">Bấm để bật/tắt từng thứ trong tuần. Ngày bị tắt sẽ không chọn được và không lên đơn được (tính theo ngày giao/nhận bánh). Cài đặt dùng chung cho mọi thiết bị.</p>
+                <div id="salesDaysRow" class="grid grid-cols-7 gap-1.5 mb-4"></div>
+                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Ngày nghỉ đặc biệt (lễ, tết, nghỉ đột xuất)</label>
+                <div class="flex gap-2">
+                    <input type="date" id="salesClosedInput" class="input-field py-2 text-sm">
+                    <button type="button" onclick="addClosedDate()" class="btn-secondary text-xs px-4 whitespace-nowrap">Thêm</button>
+                </div>
+                <div id="salesClosedList" class="flex flex-wrap gap-1.5 mt-2"></div>
+            </div>
+
             <div class="apple-card p-6">
                 <h2 class="text-xs font-bold uppercase text-gray-400 mb-4 flex justify-between items-center">
                     Thiết kế Hóa đơn
@@ -1870,6 +1883,10 @@
                 phone = gen; document.getElementById('custPhone').value = gen;
             }
             if(delivery === 'Ship' && !document.getElementById('shippingAddress').value.trim()){ return showToast("Vui lòng nhập địa chỉ giao hàng"); }
+            { // Ngày không mở bán: không cho lên đơn (đơn đang sửa mà giữ nguyên ngày cũ thì vẫn lưu được)
+                const rdOpen = parseDateStr(receiveDate); const exO = editOrderId ? ordersDB.find(o => o.id === editOrderId) : null;
+                if (rdOpen && !isNaN(rdOpen.getTime()) && !isSalesDayOpen(rdOpen) && !(exO && exO.receiveDate === receiveDate)) return showToast(`Ngày ${String(rdOpen.getDate()).padStart(2, '0')}/${String(rdOpen.getMonth() + 1).padStart(2, '0')} không mở bán, không thể lên đơn. Vui lòng chọn ngày khác.`);
+            }
             const shipFrom = document.querySelector('input[name="shipFrom"]:checked')?.value || '';
             if(delivery === 'Ship' && !shipFrom){ return showToast("Vui lòng chọn Ship từ Thuỵ Khuê hoặc Hoà Mã"); }
 
@@ -2301,7 +2318,45 @@
             if (activeTab && bg && activeTab.style.display !== 'none') { bg.style.width = activeTab.offsetWidth + 'px'; bg.style.transform = `translateX(${activeTab.offsetLeft}px)`; }
         };
 
-        // Bấm vào tab Thống kê: tự chọn ngày hôm nay ở bộ lọc ngày nhận (các bộ lọc khác giữ nguyên)
+        // ===== NGÀY MỞ BÁN (cài đặt chung, lưu trong appSettings.salesConfig và đồng bộ qua Sheet "Settings") =====
+        window.getSalesConfig = function() {
+            const c = appSettings.salesConfig || {};
+            return { days: (Array.isArray(c.days) && c.days.length === 7) ? c.days.map(x => x !== false) : [true, true, true, true, true, true, true], closedDates: Array.isArray(c.closedDates) ? c.closedDates.slice() : [], _updatedAt: Number(c._updatedAt) || 0 };
+        };
+        window.isSalesDayOpen = function(d) { const c = getSalesConfig(); return !!c.days[d.getDay()] && !c.closedDates.includes(capYmd(d)); };
+        function saveSalesConfig(c) {
+            c._updatedAt = Date.now(); appSettings.salesConfig = c; saveData(); renderSalesDaysSettings(); try { refreshClosedNotice(); } catch (e) {}
+        }
+        window.toggleSalesDay = function(dow) {
+            if (!currentUser || currentUser.role !== 'admin') return;
+            const c = getSalesConfig(); c.days[dow] = !c.days[dow]; saveSalesConfig(c);
+            logAction('CÀI ĐẶT', `Ngày mở bán: ${['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][dow]} ${c.days[dow] ? 'MỞ' : 'TẮT'}`);
+            if (!c.days.some(Boolean)) showToast('⚠ Đang tắt tất cả các ngày: sẽ không lên được đơn nào');
+        };
+        window.addClosedDate = function() {
+            if (!currentUser || currentUser.role !== 'admin') return;
+            const el = document.getElementById('salesClosedInput'); const v = el.value; if (!v) return showToast('Chọn ngày nghỉ cần thêm');
+            const c = getSalesConfig(); if (!c.closedDates.includes(v)) c.closedDates.push(v);
+            const old = new Date(); old.setDate(old.getDate() - 90); const cut = capYmd(old); c.closedDates = c.closedDates.filter(x => x >= cut).sort(); // tự dọn ngày nghỉ đã qua quá 90 ngày
+            el.value = ''; saveSalesConfig(c); logAction('CÀI ĐẶT', `Thêm ngày nghỉ ${v}`);
+        };
+        window.removeClosedDate = function(v) {
+            if (!currentUser || currentUser.role !== 'admin') return;
+            const c = getSalesConfig(); c.closedDates = c.closedDates.filter(x => x !== v); saveSalesConfig(c); logAction('CÀI ĐẶT', `Bỏ ngày nghỉ ${v}`);
+        };
+        window.renderSalesDaysSettings = function() {
+            const row = document.getElementById('salesDaysRow'), lst = document.getElementById('salesClosedList'); if (!row || !lst) return;
+            const c = getSalesConfig(); const order = [1, 2, 3, 4, 5, 6, 0], names = { 1: 'T2', 2: 'T3', 3: 'T4', 4: 'T5', 5: 'T6', 6: 'T7', 0: 'CN' };
+            row.innerHTML = order.map(dw => `<button type="button" onclick="toggleSalesDay(${dw})" class="py-2 rounded-xl text-xs font-bold border active:scale-95 ${c.days[dw] ? 'bg-green-500 text-white border-green-500' : 'bg-gray-100 text-gray-400 border-gray-200 line-through'}">${names[dw]}<span class="block text-[9px] font-semibold no-underline">${c.days[dw] ? 'Mở' : 'Tắt'}</span></button>`).join('');
+            lst.innerHTML = c.closedDates.length ? c.closedDates.map(v => { const [y, m, d] = v.split('-'); return `<span class="inline-flex items-center gap-1 bg-red-50 text-red-600 text-[11px] font-semibold px-2.5 py-1 rounded-full">${d}/${m}/${y}<button type="button" onclick="removeClosedDate('${v}')" class="text-red-400 font-bold px-1">&times;</button></span>`; }).join('') : '<span class="text-[11px] text-gray-400">Chưa có ngày nghỉ đặc biệt</span>';
+        };
+        // Cảnh báo ngay dưới ô ngày khi ngày đang chọn không mở bán
+        window.refreshClosedNotice = function() {
+            const el = document.getElementById('orderDateClosedNote'); if (!el) return;
+            const d = parseDateStr(document.getElementById('orderDate').value); const ex = editOrderId ? ordersDB.find(o => o.id === editOrderId) : null;
+            const closed = d && !isNaN(d.getTime()) && !isSalesDayOpen(d) && !(ex && ex.receiveDate === document.getElementById('orderDate').value);
+            el.innerText = closed ? '⚠ Ngày này không mở bán, hãy chọn ngày khác' : ''; el.classList.toggle('hidden-section', !closed);
+        };
         window.statsQuickRange = function(kind) {
             const t = new Date(); t.setHours(0, 0, 0, 0); const add = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
             let a = '', b = '';
@@ -2330,6 +2385,7 @@
             if(tabId === 'stats') { document.getElementById('selectAllBtn').checked = false; renderStats(); }
             if(tabId === 'crm') { renderCrmList(); }
             if(tabId === 'promos') { renderPromos(); }
+            if(tabId === 'settings') { renderSalesDaysSettings(); }
             if(tabId === 'capacity') { renderCapacity(); }
             if(tabId === 'revenue') { renderRevenueCharts(); }
             if(tabId === 'shipping') { renderShipperManagementList(); populateShipperDropdowns(); renderShippingStats(); }
@@ -2617,7 +2673,8 @@
             for(let d=1; d<=daysInMonth; d++) {
                 const dObj = new Date(y, m, d); const isPast = !editOrderId && dObj < today; /* Khi đang SỬA đơn thì cho chọn cả ngày trong quá khứ */ const isTueThuSat = [2,4,6].includes(dObj.getDay()); const isSel = dObj.toDateString() === selectedDate.toDateString();
                 let classes = "w-9 h-9 flex items-center justify-center rounded-full text-sm font-medium mx-auto cursor-pointer transition-colors";
-                if(isPast) classes += " text-gray-300 pointer-events-none"; else if(isSel) classes += " bg-black text-white"; else if(isTueThuSat) classes += " bg-indigo-50 text-indigo-600"; else classes += " text-gray-700 hover:bg-gray-100";
+                const isClosed = !isSalesDayOpen(dObj) && !(editOrderId && isSel); // ngày không mở bán: không chọn được (trừ ngày hiện tại của đơn đang sửa)
+                if(isPast) classes += " text-gray-300 pointer-events-none"; else if(isClosed) classes += " bg-red-50 text-red-300 line-through pointer-events-none"; else if(isSel) classes += " bg-black text-white"; else if(isTueThuSat) classes += " bg-indigo-50 text-indigo-600"; else classes += " text-gray-700 hover:bg-gray-100";
                 html += `<div class="${classes}" onclick="selectDate(${y},${m},${d})">${d}</div>`;
             }
             grid.innerHTML = html;
@@ -2782,6 +2839,7 @@
             }
             document.getElementById('totalPrice').innerText = formatCurrency(m.total);
             try { refreshStockWarnings(); } catch (e) {}
+            try { refreshClosedNotice(); } catch (e) {}
         };
         window.resolveConfirm = function(val) { if(confirmResolver) { confirmResolver(val); confirmResolver = null; } };
 
@@ -3418,6 +3476,13 @@
         // Link tải dữ liệu luôn kèm tham số thời gian để không bao giờ nhận bản lưu đệm cũ của trình duyệt
         window.gasGetUrl = function() { const u = appSettings.gasUrl; return u + (u.indexOf('?') > -1 ? '&' : '?') + '_t=' + Date.now(); };
 
+        // Nhận cài đặt "Ngày mở bán" từ Sheet nếu bản trên Sheet mới hơn bản trên máy này
+        function adoptCloudSalesConfig(s) {
+            try {
+                const cc = s && s.salesConfig; if (!cc || !(Number(cc._updatedAt) > getSalesConfig()._updatedAt)) return;
+                appSettings.salesConfig = cc; localStorage.setItem('mySettings', JSON.stringify(appSettings)); renderSalesDaysSettings(); refreshClosedNotice();
+            } catch (e) { console.warn('salesConfig', e); }
+        }
         // fetch có giới hạn thời gian: mạng treo quá lâu thì ngắt để thử lại, không để app đứng ở "Đang đồng bộ..."
         function fetchTimeout(url, opts, ms) {
             const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms || 60000);
@@ -3449,6 +3514,7 @@
                     if (cloudData.shippers) shippersDB = mergeDataLists(shippersDB, cloudData.shippers);
                     if (Array.isArray(cloudData.promotions)) promosDB = mergeDataLists(promosDB, cloudData.promotions);
                     if (Array.isArray(cloudData.capacity)) capMergeFromCloud(cloudData.capacity);
+                    adoptCloudSalesConfig(cloudData.settings);
                     
                     localStorage.setItem('myOrders', JSON.stringify(ordersDB));
                     localStorage.setItem('myCustomers', JSON.stringify(customersDB));
@@ -3564,6 +3630,7 @@
                         localStorage.setItem('myOrders', JSON.stringify(ordersDB)); 
                         if (!document.getElementById('tab-stats').classList.contains('hidden-section')) { renderStats(); } 
                     }
+                    adoptCloudSalesConfig(data.settings);
                     if (data.settings && data.settings.invoiceConfig) { appSettings.invoiceConfig = data.settings.invoiceConfig; if(data.settings.qrCode) appSettings.qrCode = data.settings.qrCode; localStorage.setItem('mySettings', JSON.stringify(appSettings)); }
                     
                     isCloudSyncReady = true; status.innerText = "Đồng bộ hoàn tất"; status.className = "text-green-500 text-[11px] font-semibold mt-1 cursor-pointer hover:text-green-600 transition-colors";
