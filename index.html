@@ -271,6 +271,7 @@
                 <div id="pw-buyN"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Mua (N cái)</label><input type="number" id="pf-buyN" class="input-field py-2 text-sm" placeholder="VD: 2"></div>
                 <div id="pw-getM"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Tặng (M cái)</label><input type="number" id="pf-getM" class="input-field py-2 text-sm" placeholder="VD: 1"></div>
                 <div id="pw-gifts"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Sản phẩm tặng (chọn nhiều, nhập số lượng)</label><div id="pf-gifts" class="space-y-2"></div></div>
+                <div id="pw-comboItems"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Các sản phẩm trong combo (chọn SP + số lượng mỗi combo)</label><div id="pf-combo" class="space-y-2"></div></div>
                 <div id="pw-pool"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Nhóm sản phẩm áp dụng (chọn nhiều)</label><div id="pf-pool" class="max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-2"></div></div>
                 <div class="flex gap-2">
                     <div id="pw-unit" class="w-1/3"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Đơn vị</label><select id="pf-unit" class="input-field py-2 text-sm px-1" onchange="onPromoTypeChange()"><option value="percent">%</option><option value="amount">VNĐ</option></select></div>
@@ -1277,12 +1278,13 @@
             prod_pct: { label: 'Mua N sản phẩm → giảm % trên chính SP đó', f: ['prodA','qty','value'], vl: 'Giảm (%)' },
             prod_tier: { label: 'Mua sản phẩm A theo mốc số lượng → giảm giá (nhiều mốc)', f: ['target','prodA','unit','tiers','perUnit'] },
             combo: { label: 'Mua combo SP A + SP B → giảm giá mỗi combo', f: ['prodA','prodB','value','unit'], vl: 'Mức giảm mỗi combo' },
+            combo_set: { label: 'Mua combo nhiều SP (A + B + C ...) → giá combo cố định hoặc giảm %', f: ['comboItems','unit','value'], vl: 'Giá combo (VNĐ)' },
             qty_tier: { label: 'Mua từ N sản phẩm → giảm giá (mốc 2, 4, ...)', f: ['target','prodA','qty','value','unit','perUnit','minTotal'], vl: 'Mức giảm' },
             bogo: { label: 'Mua N sản phẩm A → tặng nhiều sản phẩm (chọn số lượng)', f: ['prodA','buyN','gifts'] },
             gift_total: { label: 'Đơn từ X đồng → tặng sản phẩm (chọn nhiều, có số lượng)', f: ['minTotal','gifts'] },
             pool_tier: { label: 'Mua N SP bất kỳ trong nhóm → giảm giá (nhiều mốc, VD 2 và 4)', f: ['target','pool','unit','tiers','perUnit'] }
         };
-        const ALL_PF = ['target','prodA','prodB','qty','buyN','getM','gifts','pool','unit','value','tiers','perUnit','minTotal'];
+        const ALL_PF = ['comboItems','target','prodA','prodB','qty','buyN','getM','gifts','pool','unit','value','tiers','perUnit','minTotal'];
 
         window.getPromoCtx = function() {
             const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1335,6 +1337,14 @@
                     const q = qtyOf(A), base = p.target === 'order' ? productTotal : lineOf(A);
                     let best = null; (p.tiers || []).forEach(tr => { if (q >= tr.qty && (!best || tr.qty > best.qty)) best = tr; });
                     if (best) R.prod = p.unit === 'percent' ? base * Math.min(best.value, 100) / 100 : (p.perUnit ? best.value * q : best.value);
+                }
+            }
+            else if (p.type === 'combo_set') {
+                const its = (p.items || []).filter(x => x.name && x.qty > 0);
+                if (its.length >= 2) {
+                    const sets = Math.min(...its.map(x => Math.floor(qtyOf(x.name) / x.qty)));
+                    const base = its.reduce((a, x) => a + x.qty * priceOf(x.name), 0);
+                    if (sets >= 1) R.prod = p.unit === 'percent' ? sets * base * Math.min(v, 100) / 100 : sets * Math.max(0, base - v);
                 }
             }
             else if (p.type === 'combo') {
@@ -1406,7 +1416,11 @@
                 const r = calcPromo(p, items, productTotal, fee, ctx);
                 shipLevel += (r.ship || 0);
                 if (!r.prod) return;
-                if (p.type === 'combo' && p.prodA && p.prodB) {
+                if (p.type === 'combo_set' && (p.items || []).length) {
+                    const its = p.items.filter(x => x.name), ls = its.map(x => items.filter(i => i.name === x.name).reduce((a, i) => a + i.qty * i.price, 0));
+                    const tot = ls.reduce((a, b) => a + b, 0) || 1;
+                    its.forEach((x, k) => addP(x.name, r.prod * ls[k] / tot));
+                } else if (p.type === 'combo' && p.prodA && p.prodB) {
                     const la = items.filter(i => i.name === p.prodA).reduce((a, i) => a + i.qty * i.price, 0);
                     const lb = items.filter(i => i.name === p.prodB).reduce((a, i) => a + i.qty * i.price, 0);
                     const tot = la + lb || 1;
@@ -1450,6 +1464,7 @@
                 case 'ship_amt': return `Giảm ${formatCurrency(p.value)} phí ship${min}`;
                 case 'prod_pct': return `Mua từ ${p.qty} ${A} → giảm ${p.value}% tiền SP đó`;
                 case 'prod_tier': { const baseNote = p.unit === 'percent' ? (p.target === 'order' ? ' (tính % trên toàn đơn)' : ' (tính % trên SP đó)') : (p.perUnit ? ' (giảm trên mỗi SP)' : ' (giảm trên tổng SP đó)'); return `Mua ${A} theo mốc${baseNote}: ` + (p.tiers || []).map(t => `từ ${t.qty} giảm ${p.unit === 'percent' ? t.value + '%' : formatCurrency(t.value)}`).join('; '); }
+                case 'combo_set': { const ci = (p.items || []).map(x => `${x.qty}x ${pe(x.name)}`).join(' + '); return p.unit === 'percent' ? `Combo ${ci} → giảm ${p.value}%` : `Combo ${ci} → giá ${formatCurrency(p.value)}`; }
                 case 'combo': return `Mua ${A} + ${pe(p.prodB)} → giảm ${val} mỗi combo`;
                 case 'qty_tier': { const note = p.unit === 'percent' ? '' : (p.perUnit ? ' (mỗi SP)' : ' (tổng)'); return `Mua từ ${p.qty} ${A} → giảm ${val}${note}${min}`; }
                 case 'bogo': return (p.gifts && p.gifts.length) ? `Mua ${p.buyN} ${A} → tặng ${gt}` : `Mua ${p.buyN} tặng ${p.getM} ${A}`;
@@ -1556,7 +1571,14 @@
                 if (f === 'perUnit') show = show && document.getElementById('pf-unit').value === 'amount' && document.getElementById('pf-target').value !== 'order';
                 document.getElementById('pw-' + f).classList.toggle('hidden-section', !show);
             });
-            document.getElementById('pl-value').innerText = t.vl || 'Mức giảm';
+            const uSel = document.getElementById('pf-unit');
+            if (curType === 'combo_set') {
+                uSel.options[0].text = 'Giảm %'; uSel.options[1].text = 'Giá cố định';
+                document.getElementById('pl-value').innerText = uSel.value === 'percent' ? 'Giảm (%) trên giá lẻ của combo' : 'Giá combo (VNĐ) cho mỗi bộ';
+            } else {
+                uSel.options[0].text = '%'; uSel.options[1].text = 'VNĐ';
+                document.getElementById('pl-value').innerText = t.vl || 'Mức giảm';
+            }
             document.getElementById('pl-prodA').innerText = 'Sản phẩm A';
             if (t.f.includes('target')) {
                 const targetSel = document.getElementById('pf-target'), isPool = curType === 'pool_tier';
@@ -1566,7 +1588,10 @@
             }
             document.getElementById('pf-unit').disabled = false;
         };
-        let pfGifts = [], pfTiers = [], pfPool = [];
+        let pfGifts = [], pfTiers = [], pfPool = [], pfCombo = [];
+        window.renderComboEditor = function() {
+            document.getElementById('pf-combo').innerHTML = pfCombo.map((g, i) => `<div class="flex gap-2 items-center"><select class="input-field py-2 text-sm flex-1" onchange="pfCombo[${i}].name=this.value">${prodOpts(g.name)}</select><input type="number" min="1" class="input-field py-2 text-sm w-20" value="${g.qty || 1}" oninput="pfCombo[${i}].qty=parseInt(this.value)||0"><button type="button" class="text-red-400 px-2" onclick="pfCombo.splice(${i},1);renderComboEditor()">✕</button></div>`).join('') + '<button type="button" class="text-xs font-bold text-pink-600" onclick="pfCombo.push({name:\'\',qty:1});renderComboEditor()">+ Thêm sản phẩm vào combo</button>';
+        };
         const prodOpts = sel => '<option value="">-- Chọn sản phẩm --</option>' + productsDB.map(p => `<option value="${pe(p.name)}" ${p.name === sel ? 'selected' : ''}>${p.code ? '[' + pe(p.code) + '] ' : ''}${pe(p.name)}</option>`).join('');
         window.renderGiftEditor = function() {
             document.getElementById('pf-gifts').innerHTML = pfGifts.map((g, i) => `<div class="flex gap-2 items-center"><select class="input-field py-2 text-sm flex-1" onchange="pfGifts[${i}].name=this.value">${prodOpts(g.name)}</select><input type="number" min="1" class="input-field py-2 text-sm w-20" value="${g.qty || 1}" oninput="pfGifts[${i}].qty=parseInt(this.value)||0"><button type="button" onclick="pfGifts.splice(${i},1);renderGiftEditor()" class="text-red-500 px-2"><i class="fas fa-times"></i></button></div>`).join('') + `<button type="button" onclick="pfGifts.push({name:'',qty:1});renderGiftEditor()" class="text-blue-500 text-xs font-semibold">+ Thêm sản phẩm tặng</button>`;
@@ -1594,8 +1619,9 @@
             pfGifts = p && p.gifts && p.gifts.length ? JSON.parse(JSON.stringify(p.gifts)) : (p && p.type === 'bogo' && p.prodA && p.getM ? [{ name: p.prodA, qty: p.getM }] : [{ name: '', qty: 1 }]);
             pfTiers = p && p.tiers && p.tiers.length ? JSON.parse(JSON.stringify(p.tiers)) : [{ qty: 2, value: 0 }];
             pfPool = p && p.pool ? p.pool.slice() : [];
+            pfCombo = p && p.items && p.items.length ? JSON.parse(JSON.stringify(p.items)) : [{ name: '', qty: 1 }, { name: '', qty: 1 }, { name: '', qty: 1 }];
             document.getElementById('pf-perunit').checked = !!(p && p.perUnit);
-            renderGiftEditor(); renderTierEditor(); renderPoolEditor();
+            renderGiftEditor(); renderTierEditor(); renderPoolEditor(); renderComboEditor();
             onPromoTypeChange();
             document.getElementById('promoForm').classList.remove('hidden-section');
             document.getElementById('promoForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1608,6 +1634,7 @@
             const p = { id: g('pf-id') || `KM${Date.now().toString().slice(-8)}`, name, type, active: true, target: t.f.includes('target') ? g('pf-target') : '', prodA: g('pf-prodA'), prodB: g('pf-prodB'), qty: n('pf-qty'), buyN: n('pf-buyN'), getM: n('pf-getM'), unit: t.f.includes('unit') ? g('pf-unit') : (type === 'pct_total' || type === 'prod_pct' ? 'percent' : 'amount'), value: n('pf-value'), minTotal: n('pf-min'), startDate: g('pf-start'), endDate: g('pf-end'), dateBasis: g('pf-basis'), exclusive: document.getElementById('pf-excl').checked, perUnit: t.f.includes('perUnit') && document.getElementById('pf-target').value !== 'order' && document.getElementById('pf-perunit').checked, _updatedAt: Date.now() };
             if (p.startDate && p.endDate && p.startDate > p.endDate) return showToast('Ngày bắt đầu phải trước ngày kết thúc!');
             p.gifts = t.f.includes('gifts') ? pfGifts.filter(g => g.name && g.qty > 0) : [];
+            p.items = type === 'combo_set' ? pfCombo.filter(x => x.name && x.qty > 0) : [];
             p.pool = t.f.includes('pool') ? pfPool.slice() : [];
             p.tiers = t.f.includes('tiers') ? pfTiers.filter(x => x.qty > 0 && x.value > 0) : [];
             if (t.f.includes('gifts') && !p.gifts.length) return showToast('Chọn ít nhất 1 sản phẩm tặng!');
@@ -1617,6 +1644,10 @@
             if (t.f.includes('value') && p.value <= 0) return showToast('Nhập mức giảm hợp lệ!');
             if (t.f.includes('target') && p.target !== 'product' && type !== 'prod_tier') p.prodA = '';
             if (t.f.includes('prodA') && (type === 'prod_tier' || !t.f.includes('target') || p.target === 'product') && !p.prodA) return showToast('Chọn sản phẩm!');
+            if (type === 'combo_set') {
+                if (p.items.length < 2 || new Set(p.items.map(x => x.name)).size !== p.items.length) return showToast('Combo cần ít nhất 2 sản phẩm khác nhau!');
+                if (p.unit === 'percent' && p.value > 100) return showToast('Giảm % không quá 100!');
+            }
             if (type === 'combo' && (!p.prodA || !p.prodB || p.prodA === p.prodB)) return showToast('Chọn 2 sản phẩm khác nhau!');
             if ((type === 'prod_pct' || type === 'qty_tier') && p.qty < 1) return showToast('Nhập số lượng tối thiểu!');
             if (type === 'bogo' && p.buyN < 1) return showToast('Nhập số lượng mua!');
