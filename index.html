@@ -348,7 +348,11 @@
             <div class="apple-card p-4 space-y-3">
                 <div class="flex justify-between items-center border-b border-gray-100 pb-2">
                     <h2 class="text-xs font-bold uppercase text-gray-400">Tổng hợp bánh theo ngày nhận</h2>
-                    <button onclick="window.toggleZeroPriceInSum()" id="btnToggleZeroPriceSum" class="text-[10px] text-gray-500 font-semibold bg-gray-100 px-2 py-1 rounded-lg hover:bg-gray-200 transition active:scale-95">Hiện SP 0đ</button>
+                    <div class="flex gap-1.5">
+                        <button onclick="window.resetSumOrder()" id="btnResetSumOrder" class="hidden-section text-[10px] text-gray-500 font-semibold bg-gray-100 px-2 py-1 rounded-lg hover:bg-gray-200 transition active:scale-95">Về mặc định</button>
+                        <button onclick="window.toggleSumSort()" id="btnSumSort" class="text-[10px] text-gray-500 font-semibold bg-gray-100 px-2 py-1 rounded-lg hover:bg-gray-200 transition active:scale-95">Sắp xếp</button>
+                        <button onclick="window.toggleZeroPriceInSum()" id="btnToggleZeroPriceSum" class="text-[10px] text-gray-500 font-semibold bg-gray-100 px-2 py-1 rounded-lg hover:bg-gray-200 transition active:scale-95">Hiện SP 0đ</button>
+                    </div>
                 </div>
                 <div id="productSumTotalBox" class="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 flex items-center justify-between gap-3" style="display:none">
                     <div class="min-w-0">
@@ -2344,32 +2348,56 @@
             });
 
             let html = '';
-            // Sắp xếp theo thứ tự Kho SP, loại nào không có thì cho bằng 0
+            const chips = [];
+            // Mặc định theo thứ tự Kho SP; loại nào không có thì cho bằng 0
             productsDB.forEach(dbProd => {
                 const qty = counts[dbProd.name] || 0;
                 const isZeroPrice = Math.round(parseFloat(dbProd.price)) === 0;
-                if(!isZeroPrice || showZeroPriceInSum) {
-                    html += `
-                        <div class="flex flex-col border border-gray-200 rounded-xl p-2 bg-white flex-1 min-w-[30%] text-center">
-                            <span class="text-[9px] font-bold text-gray-500 mb-1 line-clamp-2">${dbProd.name}</span>
-                            <span class="text-lg font-black ${qty > 0 ? 'text-blue-600' : 'text-gray-300'}">${qty}</span>
-                        </div>
-                    `;
-                }
+                if(!isZeroPrice || showZeroPriceInSum) chips.push({ name: dbProd.name, qty, extra: false });
                 delete counts[dbProd.name]; // Xóa khỏi danh sách để lát duyệt các món lạ
             });
-
-            // Duyệt nốt các món lạ (không có trong kho nhưng khách cứ đặt)
-            Object.entries(counts).forEach(([name, qty]) => {
-                html += `
-                    <div class="flex flex-col border border-gray-200 rounded-xl p-2 bg-gray-50 flex-1 min-w-[30%] text-center">
-                        <span class="text-[9px] font-bold text-gray-500 mb-1 line-clamp-2">${name}</span>
-                        <span class="text-lg font-black text-orange-500">${qty}</span>
-                    </div>
-                `;
+            // Các món lạ (không có trong kho nhưng khách cứ đặt)
+            Object.entries(counts).forEach(([name, qty]) => chips.push({ name, qty, extra: true }));
+            // Áp dụng thứ tự tự sắp xếp (lưu trên thiết bị này); loại chưa có trong thứ tự giữ vị trí mặc định ở cuối
+            const ord = getSumOrder(), idx = n => { const i = ord.indexOf(n); return i < 0 ? 1e9 : i; };
+            chips.map((c, i) => [c, i]).sort((x, y) => (idx(x[0].name) - idx(y[0].name)) || (x[1] - y[1])).forEach(([c]) => {
+                const cls = c.extra ? 'bg-gray-50' : 'bg-white', col = c.extra ? 'text-orange-500' : (c.qty > 0 ? 'text-blue-600' : 'text-gray-300');
+                html += `<div data-sum="${pe(c.name)}" class="sum-chip flex flex-col border ${sumSortMode ? 'border-dashed border-blue-300 cursor-grab' : 'border-gray-200'} rounded-xl p-2 ${cls} flex-1 min-w-[30%] text-center select-none" ${sumSortMode ? 'style="touch-action:none"' : ''}><span class="text-[9px] font-bold text-gray-500 mb-1 line-clamp-2">${pe(c.name)}</span><span class="text-lg font-black ${col}">${c.qty}</span></div>`;
             });
             grid.innerHTML = html;
         };
+        // ===== Kéo thả sắp xếp loại bánh trong Tổng hợp (lưu trên thiết bị này) =====
+        let sumSortMode = false;
+        window.getSumOrder = function() { try { const a = JSON.parse(localStorage.getItem('mySumOrder') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+        window.toggleSumSort = function() {
+            sumSortMode = !sumSortMode;
+            document.getElementById('btnSumSort').innerText = sumSortMode ? 'Xong' : 'Sắp xếp';
+            document.getElementById('btnResetSumOrder').classList.toggle('hidden-section', !sumSortMode);
+            window.renderProductSumTable(lastProductSumOrders);
+        };
+        window.resetSumOrder = function() { try { localStorage.removeItem('mySumOrder'); } catch (e) {} window.renderProductSumTable(lastProductSumOrders); showToast('Đã về thứ tự mặc định'); };
+        (function() {
+            let drag = null;
+            document.addEventListener('pointerdown', ev => {
+                if (!sumSortMode) return; const chip = ev.target.closest && ev.target.closest('.sum-chip'); if (!chip || !chip.parentElement || chip.parentElement.id !== 'productSumGrid') return;
+                if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+                ev.preventDefault(); drag = chip; chip.classList.add('opacity-60', 'shadow-lg');
+                try { chip.setPointerCapture(ev.pointerId); } catch (e) {}
+            });
+            document.addEventListener('pointermove', ev => {
+                if (!drag) return;
+                const t = document.elementFromPoint(ev.clientX, ev.clientY), over = t && t.closest ? t.closest('.sum-chip') : null;
+                if (!over || over === drag || over.parentElement !== drag.parentElement) return;
+                if (drag.compareDocumentPosition(over) & Node.DOCUMENT_POSITION_FOLLOWING) over.after(drag); else over.before(drag);
+            });
+            const end = () => {
+                if (!drag) return; drag.classList.remove('opacity-60', 'shadow-lg');
+                const dom = [...document.querySelectorAll('#productSumGrid .sum-chip')].map(c => c.dataset.sum), prev = getSumOrder().filter(n => !dom.includes(n));
+                try { localStorage.setItem('mySumOrder', JSON.stringify(dom.concat(prev))); } catch (e) {}
+                drag = null;
+            };
+            document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+        })();
 
         window.updateSliderPosition = function() {
             const activeTab = document.querySelector('.segment-btn.active'); const bg = document.getElementById('segment-glider');
